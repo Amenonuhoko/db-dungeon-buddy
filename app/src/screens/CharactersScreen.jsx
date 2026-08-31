@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
   ABILITY_KEYS,
-  addCondition,
   BLANK_ABILITIES,
   createSheet,
   EXAMPLES,
@@ -18,12 +17,15 @@ import {
   removeSheet,
   sheetsToMarkdown,
   sheetToMarkdown,
-  updateSheet,
 } from '../lib/characters.js';
 import { listCampaignMembers } from '../lib/campaigns.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
+// The roster: create/hand out a sheet, a quick-glance card per character,
+// Export, and Delete. Actually reading or editing one sheet is a whole
+// screen of its own — see CharacterSheetScreen.jsx / BIBLE.md §3/§9 —
+// this list's job is picking which one, not showing it in full.
 const BLANK_FORM = {
   name: '',
   classAndLevel: '',
@@ -39,11 +41,10 @@ const BLANK_FORM = {
   playerId: '',
 };
 
-const BLANK_CONDITION = { label: '', note: '', visibleToParty: true };
-
 export function CharactersScreen() {
   const { campaignId, isDM, isGuest } = useOutletContext();
   const { status, user } = useSession();
+  const navigate = useNavigate();
 
   const [sheets, setSheets] = useState([]);
   const [conditions, setConditions] = useState([]);
@@ -52,11 +53,7 @@ export function CharactersScreen() {
   const [error, setError] = useState(null);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(BLANK_FORM);
-
-  const [conditionFormFor, setConditionFormFor] = useState(null);
-  const [conditionForm, setConditionForm] = useState(BLANK_CONDITION);
 
   // A guest who chose "Player" at the door already gets that choice
   // respected everywhere else (Encyclopedia/Bestiary lock to read-only
@@ -84,14 +81,6 @@ export function CharactersScreen() {
     }
   }, [status, campaignId, isDM]);
 
-  const conditionsByCharacterId = useMemo(() => {
-    const map = {};
-    for (const c of conditions) {
-      (map[c.characterId] ||= []).push(c);
-    }
-    return map;
-  }, [conditions]);
-
   function canEditSheet(sheet) {
     if (isDM) return true;
     if (isGuest) return sheet.playerId === LOCAL_PLAYER_ID;
@@ -99,19 +88,11 @@ export function CharactersScreen() {
   }
 
   function startCreate() {
-    setEditingId(null);
     setForm({ ...BLANK_FORM, playerId: isGuest ? LOCAL_PLAYER_ID : '' });
     setShowForm(true);
   }
 
-  function startEdit(sheet) {
-    setEditingId(sheet.id);
-    setForm({ ...BLANK_FORM, ...sheet, abilities: { ...BLANK_ABILITIES, ...sheet.abilities } });
-    setShowForm(true);
-  }
-
   function useTemplate(example) {
-    setEditingId(null);
     setForm({
       ...BLANK_FORM,
       ...example,
@@ -132,16 +113,11 @@ export function CharactersScreen() {
       currentHp: form.currentHp === '' ? null : Number(form.currentHp),
     };
     try {
-      if (editingId) {
-        const updated = await updateSheet(status, campaignId, editingId, fields);
-        setSheets((prev) => prev.map((s) => (s.id === editingId ? updated : s)));
-      } else {
-        const created = await createSheet(status, campaignId, fields);
-        setSheets((prev) => [created, ...prev]);
-      }
+      const created = await createSheet(status, campaignId, fields);
+      setSheets((prev) => [created, ...prev]);
       setShowForm(false);
       setForm(BLANK_FORM);
-      setEditingId(null);
+      navigate(`/campaigns/${campaignId}/characters/${created.id}`);
     } catch (err) {
       setError(err.message);
     }
@@ -162,27 +138,10 @@ export function CharactersScreen() {
     }
   }
 
-  async function handleAddCondition(event, sheetId) {
-    event.preventDefault();
-    if (!conditionForm.label.trim()) return;
-    try {
-      const created = await addCondition(status, campaignId, { ...conditionForm, characterId: sheetId });
-      setConditions((prev) => [...prev, created]);
-      setConditionFormFor(null);
-      setConditionForm(BLANK_CONDITION);
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function handleRemoveCondition(id) {
-    try {
-      await removeCondition(status, campaignId, id);
-      setConditions((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
+  const conditionsByCharacterId = conditions.reduce((map, c) => {
+    (map[c.characterId] ||= []).push(c);
+    return map;
+  }, {});
 
   return (
     <div>
@@ -206,7 +165,7 @@ export function CharactersScreen() {
         )}
       </div>
 
-      {canCreate && (
+      {canCreate && !showForm && (
         <ExampleGallery
           items={EXAMPLES}
           isEmpty={sheets.length === 0}
@@ -228,10 +187,11 @@ export function CharactersScreen() {
         <Panel style={{ marginBottom: '1.5rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <p className="hint-text">
-              Who are they, how do they fight, and what's one thing that makes them a person, not a stat block?
+              Who are they, how do they fight, and what's one thing that makes them a person, not a stat block? The
+              full sheet — everything else, HP tracking, conditions — opens once this is saved.
             </p>
 
-            {!isGuest && !editingId && (
+            {!isGuest && (
               <div className="field">
                 <label htmlFor="sheetPlayer">Hand this sheet to</label>
                 {players.length === 0 ? (
@@ -316,7 +276,7 @@ export function CharactersScreen() {
               <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
                 Ability Scores
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div className="ability-edit-grid">
                 {ABILITY_KEYS.map((key) => (
                   <div key={key} className="field">
                     <label htmlFor={`charAbility-${key}`}>{key.toUpperCase()}</label>
@@ -356,7 +316,7 @@ export function CharactersScreen() {
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="btn btn-primary" type="submit" disabled={!form.playerId}>
-                {editingId ? 'Save Changes' : isGuestPlayer ? 'Create Sheet' : 'Hand Out Sheet'}
+                {isGuestPlayer ? 'Create Sheet' : 'Hand Out Sheet'}
               </button>
               <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
                 Cancel
@@ -400,7 +360,7 @@ export function CharactersScreen() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
                   gap: '0.5rem',
                   marginTop: '0.75rem',
                   fontFamily: 'var(--font-mono)',
@@ -418,119 +378,15 @@ export function CharactersScreen() {
                 ))}
               </div>
 
-              {sheet.equipment && (
-                <p style={{ marginTop: '0.75rem', whiteSpace: 'pre-wrap' }}>
-                  <strong>Equipment:</strong> {sheet.equipment}
-                </p>
-              )}
-              {sheet.features && (
-                <p style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap' }}>
-                  <strong>Features:</strong> {sheet.features}
-                </p>
-              )}
-
-              <div style={{ marginTop: '1rem' }}>
-                <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-                  Conditions
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {sheetConditions.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>None.</span>}
+              {sheetConditions.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.75rem' }}>
                   {sheetConditions.map((c) => (
-                    <span
-                      key={c.id}
-                      title={c.note || undefined}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        fontSize: '0.7rem',
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        padding: '0.25rem 0.6rem',
-                        borderRadius: 999,
-                        border: '1px solid var(--oxblood)',
-                        color: 'var(--oxblood)',
-                      }}
-                    >
+                    <span key={c.id} className="condition-chip">
                       {c.label}
-                      {c.visibleToParty === false && ' · hidden'}
-                      {isDM && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCondition(c.id)}
-                          aria-label={`Remove ${c.label}`}
-                          style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: '0.85rem', lineHeight: 1 }}
-                        >
-                          ×
-                        </button>
-                      )}
                     </span>
                   ))}
                 </div>
-
-                {isDM && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    {conditionFormFor === sheet.id ? (
-                      <form
-                        onSubmit={(e) => handleAddCondition(e, sheet.id)}
-                        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}
-                      >
-                        <div className="field" style={{ flex: '1 1 140px' }}>
-                          <label htmlFor={`condLabel-${sheet.id}`}>Label</label>
-                          <input
-                            id={`condLabel-${sheet.id}`}
-                            value={conditionForm.label}
-                            onChange={(e) => setConditionForm({ ...conditionForm, label: e.target.value })}
-                            placeholder="Poisoned, Cursed…"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="field" style={{ flex: '2 1 200px' }}>
-                          <label htmlFor={`condNote-${sheet.id}`}>Note (optional)</label>
-                          <input
-                            id={`condNote-${sheet.id}`}
-                            value={conditionForm.note}
-                            onChange={(e) => setConditionForm({ ...conditionForm, note: e.target.value })}
-                            placeholder="What it does, when it clears"
-                          />
-                        </div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                          <input
-                            type="checkbox"
-                            checked={conditionForm.visibleToParty}
-                            onChange={(e) => setConditionForm({ ...conditionForm, visibleToParty: e.target.checked })}
-                          />
-                          Visible to party
-                        </label>
-                        <button className="btn btn-primary btn-small" type="submit">
-                          Add
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-small"
-                          type="button"
-                          onClick={() => {
-                            setConditionFormFor(null);
-                            setConditionForm(BLANK_CONDITION);
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </form>
-                    ) : (
-                      <button
-                        className="btn btn-ghost btn-small"
-                        type="button"
-                        onClick={() => {
-                          setConditionFormFor(sheet.id);
-                          setConditionForm(BLANK_CONDITION);
-                        }}
-                      >
-                        + Add Condition
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                 <button
@@ -540,11 +396,13 @@ export function CharactersScreen() {
                 >
                   Export
                 </button>
-                {canEditSheet(sheet) && (
-                  <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(sheet)}>
-                    Edit
-                  </button>
-                )}
+                <button
+                  className="btn btn-primary btn-small"
+                  type="button"
+                  onClick={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
+                >
+                  Open Sheet
+                </button>
               </div>
             </Panel>
           );

@@ -856,3 +856,319 @@ input:focus-visible {
   display: inline-flex;
   animation: die-tumble 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+
+/* ---------------------------------------------------------------------
+ * Character Sheet — the one screen deliberately built to look and feel
+ * different from the rest of the app (see BIBLE.md §3/§9). Everything
+ * else here is cards in a list; this is a whole-viewport "unrolled
+ * scroll" a player is meant to linger on through a whole session, not
+ * skim past. Reuses the same gold/oxblood/laurel tokens as everywhere
+ * else — just at a different scale and with its own centerpiece shape
+ * (the hexagonal stat plate) instead of the rounded panel/pill chip
+ * vocabulary used elsewhere.
+ * ------------------------------------------------------------------- */
+.character-sheet-screen {
+  min-height: 100vh;
+  padding: 2.5rem 1.25rem 5rem;
+  background:
+    radial-gradient(ellipse 900px 460px at 50% 0%, rgba(232, 200, 118, 0.1), transparent 62%),
+    radial-gradient(ellipse 1100px 700px at 50% 115%, rgba(122, 34, 34, 0.12), transparent 65%),
+    var(--surface);
+}
+
+.character-sheet-shell {
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+.character-sheet-plate {
+  position: relative;
+  margin-top: 1.25rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 0 0 1px var(--gold-deep),
+    inset 0 1px 28px rgba(0, 0, 0, 0.4),
+    0 24px 60px rgba(0, 0, 0, 0.35);
+  padding: 2.5rem clamp(1.25rem, 4vw, 3rem);
+}
+
+.character-sheet-header {
+  text-align: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.75rem;
+}
+
+.character-sheet-name {
+  font-size: clamp(2rem, 6vw, 3rem);
+  letter-spacing: 0.03em;
+}
+
+.character-sheet-subtitle {
+  margin-top: 0.6rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--gold-bright);
+}
+
+.character-sheet-background {
+  margin-top: 0.5rem;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.character-sheet-combat-row,
+.ability-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin: 1.75rem 0;
+}
+
+/* Two nested clip-path hexagons fake a beveled border — clip-path alone
+   can't draw a stroke, so the outer one (gold) shows through a 2px gap
+   around the inner one (surface-colored). */
+.stat-hex {
+  position: relative;
+  width: 84px;
+  height: 96px;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: linear-gradient(160deg, var(--gold-bright), var(--gold-deep));
+  padding: 2px;
+}
+
+.stat-hex-big {
+  width: 100px;
+  height: 114px;
+}
+
+.stat-hex-inner {
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  text-align: center;
+  padding: 0 0.4rem;
+}
+
+.stat-hex-label {
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.stat-hex-value {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+  line-height: 1.1;
+}
+
+.stat-hex-big .stat-hex-value {
+  font-size: 1.2rem;
+}
+
+.stat-hex-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.hp-block {
+  margin: 1.75rem auto 2rem;
+  max-width: 420px;
+}
+
+.hp-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.45rem;
+}
+
+.hp-block-numbers {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.hp-block-max {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.hp-track {
+  height: 26px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.hp-track-fill {
+  height: 100%;
+  transition:
+    width 400ms ease,
+    background-color 400ms ease;
+}
+
+.hp-track-fill-ok {
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
+}
+
+.hp-track-fill-warn {
+  background: linear-gradient(90deg, var(--bronze), var(--gold));
+}
+
+.hp-track-fill-danger {
+  background: linear-gradient(90deg, var(--oxblood), #b23a3a);
+}
+
+.hp-adjust-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.hp-adjust-input {
+  width: 4.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.character-sheet-conditions {
+  margin: 2rem 0;
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  border: 1px dashed var(--oxblood);
+  background: rgba(122, 34, 34, 0.05);
+}
+
+.character-sheet-section-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.character-sheet-condition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.condition-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--oxblood);
+  color: var(--oxblood);
+}
+
+.condition-chip-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.character-sheet-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+@media (max-width: 640px) {
+  .character-sheet-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.character-sheet-scroll {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.character-sheet-scroll h3 {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 0.6rem;
+}
+
+.character-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------
+ * Ability-score edit grid — shared by the Bestiary, Characters, and
+ * Character Sheet edit forms. CSS grid's `1fr` tracks don't shrink below
+ * a number input's intrinsic min-content width by default, so six equal
+ * columns blows out the whole page on a narrow viewport instead of
+ * wrapping; `minmax(0, …)` fixes the overflow, and the 480px breakpoint
+ * gives each input enough room to actually show two digits + spinner.
+ * ------------------------------------------------------------------- */
+.ability-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.ability-edit-grid input {
+  padding: 0.6rem 0.35rem;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .ability-edit-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

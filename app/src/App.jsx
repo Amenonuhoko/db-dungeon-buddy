@@ -6,6 +6,7 @@ import { AuthScreen } from './screens/AuthScreen.jsx';
 import { BestiaryScreen } from './screens/BestiaryScreen.jsx';
 import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
 import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/CampaignScreen.jsx';
+import { CharacterSheetScreen } from './screens/CharacterSheetScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
@@ -74,6 +75,20 @@ function Routed() {
         />
         <Route path="characters" element={<CharactersScreen />} />
       </Route>
+      {/* Deliberately a sibling of the campaign shell above, not nested
+          under its Outlet — a character sheet is a whole-screen affair of
+          its own (BIBLE.md §3/§9), with no bottom tab dock, DM/Player
+          chip, or "← Campaigns" chrome borrowed from the tab screens. It
+          resolves its own campaign/role via useCampaignAccess() instead
+          of the shared Outlet context. */}
+      <Route
+        path="/campaigns/:campaignId/characters/:sheetId"
+        element={
+          <RequireSession>
+            <CharacterSheetScreen />
+          </RequireSession>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

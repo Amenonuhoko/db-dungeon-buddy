@@ -188,6 +188,54 @@ fixed` elements can visibly detach and scroll with the page during the
 address-bar show/hide animation. Carry this forward on any new
 fixed-position element rather than dropping it as dead-looking CSS.
 
+### The Character Sheet — the deliberate exception
+
+Every other screen is cards in a list, built from the shared `Panel`/
+`.chip`/`.field` vocabulary above. `CharacterSheetScreen.jsx` (route
+`/campaigns/:campaignId/characters/:sheetId`) is the one screen meant to
+look and feel different — a player's own character is the thing they're
+meant to linger on through a whole session, not skim past like an
+encyclopedia entry. It's still built from the same tokens
+(`--gold`/`--oxblood`/`--laurel`, `Cinzel`/`Marcellus`), just at a
+different scale and with its own centerpiece shape:
+
+- **A whole screen, not a tab.** It's a sibling top-level route of
+  `/campaigns/:campaignId`, *not* nested under `CampaignScreen`'s
+  `Outlet` — no bottom tab dock, no DM/Player chip, no "← Campaigns"
+  chrome. It resolves its own campaign/role via `useCampaignAccess()`
+  (`lib/useCampaignAccess.js`, the same guest/account branch
+  `CampaignScreen` does, factored out so this screen can opt out of the
+  shared chrome without duplicating that logic badly) rather than
+  reading the Outlet context. Its own `BackButton` goes to the roster
+  (`CharactersScreen.jsx`, which now only lists cards and picks — actually
+  opening one is this screen's job).
+- **The hex stat plate** (`.stat-hex` / `.stat-hex-inner` in
+  `index.css`) is this screen's one new shape, deliberately not reused
+  elsewhere — two nested `clip-path` hexagons (gold outer, surface-
+  colored inner, 2px gap faking a beveled border clip-path can't draw on
+  its own) for AC/Initiative/Speed and the six ability scores. Modern
+  (D&D Beyond-style hex ability scores) crossed with the classic paper
+  sheet's layout, not a literal reproduction of either.
+- **A live HP tracker**, not a static number — a gradient bar
+  (`.hp-track`) that recolors as it depletes (gold → bronze → oxblood at
+  the 50%/25% thresholds) plus a delta input + Damage/Heal buttons that
+  patch `currentHp` immediately. This is the thing that makes the screen
+  worth returning to mid-combat, not just once at character creation.
+- **Its own background treatment** — two soft radial gradients (a gold
+  bloom behind the header, an oxblood one low behind the footer) over the
+  normal `--surface`, distinct from every other screen's flat
+  radial-from-`--surface-glow` body background.
+- **Edit-in-place, not a separate route.** Tapping "Edit Sheet" swaps the
+  plate's read view for an ordinary `.field`-based form in the same spot
+  — no navigation, no modal. `canEdit()` mirrors CharactersScreen's own
+  DM-or-owning-player check (§4).
+
+If a future screen wants its own distinct treatment too, that's fine —
+just don't reach for the hex plate or this exact background gradient for
+it. This vocabulary is reserved for the character sheet specifically, the
+same way `.corner-frame`'s angularity is reserved for "primary panel,"
+not sprinkled everywhere.
+
 ## 4. Identity & roles
 
 Two independent axes — **how you're signed in** and **what hat you're
@@ -563,3 +611,21 @@ screen is built, per the rule above:
   uses the `.example-toggle` class — a plain text link with a rotating
   chevron, not a bordered button — since it's a disclosure for reference
   material, not a real action.
+- **`ExampleGallery` hides itself while a create/edit form is open**
+  (`{canWrite && !showForm && <ExampleGallery .../>}`, same guard on all
+  four content screens). Showing a template's sample content at the same
+  time as the form you opened *from* that template is confusing — is the
+  sample the thing you're editing? — so the gallery disappears the
+  moment `showForm` flips true and comes back once it closes.
+- **A CSS grid of `repeat(N, 1fr)` columns holding inputs will blow out
+  its container on a narrow screen, not wrap** — this bit the ability-
+  score edit grid (Bestiary/Characters/Character Sheet forms) badly
+  enough to overflow the whole page horizontally. `1fr` tracks default to
+  `minmax(auto, 1fr)`, and `auto` there means "at least the content's
+  intrinsic minimum width" — a number input's min-content width doesn't
+  shrink, so the grid (and everything containing it) grows instead.
+  Fixed via a shared `.ability-edit-grid` class: `minmax(0, 1fr)` tracks
+  (lets columns actually shrink) plus a `max-width: 480px` breakpoint
+  dropping from 6 columns to 3 so the inputs stay legible instead of
+  just not-overflowing. Reach for `minmax(0, 1fr)` by default on any grid
+  whose cells hold form controls, not just plain text.
