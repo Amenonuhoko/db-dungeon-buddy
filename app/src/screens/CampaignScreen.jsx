@@ -1,13 +1,47 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { BottomTabDock } from '../components/BottomTabDock.jsx';
+import { BookIcon, PawIcon, QuillIcon } from '../components/ornament/TabIcons.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 const TABS = [
-  { to: 'encyclopedia', label: 'Encyclopedia' },
-  { to: 'notes', label: 'Notes' },
-  { to: 'bestiary', label: 'Bestiary' },
+  { to: 'encyclopedia', label: 'Encyclopedia', icon: <BookIcon /> },
+  { to: 'notes', label: 'Notes', icon: <QuillIcon /> },
+  { to: 'bestiary', label: 'Bestiary', icon: <PawIcon /> },
 ];
+
+// Swipe threshold tuned to feel deliberate — a scroll or a tap-drag on a
+// button shouldn't accidentally flip tabs. Horizontal motion has to
+// clearly dominate vertical, and clear 60px, before it counts.
+const SWIPE_THRESHOLD = 60;
+
+function useSwipeTabs(campaignId) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const touchStart = useRef(null);
+
+  const currentIndex = TABS.findIndex((tab) => location.pathname.endsWith(`/${tab.to}`));
+
+  function onTouchStart(event) {
+    const t = event.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function onTouchEnd(event) {
+    if (!touchStart.current || currentIndex === -1) return;
+    const t = event.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const nextIndex = dx < 0 ? currentIndex + 1 : currentIndex - 1;
+    if (nextIndex < 0 || nextIndex >= TABS.length) return;
+    navigate(`/campaigns/${campaignId}/${TABS[nextIndex].to}`);
+  }
+
+  return { onTouchStart, onTouchEnd };
+}
 
 export function CampaignScreen() {
   const { campaignId } = useParams();
@@ -15,6 +49,7 @@ export function CampaignScreen() {
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [error, setError] = useState(null);
+  const swipeHandlers = useSwipeTabs(campaignId);
 
   useEffect(() => {
     setCampaign(null);
@@ -58,7 +93,7 @@ export function CampaignScreen() {
   const isDM = campaign.role === 'dm';
 
   return (
-    <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 3rem' }}>
+    <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 7rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
         <button className="btn btn-ghost btn-small" onClick={() => navigate('/dashboard')} type="button">
           ← Campaigns
@@ -75,29 +110,17 @@ export function CampaignScreen() {
           </p>
         )}
 
-        <nav style={{ display: 'flex', gap: '0.5rem', margin: '1.75rem 0', borderBottom: '1px solid var(--line)' }}>
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              style={({ isActive }) => ({
-                padding: '0.75rem 1rem',
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.8rem',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: isActive ? 'var(--gold-bright)' : 'var(--text-dim)',
-                borderBottom: isActive ? '2px solid var(--gold-bright)' : '2px solid transparent',
-                marginBottom: '-1px',
-              })}
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <Outlet context={{ campaignId, role: campaign.role, isDM, isGuest: status === 'guest' }} />
+        <div
+          className="swipe-area"
+          style={{ marginTop: '1.75rem' }}
+          onTouchStart={swipeHandlers.onTouchStart}
+          onTouchEnd={swipeHandlers.onTouchEnd}
+        >
+          <Outlet context={{ campaignId, role: campaign.role, isDM, isGuest: status === 'guest' }} />
+        </div>
       </div>
+
+      <BottomTabDock tabs={TABS} />
     </div>
   );
 }
