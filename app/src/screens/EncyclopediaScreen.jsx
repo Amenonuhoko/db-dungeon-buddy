@@ -180,7 +180,7 @@ export function EncyclopediaScreen() {
         </div>
       </div>
 
-      {canWrite && (
+      {canWrite && !showForm && (
         <ExampleGallery
           items={EXAMPLES}
           isEmpty={entries.length === 0}

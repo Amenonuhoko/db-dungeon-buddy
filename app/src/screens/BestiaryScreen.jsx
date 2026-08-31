@@ -129,7 +129,7 @@ export function BestiaryScreen() {
         )}
       </div>
 
-      {isDM && (
+      {isDM && !showForm && (
         <ExampleGallery
           items={EXAMPLES}
           isEmpty={creatures.length === 0}
@@ -221,7 +221,7 @@ export function BestiaryScreen() {
               <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
                 Ability Scores
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div className="ability-edit-grid">
                 {ABILITY_KEYS.map((key) => (
                   <div key={key} className="field">
                     <label htmlFor={`ability-${key}`}>{key.toUpperCase()}</label>
@@ -306,7 +306,7 @@ export function BestiaryScreen() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
                   gap: '0.5rem',
                   marginTop: '0.75rem',
                   fontFamily: 'var(--font-mono)',

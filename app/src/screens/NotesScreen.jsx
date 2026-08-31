@@ -100,17 +100,19 @@ export function NotesScreen() {
         </button>
       </div>
 
-      <ExampleGallery
-        items={EXAMPLES}
-        isEmpty={notes.length === 0}
-        onUseTemplate={useTemplate}
-        renderItem={(example) => (
-          <>
-            <h3 style={{ fontSize: '1.05rem' }}>{example.title}</h3>
-            <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{example.body}</p>
-          </>
-        )}
-      />
+      {!showForm && (
+        <ExampleGallery
+          items={EXAMPLES}
+          isEmpty={notes.length === 0}
+          onUseTemplate={useTemplate}
+          renderItem={(example) => (
+            <>
+              <h3 style={{ fontSize: '1.05rem' }}>{example.title}</h3>
+              <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{example.body}</p>
+            </>
+          )}
+        />
+      )}
 
       {showForm && (
         <Panel style={{ marginBottom: '1.5rem' }}>
