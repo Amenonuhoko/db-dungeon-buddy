@@ -96,10 +96,11 @@ export function CampaignScreen() {
   return (
     <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 7rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-          <BackButton to="/dashboard" label="Campaigns" />
+        <div style={{ textAlign: 'center', marginBottom: '0.6rem' }}>
           <span className="chip chip-small">{isDM ? 'Dungeon Master' : 'Player'}</span>
         </div>
+
+        <BackButton to="/dashboard" label="Campaigns" />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h2>{campaign.name}</h2>

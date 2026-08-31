@@ -242,6 +242,27 @@ input:focus-visible {
   animation: corner-delete-pulse 900ms ease infinite;
 }
 
+/* Plays when a tap lands inside DeleteButton's GUARD_MS window — reads
+ * as "not yet" rather than the tap silently doing nothing. */
+@keyframes corner-delete-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+.corner-delete.shake {
+  animation:
+    corner-delete-pulse 900ms ease infinite,
+    corner-delete-shake 300ms ease;
+}
+
 /* ---------------------------------------------------------------------
  * Corner-frame — Warframe-style targeting-reticle corner brackets,
  * layered as four independent backgrounds so it works at any size. Left

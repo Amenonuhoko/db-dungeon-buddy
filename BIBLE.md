@@ -462,9 +462,17 @@ screen is built, per the rule above:
   perched half-outside the card's top-right corner (`.corner-delete` in
   `index.css`, `top: -10px; right: -10px;` so it never collides with an
   in-card header chip like category/CR/role). One tap arms it — it turns
-  oxblood and pulses, tooltip flips to "tap again to confirm" — a second
-  tap within 2.5s actually deletes; losing focus or letting the window
-  lapse quietly disarms it. No modal, no separate confirm screen. Applied
+  oxblood and pulses, tooltip flips to "tap again to confirm" — a second,
+  *deliberate* tap within 3s actually deletes; losing focus or letting
+  the window lapse quietly disarms it. No modal, no separate confirm
+  screen. "Deliberate" is enforced by `GUARD_MS` (450ms) in
+  `DeleteButton.jsx`: a second tap landing within that window of arming
+  is the tail of the same reflexive double-tap/double-click that armed
+  it, not a real decision, so it's ignored (a quick shake, not a delete)
+  and the confirm window keeps counting down. Don't remove this guard to
+  make the button feel snappier — it's the difference between "an
+  accidental double-click nukes a session's worth of notes" and not.
+  Applied
   to Encyclopedia entries, Bestiary creatures, Notes, and character
   sheets. This does *not* replace small inline-chip actions that aren't a
   full-card delete — e.g. the per-condition `×` on a character sheet's
