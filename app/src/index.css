@@ -1,0 +1,210 @@
+/*
+ * Design tokens and shared primitives — see BIBLE.md §3 for the design
+ * rationale (Warframe Prime gold/white x Hades Greek ornament). Every
+ * screen should build on these rather than inventing new colors/shadows.
+ */
+
+:root {
+  --ink: #0b0a08;
+  --ink-raised: #14120e;
+  --ink-line: #2a2620;
+  --marble: #f3ecda;
+  --marble-dim: #c9c0a8;
+  --gold: #caa24b;
+  --gold-bright: #e8c876;
+  --gold-deep: #8a6a24;
+  --bronze: #7d6a4a;
+  --oxblood: #7a2222;
+  --laurel: #4a5c3a;
+
+  --font-display: 'Cinzel', 'Times New Roman', serif;
+  --font-body: 'Marcellus', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+
+  --radius: 6px;
+  --shadow-glow: 0 0 24px rgba(202, 162, 75, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse at 50% -10%, #1c1811 0%, var(--ink) 55%);
+  color: var(--marble);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--marble);
+}
+
+p {
+  margin: 0;
+  color: var(--marble-dim);
+  line-height: 1.6;
+}
+
+a {
+  color: var(--gold-bright);
+}
+
+button {
+  font-family: var(--font-body);
+}
+
+/* ---------------------------------------------------------------------
+ * Engraved panel — the base surface every card/panel in the app shares.
+ * Reads as "carved in" (inset gold-deep shadow) with a gilded outer edge.
+ * ------------------------------------------------------------------- */
+.panel {
+  background: var(--ink-raised);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow:
+    inset 0 0 0 1px var(--gold-deep),
+    inset 0 1px 18px rgba(0, 0, 0, 0.5);
+  padding: 2rem;
+}
+
+/* ---------------------------------------------------------------------
+ * Corner-frame — Warframe-style targeting-reticle corner brackets,
+ * layered as four independent backgrounds so it works at any size.
+ * ------------------------------------------------------------------- */
+.corner-frame {
+  position: relative;
+  background-image:
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold));
+  background-repeat: no-repeat;
+  background-size:
+    22px 2px,
+    2px 22px,
+    22px 2px,
+    2px 22px,
+    22px 2px,
+    2px 22px,
+    22px 2px,
+    2px 22px;
+  background-position:
+    top -1px left -1px,
+    top -1px left -1px,
+    top -1px right -1px,
+    top -1px right -1px,
+    bottom -1px left -1px,
+    bottom -1px left -1px,
+    bottom -1px right -1px,
+    bottom -1px right -1px;
+}
+
+/* ---------------------------------------------------------------------
+ * Gold glow — soft radial bloom behind a primary icon/avatar. Only ever
+ * on dark surfaces (--ink / --ink-raised), never behind body text.
+ * ------------------------------------------------------------------- */
+.glow {
+  filter: drop-shadow(0 0 18px rgba(232, 200, 118, 0.45));
+}
+
+/* ---------------------------------------------------------------------
+ * Buttons
+ * ------------------------------------------------------------------- */
+.btn {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.75rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  border: 1px solid var(--gold-bright);
+  color: var(--ink);
+}
+
+.btn-primary:not(:disabled):hover {
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ink-line);
+  color: var(--marble-dim);
+}
+
+.btn-ghost:not(:disabled):hover {
+  border-color: var(--gold);
+  color: var(--marble);
+}
+
+/* ---------------------------------------------------------------------
+ * Form fields
+ * ------------------------------------------------------------------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.field label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--marble-dim);
+}
+
+.field input {
+  background: var(--ink);
+  border: 1px solid var(--ink-line);
+  border-radius: var(--radius);
+  color: var(--marble);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+
+.error-text {
+  color: var(--gold-bright);
+  font-size: 0.85rem;
+}
