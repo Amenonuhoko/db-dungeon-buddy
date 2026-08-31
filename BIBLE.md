@@ -245,6 +245,22 @@ have no campaign row yet, it's a pure UI-mode toggle held in the local
 session (`campaign.role` on the guest campaign object, `isDM` on every
 screen).
 
+**Choosing a role at the door has to fully determine what a guest sees —
+never just label it.** All local guest campaigns live in one flat
+`localStorage` list regardless of which role created them (`codex.guest
+.campaigns`), because switching roles never deletes anything. That's
+correct for storage, but `CampaignHubScreen` used to list *all* of them
+unfiltered, tagged with a small role chip — so a guest who entered as
+Player would still see (and could still open) a campaign this same
+device made in DM mode earlier, landing them right back in DM view
+despite having just chosen Player. Fixed: the dashboard now filters
+`listGuestCampaigns()` down to `campaign.role === guest.role` before
+rendering. Nothing is lost — switching back to DM brings the rest of the
+list right back — but from inside either role, that's the *only*
+campaign library that exists. Any screen that lists or otherwise surfaces
+guest campaigns should filter the same way; don't reintroduce an
+unfiltered list "just for this one view."
+
 **A guest who chose Player has to get the same read/write boundary a
 real player gets — no screen should grant it blanket "you're a guest,
 here's DM powers" access.** Encyclopedia and Bestiary don't just

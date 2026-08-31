@@ -53,7 +53,13 @@ export function CampaignHubScreen() {
 
   useEffect(() => {
     if (status === 'guest') {
-      setCampaigns(listGuestCampaigns());
+      // Scoped to the role picked at the door, not just labeled with a
+      // chip — a guest who chose Player should never see, let alone be
+      // able to open, a campaign this device made in DM mode (and vice
+      // versa). Same underlying localStorage list either way; entering
+      // as the other role again brings the rest of it back. See
+      // BIBLE.md §4.
+      setCampaigns(listGuestCampaigns().filter((c) => c.role === guest.role));
       return;
     }
     if (status === 'authenticated') {
@@ -63,7 +69,7 @@ export function CampaignHubScreen() {
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     }
-  }, [status]);
+  }, [status, guest?.role]);
 
   function openCampaign(id) {
     navigate(`/campaigns/${id}`);
