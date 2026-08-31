@@ -62,18 +62,61 @@ export function usernameToEmail(username) {
   return `${slug}@${USERNAME_EMAIL_DOMAIN}`;
 }
 
+// A username that's technically valid against AuthScreen's pattern
+// attribute (letters/digits/underscore/hyphen, 3-20 chars) can still
+// collapse to an empty local-part once usernameToEmail strips leading/
+// trailing hyphens — "---" is a real example. That produces a
+// structurally invalid email Supabase will reject with a raw, confusing
+// error, so catch it here — one place, checked before either signUp or
+// signIn ever reaches the network — instead of only in the form's regex.
+export function usernameError(username) {
+  const trimmed = username.trim();
+  if (trimmed.length < 3 || trimmed.length > 20) return 'Username must be 3-20 characters.';
+  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return 'Username can only use letters, numbers, underscores, and hyphens.';
+  }
+  if (!usernameToEmail(trimmed).split('@')[0]) {
+    return 'That username is all separators — add a letter or number.';
+  }
+  return null;
+}
+
+// Maps a raw Supabase Auth error to something a non-technical player can
+// actually act on. Two things this exists to prevent: (1) a raw error
+// message mentioning the synthetic @accounts.codex.invalid address ever
+// reaching the screen — nobody typed an email, so seeing one back is
+// alarming and unexplained; (2) a network hiccup or rate limit reading as
+// a dead end ("Failed to fetch") instead of "try again." Anything not
+// specifically recognized still gets a usable fallback, and the original
+// error is logged (not shown) so it's still diagnosable.
+function friendlyAuthError(error, fallback) {
+  const message = error?.message || '';
+  if (/already registered/i.test(message)) return new Error('That username is already taken — try another.');
+  if (/invalid login credentials/i.test(message)) return new Error('Unknown username or wrong password.');
+  if (/password/i.test(message) && /(least|character|short|weak)/i.test(message)) {
+    return new Error('Password must be at least 6 characters.');
+  }
+  if (/rate limit|too many/i.test(message)) return new Error('Too many attempts — wait a minute and try again.');
+  if (/fetch|network|NetworkError/i.test(message) || error?.name === 'TypeError') {
+    return new Error("Couldn't reach the server — check your connection and try again.");
+  }
+  if (message.includes(USERNAME_EMAIL_DOMAIN) || !message) {
+    console.error('Auth error:', error);
+    return new Error(fallback);
+  }
+  return new Error(message);
+}
+
 export async function signUp(username, password) {
   requireBackend();
+  const usernameProblem = usernameError(username);
+  if (usernameProblem) throw new Error(usernameProblem);
   const { data, error } = await supabase.auth.signUp({
     email: usernameToEmail(username),
     password,
     options: { data: { display_name: username.trim() } },
   });
-  if (error) {
-    throw /already registered/i.test(error.message)
-      ? new Error('That username is already taken — try another.')
-      : error;
-  }
+  if (error) throw friendlyAuthError(error, "Couldn't create that account — try again in a moment.");
   return data;
 }
 
@@ -83,11 +126,7 @@ export async function signIn(username, password) {
     email: usernameToEmail(username),
     password,
   });
-  if (error) {
-    throw /invalid login credentials/i.test(error.message)
-      ? new Error('Unknown username or wrong password.')
-      : error;
-  }
+  if (error) throw friendlyAuthError(error, "Couldn't log in — try again in a moment.");
   return data;
 }
 

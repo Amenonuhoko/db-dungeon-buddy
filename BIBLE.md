@@ -270,6 +270,46 @@ DM for one campaign and a player in another.
   something a migration can set — because a confirmation email sent to a
   `.invalid` address can never be delivered or clicked, which would
   otherwise permanently lock every new signup out.
+
+  **Because losing the password loses the account with zero recovery
+  path, a signup-time typo is the single worst failure mode in the whole
+  app** — someone types a password once, believes it's saved, and is
+  locked out on their very next login with no way back in. Everything in
+  `AuthScreen.jsx`'s signup mode exists to make that specific mistake
+  hard to make: a required Confirm Password field checked against
+  Password client-side before the form ever submits (`"Passwords don't
+  match"`, no network round-trip spent finding out), and a shared
+  show/hide toggle for both fields so a typo is visible before hitting
+  Sign Up rather than only discovered on the failed login after.
+  `usernameError()` (`lib/session.js`) is the other half — it independently
+  re-derives what `usernameToEmail()` would slugify a username down to
+  and rejects anything that collapses to an empty local-part (`"---"` is
+  a real example: passes the field's `3-20 chars, letters/digits/_/-`
+  pattern attribute, but strips to nothing once leading/trailing hyphens
+  are trimmed, which would otherwise reach Supabase as a structurally
+  invalid email and come back as a raw, confusing error). Called from
+  `AuthScreen` before any network call, and again inside `signUp()`
+  itself as a defense-in-depth check for any future caller that skips the
+  screen's own validation.
+
+  Every Supabase Auth error also passes through `friendlyAuthError()`
+  (`lib/session.js`) rather than showing `error.message` verbatim — it
+  exists specifically so a raw error can never mention
+  `accounts.codex.invalid` (confusing and alarming to someone who never
+  typed an email), and so a network hiccup or rate limit reads as "try
+  again" instead of a dead end. Anything genuinely unrecognized still
+  gets a usable fallback message, with the real error logged to the
+  console (not shown) so it stays diagnosable. `lib/supabase.js` closes
+  the last gap upstream of all of this: a malformed `VITE_SUPABASE_URL`
+  (a stray quote character, a trailing `/rest/v1`, copy-paste whitespace)
+  used to produce a client that looked configured but wasn't, surfacing
+  as a raw, unexplained fetch/URL error the moment someone actually
+  submitted the sign-up form — almost certainly what the "Invalid path
+  specified in request URL" report earlier in this project's history
+  actually was. `isLikelyValidSupabaseUrl()` catches the obviously-broken
+  shapes at load time and falls back to Guest-only mode (a real, working,
+  permanent feature, not a placeholder) instead, logging a loud
+  console.error naming the exact problem for whoever configured it.
 - **Anonymous account** (a third thing, not a variant of the other two):
   `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
   real campaign as a player, no signup." It's a genuine Supabase Auth

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { usernameError } from '../lib/session.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 const USERNAME_PATTERN = '[A-Za-z0-9_-]{3,20}';
@@ -11,6 +12,8 @@ export function AuthScreen() {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -21,6 +24,25 @@ export function AuthScreen() {
     event.preventDefault();
     setError(null);
     setNotice(null);
+
+    // There's no email on file to recover a mistyped password with (see
+    // the hint below and BIBLE.md §4), which makes a signup-time typo
+    // the single worst way to lose access to a brand-new account — catch
+    // it here, before it ever reaches the network, rather than let
+    // someone type a password once, believe it's saved, and be locked
+    // out from their very next login.
+    if (mode === 'signup') {
+      const usernameProblem = usernameError(username);
+      if (usernameProblem) {
+        setError(usernameProblem);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords don't match — check both fields.");
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       if (mode === 'login') {
@@ -37,6 +59,8 @@ export function AuthScreen() {
             'Account created, but you were not signed in automatically. Turn off "Confirm email" under Authentication → Providers → Email in your Supabase project, then log in below.',
           );
           setMode('login');
+          setPassword('');
+          setConfirmPassword('');
         }
       }
     } catch (err) {
@@ -75,7 +99,7 @@ export function AuthScreen() {
             <label htmlFor="password">Password</label>
             <input
               id="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -83,6 +107,30 @@ export function AuthScreen() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
           </div>
+
+          {mode === 'signup' && (
+            <div className="field">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="example-toggle"
+            style={{ alignSelf: 'flex-start' }}
+            onClick={() => setShowPassword((s) => !s)}
+          >
+            {showPassword ? 'Hide password' : 'Show password'}
+          </button>
 
           {mode === 'signup' && (
             <p className="hint-text">No email on file means no password recovery — pick one you'll remember.</p>
@@ -100,6 +148,7 @@ export function AuthScreen() {
             type="button"
             onClick={() => {
               setMode(mode === 'login' ? 'signup' : 'login');
+              setConfirmPassword('');
               setError(null);
               setNotice(null);
             }}
