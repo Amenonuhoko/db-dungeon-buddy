@@ -24,11 +24,21 @@ const PIP_LAYOUTS = {
 };
 
 // Point lists trace each polygon's perimeter in order, in a shared
-// 24x24 box centered on (12,12). textY nudges the numeral toward each
-// shape's visual center of mass (a triangle's is lower than its
-// bounding box's, for instance) rather than the box's literal center.
+// 24x24 box centered on (12,12). textY centers the numeral on each
+// shape's incircle (the largest circle it can hold without crossing an
+// edge) rather than the bounding box's literal center — for the wider
+// shapes that's close enough to the same point either way, but the
+// triangle's incircle sits well above its bounding-box center (its bulk
+// is concentrated toward the base), so nudging *down* from center — as a
+// pre-incircle version of this table did, aiming for "visual center of
+// mass" — actually pushed the numeral toward the base's edge, cutting it
+// off (worst right when a natural max on a d4 also draws the thicker
+// critical-glow stroke, tightening the fit further). numeralScale
+// shrinks the digit for shapes whose incircle is small relative to a
+// 24-unit box — currently just the triangle — so it clears the stroke
+// with room to spare instead of merely fitting exactly.
 const SHAPES = {
-  4: { points: '12,3 20.5,18 3.5,18', textY: 16.5 },
+  4: { points: '12,3 20.5,18 3.5,18', textY: 13, numeralScale: 0.72 },
   8: { points: '12,2 22,12 12,22 2,12', textY: 13 },
   10: { points: '12,2 21,9 12,22 3,9', textY: 13.5 },
   12: { points: '12,2 21.5,8.9 17.9,20.1 6.1,20.1 2.5,8.9', textY: 13 },
@@ -42,7 +52,7 @@ export function Die({ sides, value, index = 0 }) {
   const delay = Math.min(index * TUMBLE_STEP_MS, TUMBLE_STEP_CAP_MS);
   const isPipDie = sides === 6 && value >= 1 && value <= 6;
   const shape = SHAPES[sides];
-  const numeralSize = value >= 100 ? 7 : value >= 10 ? 8.5 : 10;
+  const numeralSize = (value >= 100 ? 7 : value >= 10 ? 8.5 : 10) * (shape?.numeralScale ?? 1);
 
   // The one moment every D&D table actually cheers or groans at — rolling
   // a die's best or worst possible face. Only means anything on a die
