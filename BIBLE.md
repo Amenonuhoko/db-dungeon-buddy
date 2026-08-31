@@ -471,7 +471,13 @@ screen is built, per the rule above:
   it, not a real decision, so it's ignored (a quick shake, not a delete)
   and the confirm window keeps counting down. Don't remove this guard to
   make the button feel snappier — it's the difference between "an
-  accidental double-click nukes a session's worth of notes" and not.
+  accidental double-click nukes a session's worth of notes" and not. The
+  guard is visible, not just felt: a thin ring around the badge
+  (`.corner-delete-guard`) sweeps away clockwise from 12 o'clock over
+  GUARD_MS, driven by `requestAnimationFrame` redrawing an inline
+  conic-gradient each frame (not a CSS transition on a custom property —
+  animating gradient stops that way needs `@property` support this app
+  doesn't want to depend on). Once it's gone, the second tap is live.
   Applied
   to Encyclopedia entries, Bestiary creatures, Notes, and character
   sheets. This does *not* replace small inline-chip actions that aren't a

@@ -242,6 +242,20 @@ input:focus-visible {
   animation: corner-delete-pulse 900ms ease infinite;
 }
 
+/* Cooldown ring for DeleteButton's GUARD_MS window — a thin annulus just
+ * outside the badge, filled clockwise from 12 o'clock via an inline
+ * conic-gradient the component redraws every frame, then masked down to
+ * a ring so only the outline shows. Sweeps away to nothing exactly when
+ * a second tap starts counting as a real confirm. */
+.corner-delete-guard {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  pointer-events: none;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+}
+
 /* Plays when a tap lands inside DeleteButton's GUARD_MS window — reads
  * as "not yet" rather than the tap silently doing nothing. */
 @keyframes corner-delete-shake {
