@@ -5,7 +5,7 @@ import { SessionProvider, useSession } from './lib/SessionContext.jsx';
 import { AuthScreen } from './screens/AuthScreen.jsx';
 import { BestiaryScreen } from './screens/BestiaryScreen.jsx';
 import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
-import { CampaignIndexRedirect, CampaignScreen } from './screens/CampaignScreen.jsx';
+import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/CampaignScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
@@ -55,9 +55,23 @@ function Routed() {
         }
       >
         <Route index element={<CampaignIndexRedirect />} />
-        <Route path="encyclopedia" element={<EncyclopediaScreen />} />
+        <Route
+          path="encyclopedia"
+          element={
+            <RequireDM>
+              <EncyclopediaScreen />
+            </RequireDM>
+          }
+        />
         <Route path="notes" element={<NotesScreen />} />
-        <Route path="bestiary" element={<BestiaryScreen />} />
+        <Route
+          path="bestiary"
+          element={
+            <RequireDM>
+              <BestiaryScreen />
+            </RequireDM>
+          }
+        />
         <Route path="characters" element={<CharactersScreen />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

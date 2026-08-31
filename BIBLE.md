@@ -16,9 +16,11 @@ A browser-based PWA that is a full companion for running and playing a
 tabletop D&D campaign — not a dice-roller add-on, but a place a DM can
 build a world in and players can live in during a session:
 
-- One app, two hats: **Dungeon Master** tools (world-building, bestiary,
-  encounter/battle tracking, campaign notes) and **Player** tools
-  (character sheet, personal notes, shared encyclopedia access).
+- One app, two hats: **Dungeon Master** tools (world-building via the
+  Encyclopedia, the Bestiary, encounter/battle tracking, campaign notes)
+  and **Player** tools (character sheet, personal notes) — a player's
+  whole surface is those two, full stop; the Encyclopedia and Bestiary
+  tabs don't exist for them at all, not just locked read-only (§4/§9).
 - Works standing at a table on a phone, or on a laptop running the show.
   Installable (PWA), and usable offline for anything that doesn't need
   live sync (see §6).
@@ -245,8 +247,16 @@ screen).
 
 **A guest who chose Player has to get the same read/write boundary a
 real player gets — no screen should grant it blanket "you're a guest,
-here's DM powers" access.** Encyclopedia/Bestiary already gate purely on
-`isDM`, which is correct. CharactersScreen used to also check `isGuest`
+here's DM powers" access.** Encyclopedia and Bestiary don't just
+read-only gate on `isDM` — they don't exist for a player at all.
+`tabsForRole()` in `CampaignScreen.jsx` drops both tabs from the bottom
+dock for anyone who isn't DM, `CampaignIndexRedirect` sends a player to
+`notes` instead of `encyclopedia`, and `RequireDM` guards both routes
+directly (bounces to `notes`) in case a player lands on one anyway —
+stale link, browser back/forward, hand-typed URL. This is a UI-visibility
+promise, not a data-security boundary; RLS is what actually protects the
+rows if a real account calls the API directly. CharactersScreen used to
+also check `isGuest`
 as an unconditional bypass on top of that — meaning a guest-player saw
 "Hand Out a Sheet" and could edit any sheet, DM language and all, even
 though `isDM` already correctly said they weren't one. Fixed: guest mode

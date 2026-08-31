@@ -14,7 +14,7 @@ const ROLES = [
   {
     id: 'player',
     title: 'Player',
-    blurb: 'Your character sheet, your notes, the shared codex.',
+    blurb: 'Your character sheet, your notes — nothing else to dig through.',
   },
 ];
 

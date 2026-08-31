@@ -1,29 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { BookIcon, PawIcon, QuillIcon, ShieldIcon } from '../components/ornament/TabIcons.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-const TABS = [
+// Encyclopedia and Bestiary are the DM's world-building tools — lore and
+// monster stats a DM authors for their own reference, not something a
+// player needs a tab for. A player's whole surface is their own Notes
+// and their own Character sheet, so those two tabs simply don't exist
+// for them (not just locked/read-only — see BIBLE.md §4/§9).
+const DM_ONLY_TABS = ['encyclopedia', 'bestiary'];
+
+const ALL_TABS = [
   { to: 'encyclopedia', label: 'Encyclopedia', icon: <BookIcon /> },
   { to: 'notes', label: 'Notes', icon: <QuillIcon /> },
   { to: 'bestiary', label: 'Bestiary', icon: <PawIcon /> },
   { to: 'characters', label: 'Characters', icon: <ShieldIcon /> },
 ];
 
+function tabsForRole(isDM) {
+  return isDM ? ALL_TABS : ALL_TABS.filter((tab) => !DM_ONLY_TABS.includes(tab.to));
+}
+
 // Swipe threshold tuned to feel deliberate — a scroll or a tap-drag on a
 // button shouldn't accidentally flip tabs. Horizontal motion has to
 // clearly dominate vertical, and clear 60px, before it counts.
 const SWIPE_THRESHOLD = 60;
 
-function useSwipeTabs(campaignId) {
+function useSwipeTabs(campaignId, tabs) {
   const location = useLocation();
   const navigate = useNavigate();
   const touchStart = useRef(null);
 
-  const currentIndex = TABS.findIndex((tab) => location.pathname.endsWith(`/${tab.to}`));
+  const currentIndex = tabs.findIndex((tab) => location.pathname.endsWith(`/${tab.to}`));
 
   function onTouchStart(event) {
     const t = event.touches[0];
@@ -38,8 +49,8 @@ function useSwipeTabs(campaignId) {
     touchStart.current = null;
     if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     const nextIndex = dx < 0 ? currentIndex + 1 : currentIndex - 1;
-    if (nextIndex < 0 || nextIndex >= TABS.length) return;
-    navigate(`/campaigns/${campaignId}/${TABS[nextIndex].to}`);
+    if (nextIndex < 0 || nextIndex >= tabs.length) return;
+    navigate(`/campaigns/${campaignId}/${tabs[nextIndex].to}`);
   }
 
   return { onTouchStart, onTouchEnd };
@@ -50,7 +61,12 @@ export function CampaignScreen() {
   const { status } = useSession();
   const [campaign, setCampaign] = useState(null);
   const [error, setError] = useState(null);
-  const swipeHandlers = useSwipeTabs(campaignId);
+  // Computed off `campaign?.role` rather than after the loading/error
+  // early-returns below, since hooks can't be called conditionally —
+  // `false` until the campaign loads is a harmless default (the swipe
+  // handlers just won't fire yet, same as while loading today).
+  const tabs = tabsForRole(campaign?.role === 'dm');
+  const swipeHandlers = useSwipeTabs(campaignId, tabs);
 
   useEffect(() => {
     setCampaign(null);
@@ -121,12 +137,26 @@ export function CampaignScreen() {
         </div>
       </div>
 
-      <BottomTabDock tabs={TABS} />
+      <BottomTabDock tabs={tabs} />
     </div>
   );
 }
 
 export function CampaignIndexRedirect() {
   const { campaignId } = useParams();
-  return <Navigate to={`/campaigns/${campaignId}/encyclopedia`} replace />;
+  const { isDM } = useOutletContext();
+  return <Navigate to={`/campaigns/${campaignId}/${isDM ? 'encyclopedia' : 'notes'}`} replace />;
+}
+
+// Guards the two DM-only tabs (Encyclopedia, Bestiary) against a player
+// landing on them directly — a stale link, browser back/forward, or a
+// hand-typed URL, since they're not reachable from the tab dock at all
+// once tabsForRole() drops them for a player. Not a security boundary
+// (RLS already owns that) — purely keeping the "players don't even see
+// these" promise consistent when navigation happens outside the dock.
+export function RequireDM({ children }) {
+  const { campaignId } = useParams();
+  const { isDM } = useOutletContext();
+  if (!isDM) return <Navigate to={`/campaigns/${campaignId}/notes`} replace />;
+  return children;
 }
