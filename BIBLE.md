@@ -76,26 +76,25 @@ painterly linework, laurel and meander ornament, warm marble and
 oxidized-bronze surfaces). The fusion point is *Greek gold-work* — think
 a temple relief rendered with sci-fi precision, not two clashing skins.
 
-### Palette (CSS custom properties, defined once in `app/src/index.css`)
+### Palette & theming (CSS custom properties, defined once in `app/src/index.css`)
 
-| Token | Value | Use |
-|---|---|---|
-| `--ink` | `#0b0a08` | Page background, deepest surfaces (obsidian, not pure black) |
-| `--ink-raised` | `#14120e` | Card/panel background |
-| `--ink-line` | `#2a2620` | Hairline borders on dark surfaces |
-| `--marble` | `#f3ecda` | Primary text on dark, light-surface background |
-| `--marble-dim` | `#c9c0a8` | Secondary/muted text |
-| `--gold` | `#caa24b` | Primary accent — borders, active states, icons |
-| `--gold-bright` | `#e8c876` | Hover/focus, glow highlights |
-| `--gold-deep` | `#8a6a24` | Pressed states, recessed engraving shadows |
-| `--bronze` | `#7d6a4a` | Secondary ornament (verdigris-adjacent, desaturated) |
-| `--oxblood` | `#7a2222` | Danger, HP loss, DM-only "danger zone" actions |
-| `--laurel` | `#4a5c3a` | Success, healing, player-safe confirmations |
+Tokens are semantic, not literal, because both themes below redefine
+them: `--surface`, `--surface-raised`, `--surface-glow`, `--line`,
+`--text`, `--text-dim`, plus the accent set `--gold`, `--gold-bright`,
+`--gold-deep`, `--bronze`, `--oxblood`, `--laurel`. Screens/components
+should only ever reference the semantic name, never a literal hex.
 
-Dark-first: the app defaults to the obsidian/gold combination (works at a
-table at night, doesn't blow out a phone screen). A light "marble" theme
-(ivory background, ink text, same gold accents) is a plausible v2 toggle
-but not required for launch.
+Dark (default) is the obsidian/gold combination described above. Light
+("ivory") swaps `--surface`/`--surface-raised` for warm off-white
+(`#f4ecd8` / `#fffcf3`), `--text` for a deep warm brown-black, and darkens
+the gold accents (e.g. `--gold` → `#a9812f`) so they still read against a
+light ground instead of washing out. Both are fully implemented, not just
+dark with a stub: see `lib/theme.js` + `components/ThemeToggle.jsx` (a
+fixed button, present on every screen) — same technique as a themed
+Artifact: bare `:root` holds the dark tokens, a
+`prefers-color-scheme: light` media query provides the un-set default,
+and an explicit `[data-theme]` attribute (set by the toggle, persisted to
+`localStorage`) wins in either direction.
 
 ### Typography
 
@@ -112,24 +111,41 @@ bonfire's CSP already allowlists (see `app/vercel.json`).
 
 ### Ornament vocabulary
 
-Reusable pieces, not one-off decoration — build them as small components
-once `app/src/components/ornament/` exists:
+Reusable pieces, not one-off decoration — live in
+`app/src/components/ornament/`. The line quality is deliberately
+lopsided: almost everything is free-flowing (Hades), with one small,
+intentional dose of angular "tech" (Warframe) as a counterpoint rather
+than an even split:
 
-- **Greek key (meander) border** — an SVG/CSS repeating pattern used as a
-  1–2px rule under headers and around card frames. Gold on dark.
-- **Laurel flourish** — flanking a title or a "victory"/level-up state.
-- **Angular corner brackets** (Warframe UI signature) — on focused/active
-  panels, like a targeting reticle; pairs surprisingly well with laurel
-  since both are corner/edge ornament rather than fill.
+- **Flowing vine divider** (`FlowingDivider.jsx`) — the *primary* rule
+  under headers: a single smooth bezier S-curve with a few hand-placed
+  leaf shapes and a small center reticle-dot (the one Warframe touch
+  woven into an otherwise organic line). Replaced an earlier, stiffer
+  Greek-key rule in this role.
+- **Laurel flourish** (`Laurel.jsx`) — flanks a title. Leaves are bezier
+  teardrops planted along a curved stem via its tangent angle (not fixed
+  ellipses at fixed angles), with a couple of berries near the base —
+  reads as a hand-drawn branch, not a repeating stamp.
+- **Greek key (meander)** (`GreekKeyRule.jsx`) — demoted to a *small*
+  accent only: an 8px strip across the top of a primary panel
+  (`Panel`'s `topRule` prop) — a console-readout detail, used sparingly.
+- **Angular corner brackets** (`.corner-frame` on `Panel`) — the other
+  deliberately blocky element, a Warframe targeting-reticle on the
+  screen's primary panel. Kept blocky on purpose, as the counterpoint the
+  free-flowing ornament plays against — don't soften these to match.
 - **Radial glow** behind primary icons/avatars — soft gold bloom, low
-  opacity, on `--ink` backgrounds only (never under body text).
-- **Engraved panel**: a card with a 1px `--gold-deep` inset shadow (looks
-  carved in) plus a `--gold` 1px outer edge (looks gilded) — the base
-  "surface" component every panel/card in the app should share.
+  opacity, on `--surface`/`--surface-raised` only (never under body text).
+- **Engraved panel** (`Panel.jsx`): a card with a 1px `--gold-deep` inset
+  shadow (looks carved in) plus a `--gold` 1px outer edge (looks gilded)
+  — the base surface every panel/card in the app shares.
+- **Grain**: a very faint SVG-turbulence texture over the whole page
+  (`body::before`, ~3% opacity, overlay blend) standing in for
+  parchment/marble — subtle enough to never compete with content.
 
-Motion should be restrained and mechanical-yet-ceremonial: panels
-slide/fade in like console UI (Warframe), confirmations get a brief gold
-flourish-draw (Hades' seal-of-approval feel) rather than bouncy easing.
+Motion should be restrained and mechanical-yet-ceremonial: screens fade/
+lift in on mount (`.screen-enter`), confirmations should eventually get a
+brief gold flourish-draw (Hades' seal-of-approval feel) rather than
+bouncy easing — not yet implemented beyond the entrance fade.
 
 ## 4. Identity & roles
 
@@ -203,31 +219,64 @@ Two distinct things, don't conflate them:
   server round-trip needed, it's just formatting data the client already
   has).
 
-## 7. Data model (roadmap)
+## 7. Data model
 
-Core (build first, needed for the home screen / auth flow to mean
-anything):
+Each table lives in its own file under `db/migrations/`, run in filename
+order — see that directory's own comments for the exact columns/RLS.
+Nothing here is pre-created ahead of its screen; each was added in the
+same session its feature was built.
 
-- `profiles` — one row per `auth.users`, display name, avatar, etc.
+Built (`001_core.sql`):
+
+- `profiles` — one row per `auth.users`, display name, created by a
+  trigger on signup.
 - `campaigns` — id, name, description, `dm_id`, invite code, timestamps.
-- `campaign_members` — `campaign_id`, `user_id`, `role` (`dm`|`player`),
-  joined_at. Composite PK `(campaign_id, user_id)`.
+- `campaign_members` — `campaign_id`, `user_id`, `role` (`dm`|`player`).
+  Composite PK. A campaign always has exactly one row per participant,
+  the DM included (auto-created by a trigger on campaign insert) —
+  there's no special-cased "owner who isn't a member" path.
+- `join_campaign_with_code(code)` — the guarded RPC a player calls to
+  redeem an invite code and become a member; `is_campaign_member(...)` —
+  the RLS helper every later table's policies build on.
 
-Phase 2+ (each gets its own schema migration + RLS pass when its feature
-is built — don't pre-create empty tables for these, design them when
-their screen is actually being built so the schema fits real UI needs):
+Built (`002_world_building.sql`):
+
+- `encyclopedia_entries` — DM-authored, campaign-scoped: `category`
+  (location/npc/faction/item/lore/other), `title`, `body`, `tags text[]`,
+  plus a generated `search_vector`/GIN index for when client-side
+  filtering (what the UI actually does today — see below) stops scaling.
+- `bestiary_entries` — DM-authored stat blocks: AC/HP/hit dice/speed,
+  an `abilities jsonb` blob (`{str,dex,con,int,wis,cha}` — jsonb rather
+  than six columns so homebrew can stash extra keys later), challenge
+  rating, traits/actions/notes text, same search_vector treatment.
+- `notes` — freeform, owned by whoever wrote them. `visibility` is
+  `private` (author only, default), `dm` (author + that campaign's DM),
+  or `campaign` (every member); only the author can ever edit/delete.
+  `author_id`/`created_by` columns across all three are stamped by a
+  `BEFORE INSERT` trigger from `auth.uid()`, never trusted from the
+  client — same doctrine as `little-bonfire`'s `reset_server_columns`.
+
+All three are read through `lib/contentStore.js`, which gives guest
+mode (a JSON array in `localStorage`, keyed per campaign+kind) and
+account mode (the Supabase tables above) the same camelCase,
+Promise-returning shape — screens (`EncyclopediaScreen.jsx`,
+`BestiaryScreen.jsx`, `NotesScreen.jsx`) don't know which one they're
+talking to. Search today is a client-side substring filter over the
+already-loaded list (`matchesQuery` in `lib/encyclopedia.js`) — adequate
+at the scale of one table's homebrew content; the `search_vector`
+columns exist for when that stops being true, not because they're wired
+up yet. Every content type has a `toMarkdown()` serializer
+(`lib/{encyclopedia,bestiary,notes}.js`) and an Export button
+(`lib/markdownExport.js`'s `downloadTextFile`) — the "keep it offline"
+feature from §6, working today per-entry and per-list.
+
+Not built yet — each still gets its own migration + RLS pass when its
+screen is built, per the rule above:
 
 - **Character sheets** — per-player, per-campaign; needs to support
   whatever ruleset the table plays (start with 5e-shaped fields, but
-  don't hardcode assumptions that block homebrew).
-- **Bestiary** — DM-authored monster entries, campaign-scoped, with a
-  stat-block shape close to character sheets' combat fields (so battle
-  tracking can read both uniformly).
-- **Encyclopedia** — DM-authored lore/world entries (locations, factions,
-  items, NPCs), full-text searchable (Postgres `tsvector` + a search
-  index; this is the "search feature" called out in the request).
-- **Notes** — freeform, owned by either a DM (campaign-visible or
-  DM-private) or a player (private by default, shareable to DM).
+  don't hardcode assumptions that block homebrew — `bestiary_entries`'
+  jsonb `abilities` blob is the pattern to follow).
 - **Battle tracker** — initiative order, HP/condition tracking per
   combatant, referencing character sheet and bestiary rows for their
   base stats; live within a session (likely wants realtime sync between
@@ -239,15 +288,17 @@ their screen is actually being built so the schema fits real UI needs):
 
 ## 8. Feature roadmap (phases)
 
-1. **Foundation** (this session): Bible, theme system, home screen
-   (guest/login + DM/Player), auth/session plumbing, core schema.
-2. **DM world-building**: encyclopedia + bestiary, with search and
-   Markdown export.
-3. **Player tools**: character sheet, personal notes.
+1. **Foundation** — done. Bible, theme system, home screen (guest/login
+   + DM/Player), auth/session plumbing, core schema.
+2. **DM world-building** — done. Campaign hub (create/join/list),
+   encyclopedia + bestiary + notes, all with Markdown export. Light/dark
+   theme toggle and the free-flowing ornament pass also landed here.
+3. **Player tools** — character sheet is the remaining piece; personal
+   notes already shipped in phase 2 (notes aren't DM-only).
 4. **Live play**: battle tracker, initiative, condition tracking —
    likely the first feature needing Supabase Realtime.
-5. **Polish**: offline sync queue, guest→account migration, light theme,
-   campaign invite flows, session recap/log.
+5. **Polish**: offline sync queue, guest→account migration, campaign
+   invite-flow UI beyond the raw code field, session recap/log.
 
 ## 9. Conventions
 

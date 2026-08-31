@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GreekKeyRule } from '../components/ornament/GreekKeyRule.jsx';
+import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -34,10 +34,10 @@ export function GuestRoleScreen() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
-      <form onSubmit={handleSubmit} style={{ width: 'min(520px, 100%)' }}>
+      <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(520px, 100%)' }}>
         <h2 style={{ textAlign: 'center' }}>Enter the Table</h2>
         <div style={{ margin: '1.25rem 0' }}>
-          <GreekKeyRule />
+          <FlowingDivider />
         </div>
 
         <Panel style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -60,13 +60,13 @@ export function GuestRoleScreen() {
                 onClick={() => setRole(r.id)}
                 className={role === r.id ? 'corner-frame' : ''}
                 style={{
-                  background: role === r.id ? 'var(--ink)' : 'transparent',
-                  border: `1px solid ${role === r.id ? 'var(--gold)' : 'var(--ink-line)'}`,
+                  background: role === r.id ? 'var(--surface)' : 'transparent',
+                  border: `1px solid ${role === r.id ? 'var(--gold)' : 'var(--line)'}`,
                   borderRadius: 'var(--radius)',
                   padding: '1.25rem 1rem',
                   cursor: 'pointer',
                   textAlign: 'left',
-                  color: 'var(--marble)',
+                  color: 'var(--text)',
                 }}
               >
                 <div style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.04em' }}>{r.title}</div>

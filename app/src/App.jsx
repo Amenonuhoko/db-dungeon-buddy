@@ -1,9 +1,14 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ThemeToggle } from './components/ThemeToggle.jsx';
 import { SessionProvider, useSession } from './lib/SessionContext.jsx';
 import { AuthScreen } from './screens/AuthScreen.jsx';
-import { DashboardScreen } from './screens/DashboardScreen.jsx';
+import { BestiaryScreen } from './screens/BestiaryScreen.jsx';
+import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
+import { CampaignIndexRedirect, CampaignScreen } from './screens/CampaignScreen.jsx';
+import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
+import { NotesScreen } from './screens/NotesScreen.jsx';
 
 function RequireSession({ children }) {
   const { status } = useSession();
@@ -15,7 +20,7 @@ function RequireSession({ children }) {
 function Splash() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-      <span style={{ fontFamily: 'var(--font-display)', color: 'var(--marble-dim)', letterSpacing: '0.1em' }}>
+      <span style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
         AWAKENING THE CODEX…
       </span>
     </div>
@@ -33,10 +38,23 @@ function Routed() {
         path="/dashboard"
         element={
           <RequireSession>
-            <DashboardScreen />
+            <CampaignHubScreen />
           </RequireSession>
         }
       />
+      <Route
+        path="/campaigns/:campaignId"
+        element={
+          <RequireSession>
+            <CampaignScreen />
+          </RequireSession>
+        }
+      >
+        <Route index element={<CampaignIndexRedirect />} />
+        <Route path="encyclopedia" element={<EncyclopediaScreen />} />
+        <Route path="notes" element={<NotesScreen />} />
+        <Route path="bestiary" element={<BestiaryScreen />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -46,6 +64,7 @@ export default function App() {
   return (
     <SessionProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <ThemeToggle />
         <Routed />
       </BrowserRouter>
     </SessionProvider>

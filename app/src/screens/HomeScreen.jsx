@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GreekKeyRule } from '../components/ornament/GreekKeyRule.jsx';
+import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
@@ -25,7 +25,7 @@ export function HomeScreen() {
         padding: '1.5rem',
       }}
     >
-      <div style={{ width: 'min(480px, 100%)', textAlign: 'center' }}>
+      <div className="screen-enter" style={{ width: 'min(480px, 100%)', textAlign: 'center' }}>
         <div className="glow" aria-hidden="true" style={{ marginBottom: '1.25rem' }}>
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="88" height="88" />
         </div>
@@ -37,10 +37,10 @@ export function HomeScreen() {
         <p style={{ marginTop: '0.75rem' }}>A companion for the whole table — DM or player.</p>
 
         <div style={{ margin: '1.75rem 0' }}>
-          <GreekKeyRule />
+          <FlowingDivider />
         </div>
 
-        <Panel corners style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <button className="btn btn-primary" onClick={() => navigate('/guest')}>
             Continue as Guest
           </button>

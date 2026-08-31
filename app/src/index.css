@@ -2,14 +2,23 @@
  * Design tokens and shared primitives — see BIBLE.md §3 for the design
  * rationale (Warframe Prime gold/white x Hades Greek ornament). Every
  * screen should build on these rather than inventing new colors/shadows.
+ *
+ * Theming: dark (obsidian/gold) is the default. Light ("marble", ivory)
+ * is opt-in via the ThemeToggle (lib/theme.js sets
+ * documentElement[data-theme]). Same technique as a themed Artifact:
+ * define dark tokens on bare :root, follow system preference when no
+ * explicit choice has been made, then let an explicit [data-theme]
+ * attribute win in either direction.
  */
 
 :root {
-  --ink: #0b0a08;
-  --ink-raised: #14120e;
-  --ink-line: #2a2620;
-  --marble: #f3ecda;
-  --marble-dim: #c9c0a8;
+  --surface: #0b0a08;
+  --surface-raised: #14120e;
+  --surface-glow: #1c1811;
+  --line: #2a2620;
+  --text: #f3ecda;
+  --text-dim: #c9c0a8;
+
   --gold: #caa24b;
   --gold-bright: #e8c876;
   --gold-deep: #8a6a24;
@@ -25,6 +34,44 @@
   --shadow-glow: 0 0 24px rgba(202, 162, 75, 0.25);
 }
 
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --surface: #f4ecd8;
+    --surface-raised: #fffcf3;
+    --surface-glow: #fffdf6;
+    --line: #ddd0ad;
+    --text: #2a2115;
+    --text-dim: #6f6045;
+
+    --gold: #a9812f;
+    --gold-bright: #c99a3d;
+    --gold-deep: #6b5019;
+    --bronze: #8a7350;
+    --oxblood: #8a2a2a;
+    --laurel: #3f5230;
+
+    --shadow-glow: 0 0 24px rgba(107, 80, 25, 0.2);
+  }
+}
+
+:root[data-theme='light'] {
+  --surface: #f4ecd8;
+  --surface-raised: #fffcf3;
+  --surface-glow: #fffdf6;
+  --line: #ddd0ad;
+  --text: #2a2115;
+  --text-dim: #6f6045;
+
+  --gold: #a9812f;
+  --gold-bright: #c99a3d;
+  --gold-deep: #6b5019;
+  --bronze: #8a7350;
+  --oxblood: #8a2a2a;
+  --laurel: #3f5230;
+
+  --shadow-glow: 0 0 24px rgba(107, 80, 25, 0.2);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -37,10 +84,27 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(ellipse at 50% -10%, #1c1811 0%, var(--ink) 55%);
-  color: var(--marble);
+  position: relative;
+  background: radial-gradient(ellipse at 50% -10%, var(--surface-glow) 0%, var(--surface) 55%);
+  color: var(--text);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+/* A very faint grain, the one bit of texture standing in for parchment/
+   marble — kept subtle enough to never compete with content. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 h1,
@@ -51,12 +115,12 @@ h4 {
   font-weight: 600;
   letter-spacing: 0.04em;
   margin: 0;
-  color: var(--marble);
+  color: var(--text);
 }
 
 p {
   margin: 0;
-  color: var(--marble-dim);
+  color: var(--text-dim);
   line-height: 1.6;
 }
 
@@ -68,23 +132,52 @@ button {
   font-family: var(--font-body);
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------
+ * Screen entrance — a small ceremonial fade rather than an instant cut.
+ * ------------------------------------------------------------------- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.screen-enter {
+  animation: fadeInUp 420ms ease both;
+}
+
 /* ---------------------------------------------------------------------
  * Engraved panel — the base surface every card/panel in the app shares.
  * Reads as "carved in" (inset gold-deep shadow) with a gilded outer edge.
  * ------------------------------------------------------------------- */
 .panel {
-  background: var(--ink-raised);
+  background: var(--surface-raised);
   border: 1px solid var(--gold);
   border-radius: var(--radius);
   box-shadow:
     inset 0 0 0 1px var(--gold-deep),
-    inset 0 1px 18px rgba(0, 0, 0, 0.5);
+    inset 0 1px 18px rgba(0, 0, 0, 0.35);
   padding: 2rem;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
 }
 
 /* ---------------------------------------------------------------------
  * Corner-frame — Warframe-style targeting-reticle corner brackets,
- * layered as four independent backgrounds so it works at any size.
+ * layered as four independent backgrounds so it works at any size. Left
+ * deliberately angular — the one place the design stays "blocky", as a
+ * counterpoint to the free-flowing vine/laurel ornament everywhere else.
  * ------------------------------------------------------------------- */
 .corner-frame {
   position: relative;
@@ -118,12 +211,47 @@ button {
     bottom -1px right -1px;
 }
 
+.panel-top-rule {
+  margin: -2rem -2rem 1.5rem;
+  padding: 0 1.5rem;
+}
+
 /* ---------------------------------------------------------------------
  * Gold glow — soft radial bloom behind a primary icon/avatar. Only ever
- * on dark surfaces (--ink / --ink-raised), never behind body text.
+ * on dark surfaces (--surface / --surface-raised), never behind body text.
  * ------------------------------------------------------------------- */
 .glow {
   filter: drop-shadow(0 0 18px rgba(232, 200, 118, 0.45));
+}
+
+/* ---------------------------------------------------------------------
+ * Theme toggle — fixed, always reachable, on every screen.
+ * ------------------------------------------------------------------- */
+.theme-toggle {
+  position: fixed;
+  top: 1.1rem;
+  right: 1.1rem;
+  z-index: 20;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold-deep);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    box-shadow 150ms ease,
+    color 150ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.theme-toggle:hover {
+  box-shadow: var(--shadow-glow), inset 0 0 0 1px var(--gold-deep);
+  color: var(--gold-bright);
 }
 
 /* ---------------------------------------------------------------------
@@ -152,7 +280,7 @@ button {
 .btn-primary {
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
   border: 1px solid var(--gold-bright);
-  color: var(--ink);
+  color: var(--surface);
 }
 
 .btn-primary:not(:disabled):hover {
@@ -161,13 +289,29 @@ button {
 
 .btn-ghost {
   background: transparent;
-  border: 1px solid var(--ink-line);
-  color: var(--marble-dim);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
 }
 
 .btn-ghost:not(:disabled):hover {
   border-color: var(--gold);
-  color: var(--marble);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--oxblood);
+  color: var(--oxblood);
+}
+
+.btn-danger:not(:disabled):hover {
+  background: var(--oxblood);
+  color: var(--text);
+}
+
+.btn-small {
+  padding: 0.5rem 1rem;
+  font-size: 0.7rem;
 }
 
 /* ---------------------------------------------------------------------
@@ -185,20 +329,35 @@ button {
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--marble-dim);
+  color: var(--text-dim);
 }
 
-.field input {
-  background: var(--ink);
-  border: 1px solid var(--ink-line);
+.field input,
+.field textarea,
+.field select {
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  color: var(--marble);
+  color: var(--text);
   font-family: var(--font-body);
   font-size: 1rem;
   padding: 0.7rem 0.9rem;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
 }
 
-.field input:focus {
+.field textarea {
+  resize: vertical;
+  min-height: 6rem;
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
   outline: none;
   border-color: var(--gold);
   box-shadow: 0 0 0 1px var(--gold);
@@ -207,4 +366,18 @@ button {
 .error-text {
   color: var(--gold-bright);
   font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------------
+ * Tag chips — used by the encyclopedia/bestiary lists.
+ * ------------------------------------------------------------------- */
+.chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
 }

@@ -1,0 +1,207 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
+import { Panel } from '../components/ornament/Panel.jsx';
+import {
+  createCampaign,
+  createGuestCampaign,
+  joinCampaignByCode,
+  listGuestCampaigns,
+  listMyCampaigns,
+} from '../lib/campaigns.js';
+import { useSession } from '../lib/SessionContext.jsx';
+
+const ROLE_LABEL = { dm: 'Dungeon Master', player: 'Player' };
+
+function CampaignRow({ campaign, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(campaign.id)}
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        textAlign: 'left',
+        background: 'var(--surface)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--radius)',
+        padding: '1rem 1.25rem',
+        color: 'var(--text)',
+        cursor: 'pointer',
+      }}
+    >
+      <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.03em' }}>{campaign.name}</span>
+      <span className="chip">{ROLE_LABEL[campaign.role]}</span>
+    </button>
+  );
+}
+
+export function CampaignHubScreen() {
+  const { status, guest, user, logOut } = useSession();
+  const navigate = useNavigate();
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(status === 'authenticated');
+  const [error, setError] = useState(null);
+
+  const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (status === 'guest') {
+      setCampaigns(listGuestCampaigns());
+      return;
+    }
+    if (status === 'authenticated') {
+      setLoading(true);
+      listMyCampaigns()
+        .then(setCampaigns)
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+    }
+  }, [status]);
+
+  function openCampaign(id) {
+    navigate(`/campaigns/${id}`);
+  }
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    if (!newName.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (status === 'guest') {
+        const campaign = createGuestCampaign(newName.trim(), guest.role);
+        setCampaigns((prev) => [campaign, ...prev]);
+        setNewName('');
+        openCampaign(campaign.id);
+      } else {
+        const campaign = await createCampaign(newName.trim(), newDescription.trim());
+        setCampaigns((prev) => [campaign, ...prev]);
+        setNewName('');
+        setNewDescription('');
+        openCampaign(campaign.id);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleJoin(event) {
+    event.preventDefault();
+    if (!joinCode.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const campaign = await joinCampaignByCode(joinCode.trim());
+      setCampaigns((prev) => [campaign, ...prev]);
+      setJoinCode('');
+      openCampaign(campaign.id);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleLogOut() {
+    await logOut();
+    navigate('/');
+  }
+
+  const name = status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || user?.email;
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: '3rem 1.5rem' }}>
+      <div className="screen-enter" style={{ width: 'min(640px, 100%)' }}>
+        <h2 style={{ textAlign: 'center' }}>Welcome, {name}</h2>
+        <p style={{ textAlign: 'center', marginTop: '0.4rem' }}>
+          {status === 'guest' ? `${ROLE_LABEL[guest.role]} · local device` : 'Your campaigns'}
+        </p>
+
+        <div style={{ margin: '1.5rem 0' }}>
+          <FlowingDivider />
+        </div>
+
+        {error && (
+          <p className="error-text" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            {error}
+          </p>
+        )}
+
+        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Your Campaigns</h3>
+            {loading && <p>Loading…</p>}
+            {!loading && campaigns.length === 0 && (
+              <p>{status === 'guest' ? 'No local campaigns yet — start one below.' : 'Nothing yet — create or join one below.'}</p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {campaigns.map((c) => (
+                <CampaignRow key={c.id} campaign={c} onOpen={openCampaign} />
+              ))}
+            </div>
+          </div>
+
+          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ fontSize: '1rem' }}>
+              {status === 'guest' ? 'Start a Local Campaign' : 'Create a Campaign'}
+            </h3>
+            <div className="field">
+              <label htmlFor="campaignName">Name</label>
+              <input
+                id="campaignName"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="The Sunken Citadel"
+              />
+            </div>
+            {status === 'authenticated' && (
+              <div className="field">
+                <label htmlFor="campaignDescription">Description (optional)</label>
+                <textarea
+                  id="campaignDescription"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            )}
+            <button className="btn btn-primary" type="submit" disabled={busy || !newName.trim()}>
+              {status === 'guest' ? 'Create Local Campaign' : 'Create Campaign'}
+            </button>
+          </form>
+
+          {status === 'authenticated' && (
+            <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h3 style={{ fontSize: '1rem' }}>Join a Campaign</h3>
+              <div className="field">
+                <label htmlFor="joinCode">Invite Code</label>
+                <input
+                  id="joinCode"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  placeholder="from your DM"
+                />
+              </div>
+              <button className="btn btn-ghost" type="submit" disabled={busy || !joinCode.trim()}>
+                Join as Player
+              </button>
+            </form>
+          )}
+
+          <button className="btn btn-ghost" onClick={handleLogOut} type="button">
+            {status === 'guest' ? 'Leave Table' : 'Log Out'}
+          </button>
+        </Panel>
+      </div>
+    </div>
+  );
+}

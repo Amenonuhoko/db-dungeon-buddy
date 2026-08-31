@@ -26,8 +26,10 @@ npm run dev
 ```
 
 This runs in Guest mode only — `/api/*` (serverless functions) aren't
-served by plain `vite dev`, and no Supabase env vars are set yet. To
-exercise account login/signup and a real database locally, install the
+served by plain `vite dev`, and no Supabase env vars are set yet. Guest
+mode is fully featured (campaigns, encyclopedia, bestiary, notes all work
+against `localStorage`), so this is enough for most day-to-day frontend
+work. To exercise account login/signup and a real database, install the
 [Vercel CLI](https://vercel.com/docs/cli) and run `vercel dev` from
 `app/` instead, with `app/.env` filled in (see **Database setup**).
 
@@ -63,11 +65,14 @@ Without the keys below, the app runs entirely in **Guest mode** — see
 data lives only in that browser's `localStorage`.
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In the project's SQL Editor, paste in the full contents of
-   [`db/schema.sql`](db/schema.sql) and run it. It creates `profiles`,
-   `campaigns`, and `campaign_members`, with the triggers and RLS
-   policies documented inline — see the comments in that file for what
-   each piece does and why.
+2. In the project's SQL Editor, run every file under
+   [`db/migrations/`](db/migrations) once, **in filename order**
+   (`001_core.sql`, then `002_world_building.sql`). Together they create
+   `profiles`, `campaigns`, `campaign_members`, `encyclopedia_entries`,
+   `bestiary_entries`, and `notes`, with the triggers and RLS policies
+   documented inline — see the comments in each file for what it does and
+   why. New content types get their own numbered file here as they're
+   built (see `BIBLE.md` §7) rather than editing old ones.
 3. In the project's **Settings → API**, copy the **Project URL** and the
    **anon public** key.
 4. Add them as env vars on the **Vercel** project (Settings →

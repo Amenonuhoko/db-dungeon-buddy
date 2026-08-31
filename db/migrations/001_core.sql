@@ -1,12 +1,13 @@
--- Codex — Supabase schema (core: profiles, campaigns, membership)
+-- Codex — Supabase schema, migration 1 of N: core (profiles, campaigns,
+-- membership).
 --
--- Run this once, in full, in the Supabase SQL editor (Dashboard → SQL
--- Editor → New query) on a fresh project. See BIBLE.md §7 for the wider
--- data-model roadmap — bestiary/encyclopedia/notes/character sheets/battle
--- tracker are deliberately not in here yet; each gets its own migration
--- when its screen is built, so the schema fits real UI needs instead of
--- being guessed at up front. Safe to re-run: every statement is
--- idempotent (create-if-not-exists / drop-if-exists first / on conflict).
+-- Run every file under db/migrations/ once, in filename order, in the
+-- Supabase SQL editor (Dashboard → SQL Editor → New query) on a fresh
+-- project. See BIBLE.md §7 for the wider data-model roadmap — each
+-- content type gets its own migration when its screen is built, so the
+-- schema fits real UI needs instead of being guessed at up front. Safe
+-- to re-run: every statement is idempotent (create-if-not-exists /
+-- drop-if-exists first / on conflict).
 
 create extension if not exists pgcrypto;
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GreekKeyRule } from '../components/ornament/GreekKeyRule.jsx';
+import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -38,10 +38,10 @@ export function AuthScreen() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
-      <form onSubmit={handleSubmit} style={{ width: 'min(420px, 100%)' }}>
+      <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(420px, 100%)' }}>
         <h2 style={{ textAlign: 'center' }}>{mode === 'login' ? 'Welcome Back' : 'Join the Codex'}</h2>
         <div style={{ margin: '1.25rem 0' }}>
-          <GreekKeyRule />
+          <FlowingDivider />
         </div>
 
         <Panel style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
