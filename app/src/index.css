@@ -381,3 +381,33 @@ input:focus-visible {
   border: 1px solid var(--line);
   color: var(--text-dim);
 }
+
+/* ---------------------------------------------------------------------
+ * Sample/example content — never real campaign data, so it must never
+ * look like it. Dashed border + a distinct chip, no gilded edge, no
+ * shadow depth. Same visual family everywhere it appears.
+ * ------------------------------------------------------------------- */
+.panel-sample {
+  background: transparent;
+  border: 1px dashed var(--bronze);
+  box-shadow: none;
+}
+
+.chip-sample {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px dashed var(--bronze);
+  color: var(--bronze);
+}
+
+.hint-text {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}

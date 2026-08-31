@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { downloadTextFile } from '../lib/markdownExport.js';
-import { createNote, listNotes, noteToMarkdown, notesToMarkdown, removeNote, updateNote, VISIBILITIES } from '../lib/notes.js';
+import { createNote, EXAMPLES, listNotes, noteToMarkdown, notesToMarkdown, removeNote, updateNote, VISIBILITIES } from '../lib/notes.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 const BLANK_FORM = { title: '', body: '', visibility: 'private' };
@@ -39,6 +40,12 @@ export function NotesScreen() {
   function startEdit(note) {
     setEditingId(note.id);
     setForm({ title: note.title, body: note.body, visibility: note.visibility });
+    setShowForm(true);
+  }
+
+  function useTemplate(example) {
+    setEditingId(null);
+    setForm({ title: example.title, body: example.body, visibility: example.visibility });
     setShowForm(true);
   }
 
@@ -89,15 +96,29 @@ export function NotesScreen() {
         </button>
       </div>
 
+      <ExampleGallery
+        items={EXAMPLES}
+        isEmpty={notes.length === 0}
+        onUseTemplate={useTemplate}
+        renderItem={(example) => (
+          <>
+            <h3 style={{ fontSize: '1.05rem' }}>{example.title}</h3>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{example.body}</p>
+          </>
+        )}
+      />
+
       {showForm && (
         <Panel style={{ marginBottom: '1.5rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <p className="hint-text">Recap what happened, what's unresolved, and who to follow up with.</p>
             <div className="field">
               <label htmlFor="noteTitle">Title</label>
               <input
                 id="noteTitle"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Session 4 recap"
                 autoFocus
               />
             </div>
@@ -107,6 +128,7 @@ export function NotesScreen() {
                 id="noteBody"
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
+                placeholder="What happened, what's still unresolved, who to follow up with."
                 rows={6}
               />
             </div>

@@ -10,6 +10,23 @@ export const VISIBILITIES = [
   { id: 'campaign', label: 'Whole Campaign' },
 ];
 
+// Reference samples — not stored anywhere, shown in an "Examples" panel
+// and usable as a one-click starting point (see NotesScreen.jsx's "Use
+// as Template"). One recap shape, one private-DM-secret shape, since
+// those are the two notes a table actually writes most.
+export const EXAMPLES = [
+  {
+    title: 'Session 1 recap',
+    visibility: 'campaign',
+    body: 'What happened: the party sailed into Port Vessa and met the harbormaster.\n\nLoose threads: who does the harbormaster actually owe money to?\n\nFollow up next session: the ledger she mentioned.',
+  },
+  {
+    title: "Secret: the harbormaster's debt",
+    visibility: 'private',
+    body: "She owes The Undertow, not a rival — reveal this if the party starts trusting her too fast.\n\nDrop the hook: a debt collector shows up mid-conversation if they linger in her office.",
+  },
+];
+
 export function listNotes(status, campaignId) {
   return storeFor(status).list(campaignId);
 }

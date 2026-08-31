@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import {
   ABILITY_KEYS,
@@ -7,6 +8,7 @@ import {
   createCreature,
   creatureToMarkdown,
   creaturesToMarkdown,
+  EXAMPLES,
   listCreatures,
   modifier,
   removeCreature,
@@ -60,6 +62,12 @@ export function BestiaryScreen() {
   function startEdit(creature) {
     setEditingId(creature.id);
     setForm({ ...BLANK_FORM, ...creature, abilities: { ...BLANK_ABILITIES, ...creature.abilities } });
+    setShowForm(true);
+  }
+
+  function useTemplate(example) {
+    setEditingId(null);
+    setForm({ ...BLANK_FORM, ...example, abilities: { ...BLANK_ABILITIES, ...example.abilities } });
     setShowForm(true);
   }
 
@@ -117,13 +125,44 @@ export function BestiaryScreen() {
         )}
       </div>
 
+      {isDM && (
+        <ExampleGallery
+          items={EXAMPLES}
+          isEmpty={creatures.length === 0}
+          onUseTemplate={useTemplate}
+          renderItem={(example) => (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1.05rem' }}>{example.name}</h3>
+                <span className="chip">CR {example.challengeRating}</span>
+              </div>
+              <p style={{ marginTop: '0.25rem', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                {example.size} {example.type}
+              </p>
+              <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                AC {example.armorClass} · HP {example.hitPoints} ({example.hitDice}) · Speed {example.speed}
+              </p>
+            </>
+          )}
+        />
+      )}
+
       {showForm && isDM && (
         <Panel style={{ marginBottom: '1.5rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <p className="hint-text">
+              How does it fight, what makes it dangerous, and what's the one detail players will remember?
+            </p>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '2 1 200px' }}>
                 <label htmlFor="beastName">Name</label>
-                <input id="beastName" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
+                <input
+                  id="beastName"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Cliffside Ghoul"
+                  autoFocus
+                />
               </div>
               <div className="field" style={{ flex: '1 1 140px' }}>
                 <label htmlFor="beastSize">Size</label>
@@ -196,16 +235,34 @@ export function BestiaryScreen() {
             </div>
 
             <div className="field">
-              <label htmlFor="beastTraits">Traits</label>
-              <textarea id="beastTraits" value={form.traits} onChange={(e) => setForm({ ...form, traits: e.target.value })} rows={3} />
+              <label htmlFor="beastTraits">Traits (passive abilities)</label>
+              <textarea
+                id="beastTraits"
+                value={form.traits}
+                onChange={(e) => setForm({ ...form, traits: e.target.value })}
+                placeholder="Pack Tactics. Has advantage on an attack roll against a creature if an ally is within 5 ft. of it."
+                rows={3}
+              />
             </div>
             <div className="field">
-              <label htmlFor="beastActions">Actions</label>
-              <textarea id="beastActions" value={form.actions} onChange={(e) => setForm({ ...form, actions: e.target.value })} rows={3} />
+              <label htmlFor="beastActions">Actions (what it does on its turn)</label>
+              <textarea
+                id="beastActions"
+                value={form.actions}
+                onChange={(e) => setForm({ ...form, actions: e.target.value })}
+                placeholder="Claw. Melee Weapon Attack: +4 to hit, reach 5 ft. Hit: 2d6+2 slashing damage."
+                rows={3}
+              />
             </div>
             <div className="field">
               <label htmlFor="beastNotes">DM Notes (optional)</label>
-              <textarea id="beastNotes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+              <textarea
+                id="beastNotes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Where it lairs, what it wants, when to have it flee instead of fight."
+                rows={2}
+              />
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>

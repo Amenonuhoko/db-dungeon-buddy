@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import {
   CATEGORIES,
   createEntry,
   entriesToMarkdown,
   entryToMarkdown,
+  EXAMPLES,
   listEntries,
   matchesQuery,
   removeEntry,
@@ -54,6 +56,12 @@ export function EncyclopediaScreen() {
   function startEdit(entry) {
     setEditingId(entry.id);
     setForm({ category: entry.category, title: entry.title, body: entry.body, tags: (entry.tags || []).join(', ') });
+    setShowForm(true);
+  }
+
+  function useTemplate(example) {
+    setEditingId(null);
+    setForm({ category: example.category, title: example.title, body: example.body, tags: example.tags.join(', ') });
     setShowForm(true);
   }
 
@@ -150,9 +158,26 @@ export function EncyclopediaScreen() {
         )}
       </div>
 
+      {canWrite && (
+        <ExampleGallery
+          items={EXAMPLES}
+          isEmpty={entries.length === 0}
+          onUseTemplate={useTemplate}
+          renderItem={(example) => (
+            <>
+              <h3 style={{ fontSize: '1.05rem' }}>{example.title}</h3>
+              <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{example.body}</p>
+            </>
+          )}
+        />
+      )}
+
       {showForm && canWrite && (
         <Panel style={{ marginBottom: '1.5rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <p className="hint-text">
+              What is it, why does the party care, and what's one secret or hook a DM can drop in mid-scene?
+            </p>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '2 1 200px' }}>
                 <label htmlFor="entryTitle">Title</label>
@@ -160,6 +185,7 @@ export function EncyclopediaScreen() {
                   id="entryTitle"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Port Vessa"
                   autoFocus
                 />
               </div>
@@ -184,6 +210,7 @@ export function EncyclopediaScreen() {
                 id="entryBody"
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
+                placeholder="What the party notices first. What it wants or hides. One hook a DM can drop in."
                 rows={6}
               />
             </div>
