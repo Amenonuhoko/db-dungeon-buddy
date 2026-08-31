@@ -350,6 +350,20 @@ Built (`004_character_sheets.sql`):
   conditions stay DM-only even in guest mode, since demonstrating that
   restriction is the point of the feature.
 
+Built, but not a `db/migrations/` table — no backend at all:
+
+- **Dice roller** (`components/DiceRoller.jsx`) — a floating button
+  rendered once at the App root (`App.jsx`, sibling to the router), so
+  it's reachable from every screen including the very first one, before
+  a visitor has picked Guest/Join/Log In. Quick-roll presets (d4 through
+  d100) plus a count/sides/modifier builder that rolls *any* die size,
+  not just the standard set. Rolls use `crypto.getRandomValues` rather
+  than `Math.random()`. Per-visitor roll history only (component state,
+  resets on reload) — it is deliberately **not** synced across the
+  table; that's the one piece of the original "dice roller with shared
+  roll history" idea still open, and it's really the battle tracker's
+  realtime problem (below) more than the roller's.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 
@@ -357,10 +371,18 @@ screen is built, per the rule above:
   combatant, referencing character sheet and bestiary rows for their
   base stats; live within a session (likely wants realtime sync between
   the DM's screen and players' screens — Supabase Realtime is the
-  natural fit when this is built).
+  natural fit when this is built). A shared/synced roll log (everyone at
+  the table sees everyone's rolls) is a natural extension once that
+  realtime plumbing exists.
+- **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
+  already exists per-entry, but there's no cross-content tagging/
+  filtering (e.g. one tag spanning encyclopedia + bestiary + notes +
+  character sheets, or a way to browse "everything tagged act-one").
+  Needs a scoping pass before building — decide whether it's a shared
+  tag vocabulary per campaign or freeform per entry, and whether it's
+  browse/filter only or also drives cross-linking between entries.
 - Later, DM-quality-of-life ideas worth keeping in mind but not
-  scheduled: random encounter/loot tables, a session-log/recap feed,
-  dice roller with shared roll history.
+  scheduled: random encounter/loot tables, a session-log/recap feed.
 
 ## 8. Feature roadmap (phases)
 
@@ -373,11 +395,13 @@ screen is built, per the rule above:
    their own, DM-only conditions/debilitations — §4/§7), personal notes
    (shipped in phase 2, notes aren't DM-only), and a no-account "join a
    campaign as a player" path via anonymous sign-in (§4). Bottom
-   swipeable tab nav also landed here.
+   swipeable tab nav and the global dice roller also landed here.
 4. **Live play**: battle tracker, initiative, condition tracking —
-   likely the first feature needing Supabase Realtime.
+   likely the first feature needing Supabase Realtime; a shared roll log
+   for the dice roller is a natural rider on that same plumbing.
 5. **Polish**: offline sync queue, guest→account migration, campaign
-   invite-flow UI beyond the raw code field, session recap/log.
+   invite-flow UI beyond the raw code field, session recap/log, tagging
+   (see §7 — needs scoping first).
 
 ## 9. Conventions
 

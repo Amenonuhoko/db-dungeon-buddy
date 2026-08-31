@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { DiceRoller } from './components/DiceRoller.jsx';
 import { ThemeToggle } from './components/ThemeToggle.jsx';
 import { SessionProvider, useSession } from './lib/SessionContext.jsx';
 import { AuthScreen } from './screens/AuthScreen.jsx';
@@ -69,6 +70,7 @@ export default function App() {
     <SessionProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <ThemeToggle />
+        <DiceRoller />
         <Routed />
       </BrowserRouter>
     </SessionProvider>
