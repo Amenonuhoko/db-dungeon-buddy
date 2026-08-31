@@ -193,7 +193,7 @@ export function DiceRoller() {
                     animationDelay: `${Math.min(latest.rolls.length, MAX_VISIBLE_DICE) * 55 + 150}ms`,
                   }}
                 >
-                  = {latest.total}
+                  {latest.total}
                 </div>
               </div>
             )}
