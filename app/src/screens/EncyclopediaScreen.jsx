@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
   CATEGORIES,
   createEntry,
@@ -117,46 +118,66 @@ export function EncyclopediaScreen() {
     <div>
       {error && <p className="error-text" style={{ marginBottom: '1rem' }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search the codex…"
-          style={{
-            flex: '1 1 200px',
-            background: 'var(--surface-raised)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius)',
-            color: 'var(--text)',
-            padding: '0.6rem 0.9rem',
-          }}
-        />
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          style={{
-            background: 'var(--surface-raised)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius)',
-            color: 'var(--text)',
-            padding: '0.6rem 0.9rem',
-          }}
-        >
-          <option value="all">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <button className="btn btn-ghost btn-small" type="button" onClick={exportAll} disabled={filtered.length === 0}>
-          Export Markdown
-        </button>
-        {canWrite && (
-          <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            New Entry
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flex: '1 1 320px' }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search the codex…"
+            style={{
+              flex: '1 1 200px',
+              background: 'var(--surface-raised)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--text)',
+              padding: '0.6rem 0.9rem',
+            }}
+          />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            style={{
+              background: 'var(--surface-raised)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--text)',
+              padding: '0.6rem 0.9rem',
+            }}
+          >
+            <option value="all">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+          <button
+            className="btn btn-ghost btn-small btn-icon"
+            type="button"
+            onClick={exportAll}
+            disabled={filtered.length === 0}
+            title="Export Markdown"
+            aria-label="Export Markdown"
+          >
+            <DownloadIcon />
           </button>
-        )}
+          {canWrite && (
+            <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
+              New Entry
+            </button>
+          )}
+        </div>
       </div>
 
       {canWrite && (

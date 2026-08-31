@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Panel } from './ornament/Panel.jsx';
+import { ChevronIcon } from './ornament/UtilityIcons.jsx';
 
 // Shows reference samples for a content type — clearly marked as samples
 // (dashed border, "Example" chip — see .panel-sample/.chip-sample), never
@@ -25,7 +26,12 @@ export function ExampleGallery({ items, isEmpty, renderItem, onUseTemplate }) {
 
   return (
     <div style={{ marginBottom: '1.5rem' }}>
-      <button type="button" className="btn btn-ghost btn-small" onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className={`example-toggle${open ? ' open' : ''}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <ChevronIcon />
         {open ? 'Hide Examples' : `Show Examples (${items.length})`}
       </button>
 

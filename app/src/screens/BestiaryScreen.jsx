@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
   ABILITY_KEYS,
   BLANK_ABILITIES,
@@ -110,14 +111,16 @@ export function BestiaryScreen() {
     <div>
       {error && <p className="error-text" style={{ marginBottom: '1rem' }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
         <button
-          className="btn btn-ghost btn-small"
+          className="btn btn-ghost btn-small btn-icon"
           type="button"
           onClick={() => downloadTextFile('bestiary.md', creaturesToMarkdown(creatures, 'Campaign'))}
           disabled={creatures.length === 0}
+          title="Export Markdown"
+          aria-label="Export Markdown"
         >
-          Export Markdown
+          <DownloadIcon />
         </button>
         {isDM && (
           <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>

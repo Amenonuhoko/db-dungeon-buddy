@@ -489,3 +489,20 @@ screen is built, per the rule above:
     bounce off Home's redirect and land back on `/dashboard`, which is a
     confusing no-op UI).
   - `/` (Home) is the true root — nothing above it.
+- **Content-screen toolbars (Encyclopedia/Notes/Bestiary/Characters) are
+  two grouped clusters, not a flat row of buttons.** A left cluster
+  (search + filter, where the screen has one) and a right cluster
+  (secondary actions + the primary "New X" button) sit in a
+  `justify-content: space-between` row. Each cluster wraps as a unit on
+  narrow screens instead of individual buttons wrapping unpredictably —
+  that's what was making the row look cluttered before. Within the
+  right cluster: the primary create action stays a full `.btn-primary`
+  button (it's the one thing that should pull the eye); secondary,
+  rarely-used actions like "Export Markdown" collapse to an icon-only
+  `.btn-icon` button (`DownloadIcon` from
+  `app/src/components/ornament/UtilityIcons.jsx`, with `title`/
+  `aria-label` for the label that's no longer visible as text) so they
+  don't compete for weight. `ExampleGallery`'s "Show Examples" toggle
+  uses the `.example-toggle` class — a plain text link with a rotating
+  chevron, not a bordered button — since it's a disclosure for reference
+  material, not a real action.
