@@ -46,7 +46,11 @@ npm run build
 
 1. Import this repo into a new Vercel project.
 2. Set its **Root Directory** to `app`. Vercel auto-detects the Vite
-   framework preset — `app/vercel.json` supplies the security headers.
+   framework preset — `app/vercel.json` supplies the security headers
+   and the SPA rewrite (every path falls back to `index.html` so
+   React Router, not Vercel's static file server, handles routes like
+   `/login` or `/campaigns/:id` — without it, anything but the bare
+   root 404s on a direct visit or a refresh).
 3. Add the three env vars from **Database setup** below in the project's
    Settings → Environment Variables.
 4. Push to `main` (or trigger a deploy) — Vercel builds and serves
