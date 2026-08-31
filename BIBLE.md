@@ -455,3 +455,37 @@ screen is built, per the rule above:
 - When a feature needs a design decision not covered here, make the
   call, ship it, and **update this file** in the same commit so it stays
   the source of truth.
+- **Deleting a card is always a corner badge, never an inline "Delete"
+  button.** Use `<DeleteButton onConfirm={...} label="..." />`
+  (`app/src/components/DeleteButton.jsx`) as the first child of the
+  `<Panel>`, not in the Export/Edit action row. It renders as a small `×`
+  perched half-outside the card's top-right corner (`.corner-delete` in
+  `index.css`, `top: -10px; right: -10px;` so it never collides with an
+  in-card header chip like category/CR/role). One tap arms it — it turns
+  oxblood and pulses, tooltip flips to "tap again to confirm" — a second
+  tap within 2.5s actually deletes; losing focus or letting the window
+  lapse quietly disarms it. No modal, no separate confirm screen. Applied
+  to Encyclopedia entries, Bestiary creatures, Notes, and character
+  sheets. This does *not* replace small inline-chip actions that aren't a
+  full-card delete — e.g. the per-condition `×` on a character sheet's
+  condition chips stays as a plain inline button, since removing one
+  condition isn't destructive enough to warrant a confirm step and doing
+  so would visually clash with the corner badge on the same card.
+- **Every non-root screen gets a `<BackButton to="..." label="..." />`**
+  (`app/src/components/BackButton.jsx`) as the first thing rendered,
+  above the heading — never a plain "Back" button buried below the
+  primary action. It's the one standing back-navigation affordance;
+  don't hand-roll another "← X" button. The navigation map:
+  - `/guest`, `/login`, `/join` → back to `/` (Home). Home already
+    redirects an authenticated/guest session straight to `/dashboard`,
+    so this is safe even mid-session.
+  - `/campaigns/:id` (and everything nested under it — Encyclopedia,
+    Notes, Bestiary, Characters, reached via the bottom tab dock, not
+    stack navigation) → back to `/dashboard`, labeled "Campaigns". One
+    `BackButton` above the swipeable tab content covers all four tabs.
+  - `/dashboard` has no back arrow — it's the authenticated root. Its
+    existing "Log Out" / "Leave Table" button is the deliberate exit
+    action instead (a plain back to `/` while still signed in would just
+    bounce off Home's redirect and land back on `/dashboard`, which is a
+    confusing no-op UI).
+  - `/` (Home) is the true root — nothing above it.

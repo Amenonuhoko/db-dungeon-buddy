@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { joinCampaignByCode } from '../lib/campaigns.js';
@@ -44,6 +45,7 @@ export function JoinCampaignScreen() {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
       <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(440px, 100%)' }}>
+        <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>Join a Campaign</h2>
         <p style={{ textAlign: 'center', marginTop: '0.5rem' }}>
           No account needed — just a name and the code your DM gave you.
@@ -78,9 +80,6 @@ export function JoinCampaignScreen() {
 
           <button className="btn btn-primary" type="submit" disabled={busy || !canJoin}>
             {busy ? 'Joining…' : 'Join Campaign'}
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={() => navigate('/')}>
-            Back
           </button>
         </Panel>
       </form>

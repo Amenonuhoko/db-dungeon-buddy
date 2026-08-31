@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { downloadTextFile } from '../lib/markdownExport.js';
@@ -166,6 +167,7 @@ export function NotesScreen() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {notes.map((note) => (
           <Panel key={note.id}>
+            {isMine(note) && <DeleteButton onConfirm={() => handleDelete(note.id)} label={note.title} />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
               <h3 style={{ fontSize: '1.1rem' }}>{note.title}</h3>
               {!isGuest && (
@@ -182,14 +184,9 @@ export function NotesScreen() {
                 Export
               </button>
               {isMine(note) && (
-                <>
-                  <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(note)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-danger btn-small" type="button" onClick={() => handleDelete(note.id)}>
-                    Delete
-                  </button>
-                </>
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(note)}>
+                  Edit
+                </button>
               )}
             </div>
           </Panel>

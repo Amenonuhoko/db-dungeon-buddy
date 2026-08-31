@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import {
@@ -249,6 +250,7 @@ export function EncyclopediaScreen() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {filtered.map((entry) => (
           <Panel key={entry.id}>
+            {canWrite && <DeleteButton onConfirm={() => handleDelete(entry.id)} label={entry.title} />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
               <h3 style={{ fontSize: '1.1rem' }}>{entry.title}</h3>
               <span className="chip">{CATEGORIES.find((c) => c.id === entry.category)?.label}</span>
@@ -268,14 +270,9 @@ export function EncyclopediaScreen() {
                 Export
               </button>
               {canWrite && (
-                <>
-                  <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(entry)}>
-                    Edit
-                  </button>
-                  <button className="btn btn-danger btn-small" type="button" onClick={() => handleDelete(entry.id)}>
-                    Delete
-                  </button>
-                </>
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(entry)}>
+                  Edit
+                </button>
               )}
             </div>
           </Panel>

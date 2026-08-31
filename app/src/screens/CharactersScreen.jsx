@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import {
@@ -365,6 +366,7 @@ export function CharactersScreen() {
           const sheetConditions = conditionsByCharacterId[sheet.id] || [];
           return (
             <Panel key={sheet.id}>
+              {canEditSheet(sheet) && <DeleteButton onConfirm={() => handleDeleteSheet(sheet.id)} label={sheet.name} />}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1.1rem' }}>{sheet.name}</h3>
                 {sheet.classAndLevel && <span className="chip">{sheet.classAndLevel}</span>}
@@ -522,14 +524,9 @@ export function CharactersScreen() {
                   Export
                 </button>
                 {canEditSheet(sheet) && (
-                  <>
-                    <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(sheet)}>
-                      Edit
-                    </button>
-                    <button className="btn btn-danger btn-small" type="button" onClick={() => handleDeleteSheet(sheet.id)}>
-                      Delete
-                    </button>
-                  </>
+                  <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(sheet)}>
+                    Edit
+                  </button>
                 )}
               </div>
             </Panel>

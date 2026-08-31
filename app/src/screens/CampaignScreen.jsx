@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { BookIcon, PawIcon, QuillIcon, ShieldIcon } from '../components/ornament/TabIcons.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
@@ -47,7 +48,6 @@ function useSwipeTabs(campaignId) {
 export function CampaignScreen() {
   const { campaignId } = useParams();
   const { status } = useSession();
-  const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [error, setError] = useState(null);
   const swipeHandlers = useSwipeTabs(campaignId);
@@ -73,9 +73,9 @@ export function CampaignScreen() {
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
         <div className="screen-enter" style={{ textAlign: 'center' }}>
           <p className="error-text">{error}</p>
-          <button className="btn btn-ghost" style={{ marginTop: '1rem' }} onClick={() => navigate('/dashboard')}>
-            Back to Campaigns
-          </button>
+          <div style={{ marginTop: '1rem' }}>
+            <BackButton to="/dashboard" label="Campaigns" />
+          </div>
         </div>
       </div>
     );
@@ -96,9 +96,7 @@ export function CampaignScreen() {
   return (
     <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 7rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
-        <button className="btn btn-ghost btn-small" onClick={() => navigate('/dashboard')} type="button">
-          ← Campaigns
-        </button>
+        <BackButton to="/dashboard" label="Campaigns" />
 
         <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h2>{campaign.name}</h2>

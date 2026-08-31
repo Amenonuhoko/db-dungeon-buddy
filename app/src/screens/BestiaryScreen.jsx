@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import {
@@ -287,6 +288,7 @@ export function BestiaryScreen() {
           const abilities = { ...BLANK_ABILITIES, ...creature.abilities };
           return (
             <Panel key={creature.id}>
+              {isDM && <DeleteButton onConfirm={() => handleDelete(creature.id)} label={creature.name} />}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1.1rem' }}>{creature.name}</h3>
                 {creature.challengeRating && <span className="chip">CR {creature.challengeRating}</span>}
@@ -337,14 +339,9 @@ export function BestiaryScreen() {
                   Export
                 </button>
                 {isDM && (
-                  <>
-                    <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(creature)}>
-                      Edit
-                    </button>
-                    <button className="btn btn-danger btn-small" type="button" onClick={() => handleDelete(creature.id)}>
-                      Delete
-                    </button>
-                  </>
+                  <button className="btn btn-ghost btn-small" type="button" onClick={() => startEdit(creature)}>
+                    Edit
+                  </button>
                 )}
               </div>
             </Panel>

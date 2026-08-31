@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
@@ -35,6 +36,7 @@ export function GuestRoleScreen() {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
       <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(520px, 100%)' }}>
+        <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>Enter the Table</h2>
         <div style={{ margin: '1.25rem 0' }}>
           <FlowingDivider />
@@ -77,9 +79,6 @@ export function GuestRoleScreen() {
 
           <button className="btn btn-primary" type="submit" disabled={!canEnter}>
             Enter as Guest
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={() => navigate('/')}>
-            Back
           </button>
         </Panel>
       </form>
