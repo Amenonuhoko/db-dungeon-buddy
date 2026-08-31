@@ -4,11 +4,12 @@ import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
 
+const USERNAME_PATTERN = '[A-Za-z0-9_-]{3,20}';
+
 export function AuthScreen() {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -22,12 +23,20 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'login') {
-        await logIn(email, password);
+        await logIn(username, password);
         navigate('/dashboard');
       } else {
-        await register(email, password, displayName.trim());
-        setNotice('Account created — check your email to confirm, then log in.');
-        setMode('login');
+        const result = await register(username, password);
+        if (result?.session) {
+          // Signed in immediately — this is the expected path once
+          // "Confirm email" is off in Supabase (see BIBLE.md §4).
+          navigate('/dashboard');
+        } else {
+          setNotice(
+            'Account created, but you were not signed in automatically. Turn off "Confirm email" under Authentication → Providers → Email in your Supabase project, then log in below.',
+          );
+          setMode('login');
+        }
       }
     } catch (err) {
       setError(err.message || 'Something went wrong.');
@@ -45,27 +54,18 @@ export function AuthScreen() {
         </div>
 
         <Panel style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {mode === 'signup' && (
-            <div className="field">
-              <label htmlFor="displayName">Display name</label>
-              <input
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="username">Username</label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="stormcaller"
+              pattern={USERNAME_PATTERN}
+              title="3-20 letters, numbers, underscores or hyphens"
               required
-              autoComplete="email"
+              autoComplete="username"
+              autoFocus
             />
           </div>
 
@@ -81,6 +81,10 @@ export function AuthScreen() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
           </div>
+
+          {mode === 'signup' && (
+            <p className="hint-text">No email on file means no password recovery — pick one you'll remember.</p>
+          )}
 
           {error && <p className="error-text">{error}</p>}
           {notice && <p className="error-text">{notice}</p>}

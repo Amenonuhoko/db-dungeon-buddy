@@ -51,12 +51,15 @@ export function SessionProvider({ children }) {
         setGuest(startGuestSession(displayName, role));
         setStatus('guest');
       },
-      async logIn(email, password) {
-        await signIn(email, password);
+      async logIn(username, password) {
+        await signIn(username, password);
         // onAuthChange fires and updates status/user.
       },
-      async register(email, password, displayName) {
-        await signUp(email, password, displayName);
+      async register(username, password) {
+        // Returns the raw signUp() response so the caller can tell
+        // whether it came back with an active session (email
+        // confirmation off, as instructed) or not.
+        return signUp(username, password);
       },
       async joinAsPlayer(displayName) {
         await signInAnonymously(displayName);

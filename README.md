@@ -86,6 +86,11 @@ data lives only in that browser's `localStorage`.
    `/join` screen, `BIBLE.md` §4), turn on **Anonymous sign-ins** under
    **Authentication → Sign In / Providers** in the Supabase dashboard —
    that's a project setting, not something the SQL migrations can flip.
+8. Turn **off** "Confirm email" under **Authentication → Providers →
+   Email**. Account signup (`BIBLE.md` §4) uses username/password under
+   the hood via a synthetic, undeliverable email address — if email
+   confirmation is required, every new signup gets stuck waiting on a
+   confirmation link that can never arrive.
 
 (Unlike `little-bonfire`, there's no `SUPABASE_SERVICE_ROLE_KEY` yet —
 auth and campaign membership are handled by Supabase Auth and guarded

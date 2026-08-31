@@ -42,21 +42,52 @@ function requireBackend() {
   }
 }
 
-export async function signUp(email, password, displayName) {
+// Supabase Auth is built around email/password — usernames aren't a
+// native identity type. Rather than pull in a different backend, we
+// deterministically map a username to a synthetic address under a
+// reserved (RFC 2606) .invalid TLD — guaranteed never a real,
+// deliverable domain — so the same Auth/RLS machinery still applies,
+// but nobody ever sees or types an email. The tradeoff this accepts:
+// there's no email to send a password-reset link to (see BIBLE.md §4).
+// Same function used for both signup and login, so login is
+// case/whitespace-insensitive to whatever the account was created with.
+const USERNAME_EMAIL_DOMAIN = 'accounts.codex.invalid';
+
+export function usernameToEmail(username) {
+  const slug = username
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${slug}@${USERNAME_EMAIL_DOMAIN}`;
+}
+
+export async function signUp(username, password) {
   requireBackend();
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: usernameToEmail(username),
     password,
-    options: { data: { display_name: displayName } },
+    options: { data: { display_name: username.trim() } },
   });
-  if (error) throw error;
+  if (error) {
+    throw /already registered/i.test(error.message)
+      ? new Error('That username is already taken — try another.')
+      : error;
+  }
   return data;
 }
 
-export async function signIn(email, password) {
+export async function signIn(username, password) {
   requireBackend();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: usernameToEmail(username),
+    password,
+  });
+  if (error) {
+    throw /invalid login credentials/i.test(error.message)
+      ? new Error('Unknown username or wrong password.')
+      : error;
+  }
   return data;
 }
 

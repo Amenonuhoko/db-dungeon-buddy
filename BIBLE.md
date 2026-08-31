@@ -190,9 +190,23 @@ DM for one campaign and a player in another.
   Guest data can later be claimed by an account (v2: "sign up and keep
   this character" migration) — worth designing for, not required at
   launch.
-- **Account**: Supabase Auth (email/password to start; magic link is a
-  cheap follow-on). Profile row keyed to `auth.users.id`. Enables
-  cross-device sync and being invited into other people's campaigns.
+- **Account**: Supabase Auth, but **username/password**, not email —
+  nobody at the table wants to give an email address to sign up. Supabase
+  Auth has no native username identity type, so `lib/session.js`
+  deterministically maps a username to a synthetic address under a
+  reserved (RFC 2606) `.invalid` TLD (`stormcaller` →
+  `stormcaller@accounts.codex.invalid`) — guaranteed never a real,
+  deliverable domain — and everything downstream (RLS, `auth.uid()`,
+  `profiles`) works exactly as it would with a real email, because as
+  far as Postgres is concerned it's just an email column. The username
+  *is* the display name (one field to fill in, not two). The tradeoff
+  this accepts, same shape as the anonymous path below: no email means
+  no password-reset-by-email — losing the password loses the account.
+  **Requires "Confirm email" turned OFF** under the Supabase project's
+  Authentication → Providers → Email settings — a dashboard toggle, not
+  something a migration can set — because a confirmation email sent to a
+  `.invalid` address can never be delivered or clicked, which would
+  otherwise permanently lock every new signup out.
 - **Anonymous account** (a third thing, not a variant of the other two):
   `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
   real campaign as a player, no signup." It's a genuine Supabase Auth

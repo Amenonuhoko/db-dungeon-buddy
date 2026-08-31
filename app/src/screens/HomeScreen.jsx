@@ -41,8 +41,13 @@ export function HomeScreen() {
         </div>
 
         <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <button className="btn btn-primary" onClick={() => navigate('/guest')}>
-            Continue as Guest
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/login')}
+            disabled={!hasBackend}
+            title={hasBackend ? undefined : 'Account login needs a configured backend'}
+          >
+            Log In / Sign Up
           </button>
           <button
             className="btn btn-ghost"
@@ -52,19 +57,14 @@ export function HomeScreen() {
           >
             Join a Campaign
           </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => navigate('/login')}
-            disabled={!hasBackend}
-            title={hasBackend ? undefined : 'Account login needs a configured backend'}
-          >
-            Log In / Sign Up
-          </button>
           {!hasBackend && (
             <p style={{ fontSize: '0.8rem' }}>
-              Running without a backend — guest mode is local to this device. See BIBLE.md §2 to add one.
+              Running without a backend — see BIBLE.md §2 to add one. Guest mode below still works fully.
             </p>
           )}
+          <button className="btn btn-ghost" onClick={() => navigate('/guest')}>
+            Continue as Guest
+          </button>
         </Panel>
       </div>
     </div>
