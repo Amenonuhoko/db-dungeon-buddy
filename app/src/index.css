@@ -857,6 +857,39 @@ input:focus-visible {
   animation: die-tumble 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* The table-cheers/table-groans moment — a maxed or bottomed-out die
+ * (per die, not just an overall total) gets a soft radiant pulse once it
+ * finishes tumbling in, rather than sitting there as just another
+ * numeral. Delayed to start after the tumble settles so the two
+ * animations don't fight. */
+@keyframes die-critical-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1px var(--gold-bright));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px var(--gold-bright)) drop-shadow(0 0 2px var(--gold-bright));
+  }
+}
+
+@keyframes die-fumble-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1px var(--oxblood));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px var(--oxblood));
+  }
+}
+
+.die-face.die-critical svg {
+  animation: die-critical-pulse 1300ms ease-in-out 420ms infinite;
+}
+
+.die-face.die-fumble svg {
+  animation: die-fumble-pulse 1300ms ease-in-out 420ms infinite;
+}
+
 /* ---------------------------------------------------------------------
  * Character Sheet — the one screen deliberately built to look and feel
  * different from the rest of the app (see BIBLE.md §3/§9). Everything

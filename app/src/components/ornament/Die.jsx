@@ -44,19 +44,52 @@ export function Die({ sides, value, index = 0 }) {
   const shape = SHAPES[sides];
   const numeralSize = value >= 100 ? 7 : value >= 10 ? 8.5 : 10;
 
+  // The one moment every D&D table actually cheers or groans at — rolling
+  // a die's best or worst possible face. Only means anything on a die
+  // that isn't already at both extremes (sides > 1, always true here
+  // since DiceRoller clamps sides >= 2), and independently per die, not
+  // just d20 — a maxed d6 in a damage pool deserves the same flourish.
+  const isCritical = value === sides;
+  const isFumble = value === 1;
+  const faceClass = isCritical ? ' die-critical' : isFumble ? ' die-fumble' : '';
+  const label = `d${sides} rolled ${value}${isCritical ? ' — critical!' : isFumble ? ' — fumble' : ''}`;
+  // Text was always gold-bright regardless of roll — keep that baseline,
+  // just redirect it to oxblood on a fumble. The outline is the one that
+  // actually needs a three-way split: dim `--gold` normally (unchanged
+  // from before this flourish existed), bright gold on a critical, and
+  // oxblood on a fumble — using `textColor` for both would brighten
+  // every ordinary die's outline, not just the special ones.
+  const textColor = isFumble ? 'var(--oxblood)' : 'var(--gold-bright)';
+  const strokeColor = isCritical ? 'var(--gold-bright)' : isFumble ? 'var(--oxblood)' : 'var(--gold)';
+
   return (
-    <div className="die-face" style={{ animationDelay: `${delay}ms` }} title={`d${sides}: ${value}`}>
-      <svg viewBox="0 0 24 24" width="34" height="34" role="img" aria-label={`d${sides} rolled ${value}`}>
+    <div className={`die-face${faceClass}`} style={{ animationDelay: `${delay}ms` }} title={label}>
+      <svg viewBox="0 0 24 24" width="34" height="34" role="img" aria-label={label}>
         {isPipDie ? (
           <>
-            <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--gold)" stroke="var(--gold-deep)" strokeWidth="1.2" />
+            <rect
+              x="2"
+              y="2"
+              width="20"
+              height="20"
+              rx="5"
+              fill={isFumble ? 'var(--oxblood)' : 'var(--gold)'}
+              stroke={isCritical ? 'var(--gold-bright)' : isFumble ? 'var(--oxblood)' : 'var(--gold-deep)'}
+              strokeWidth={isCritical || isFumble ? 1.8 : 1.2}
+            />
             {PIP_LAYOUTS[value].map(([x, y]) => (
               <circle key={`${x}-${y}`} cx={x} cy={y} r="1.7" fill="var(--surface)" />
             ))}
           </>
         ) : shape ? (
           <>
-            <polygon points={shape.points} fill="var(--surface-raised)" stroke="var(--gold)" strokeWidth="1.3" strokeLinejoin="round" />
+            <polygon
+              points={shape.points}
+              fill="var(--surface-raised)"
+              stroke={strokeColor}
+              strokeWidth={isCritical || isFumble ? 1.9 : 1.3}
+              strokeLinejoin="round"
+            />
             <text
               x="12"
               y={shape.textY}
@@ -65,14 +98,14 @@ export function Die({ sides, value, index = 0 }) {
               fontFamily="var(--font-mono)"
               fontSize={numeralSize}
               fontWeight="700"
-              fill="var(--gold-bright)"
+              fill={textColor}
             >
               {value}
             </text>
           </>
         ) : (
           <>
-            <circle cx="12" cy="12" r="10" fill="var(--surface-raised)" stroke="var(--gold)" strokeWidth="1.3" />
+            <circle cx="12" cy="12" r="10" fill="var(--surface-raised)" stroke={strokeColor} strokeWidth={isCritical || isFumble ? 1.9 : 1.3} />
             <text
               x="12"
               y="12.5"
@@ -81,7 +114,7 @@ export function Die({ sides, value, index = 0 }) {
               fontFamily="var(--font-mono)"
               fontSize={numeralSize}
               fontWeight="700"
-              fill="var(--gold-bright)"
+              fill={textColor}
             >
               {value}
             </text>

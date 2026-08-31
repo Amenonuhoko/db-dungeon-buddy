@@ -492,6 +492,13 @@ Built, but not a `db/migrations/` table — no backend at all:
   pool over `MAX_VISIBLE_DICE` (24) shows the first 24 plus a "+N more"
   chip — the total is always the real sum over every die rolled,
   whether or not it's drawn.
+  A die landing on its best or worst possible face (`value === sides` /
+  `value === 1`) gets a soft pulsing glow — gold for a max roll, oxblood
+  for a natural 1 — via `.die-critical`/`.die-fumble` in `index.css`,
+  independently per die (a maxed d6 in a damage pool glows on its own,
+  not the whole pool). It's the one moment a real table visibly reacts
+  to, so it's the one place this app editorializes on a roll's result
+  rather than just reporting a number.
 
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
