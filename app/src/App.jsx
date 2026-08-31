@@ -5,6 +5,7 @@ import { AuthScreen } from './screens/AuthScreen.jsx';
 import { BestiaryScreen } from './screens/BestiaryScreen.jsx';
 import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
 import { CampaignIndexRedirect, CampaignScreen } from './screens/CampaignScreen.jsx';
+import { CharactersScreen } from './screens/CharactersScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
@@ -56,6 +57,7 @@ function Routed() {
         <Route path="encyclopedia" element={<EncyclopediaScreen />} />
         <Route path="notes" element={<NotesScreen />} />
         <Route path="bestiary" element={<BestiaryScreen />} />
+        <Route path="characters" element={<CharactersScreen />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

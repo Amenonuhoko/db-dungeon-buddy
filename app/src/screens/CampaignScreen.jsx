@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
-import { BookIcon, PawIcon, QuillIcon } from '../components/ornament/TabIcons.jsx';
+import { BookIcon, PawIcon, QuillIcon, ShieldIcon } from '../components/ornament/TabIcons.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -9,6 +9,7 @@ const TABS = [
   { to: 'encyclopedia', label: 'Encyclopedia', icon: <BookIcon /> },
   { to: 'notes', label: 'Notes', icon: <QuillIcon /> },
   { to: 'bestiary', label: 'Bestiary', icon: <PawIcon /> },
+  { to: 'characters', label: 'Characters', icon: <ShieldIcon /> },
 ];
 
 // Swipe threshold tuned to feel deliberate — a scroll or a tap-drag on a

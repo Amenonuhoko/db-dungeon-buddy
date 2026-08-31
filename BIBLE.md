@@ -147,6 +147,32 @@ lift in on mount (`.screen-enter`), confirmations should eventually get a
 brief gold flourish-draw (Hades' seal-of-approval feel) rather than
 bouncy easing — not yet implemented beyond the entrance fade.
 
+**A `.screen-enter` gotcha, worth knowing before touching it again:** its
+keyframes must end at `transform: none` (the literal keyword), and the
+animation shorthand must NOT carry `both`/`forwards`. A browser resolves
+an animated `transform` to a matrix — even the identity matrix — for as
+long as a fill mode keeps the end keyframe applied, and any non-`none`
+transform (identity included) makes that element a containing block for
+`position: fixed` descendants. With `both` set, a `.screen-enter` screen
+containing a fixed element (the bottom tab dock, the `ThemeToggle`
+button if it were ever nested inside one) would silently anchor that
+fixed element to the screen's own box instead of the real viewport once
+its content grew taller than one screen. Dropping the fill mode fixes it
+because the element's `transform` then genuinely reverts to `none` the
+instant the 420ms animation ends — same visual result, no side effect.
+
+### Navigation
+
+Inside a campaign, section navigation (Encyclopedia/Notes/Bestiary/
+Characters) is a fixed bottom tab dock (`BottomTabDock.jsx`, mobile-app
+style) rather than top text tabs — see `CampaignScreen.jsx`. A left/right
+touch swipe on the content area moves between the same tabs (past a 60px,
+clearly-horizontal threshold, so a scroll or a button tap-drag can't
+misfire); the dock and the swipe are two entry points into one
+navigation, not two separate systems. Icons live in
+`components/ornament/TabIcons.jsx`, same free-flowing stroke style as
+the rest of the ornament vocabulary.
+
 ## 4. Identity & roles
 
 Two independent axes — **how you're signed in** and **what hat you're
@@ -282,13 +308,37 @@ up yet. Every content type has a `toMarkdown()` serializer
 (`lib/markdownExport.js`'s `downloadTextFile`) — the "keep it offline"
 feature from §6, working today per-entry and per-list.
 
+Built (`004_character_sheets.sql`):
+
+- `character_sheets` — one per player per campaign. The DM "hands one
+  out" by inserting it assigned to a `player_id` (insert is DM-only by
+  RLS); after that, the DM *or* the owning player can edit the
+  mechanical fields (class/level, race, background, `abilities` jsonb —
+  same shape as `bestiary_entries`, AC/HP/speed, equipment, features).
+- `character_conditions` — debilitations/boons layered onto a sheet,
+  split into its own table on purpose: Postgres RLS is row-level, not
+  column-level, so "the player can edit their own sheet but never touch
+  its conditions" needs a separate table rather than one more column.
+  Only the DM has any insert/update/delete policy here at all — that
+  table-level split *is* the mechanism behind "the DM can secretly
+  debilitate a player," not a UI-level restriction that a crafted
+  request could bypass. `visible_to_party` (default true) additionally
+  lets a DM keep a condition hidden from the rest of the table while the
+  affected player still always sees their own — a secret curse only
+  that player and the DM know about, say. `is_campaign_dm(...)` was
+  added alongside these as the DM-check equivalent of
+  `is_campaign_member(...)`.
+- Guest mode has no real membership list, so a guest-created sheet is
+  always assigned to a fixed `LOCAL_PLAYER_ID` constant rather than a
+  real `auth.uid()` — see `lib/characters.js`. Guest mode also relaxes
+  "DM hands it out" to "DM *or* the guest, either role, can create one,"
+  since a solo local sandbox has no second person to hand anything to;
+  conditions stay DM-only even in guest mode, since demonstrating that
+  restriction is the point of the feature.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 
-- **Character sheets** — per-player, per-campaign; needs to support
-  whatever ruleset the table plays (start with 5e-shaped fields, but
-  don't hardcode assumptions that block homebrew — `bestiary_entries`'
-  jsonb `abilities` blob is the pattern to follow).
 - **Battle tracker** — initiative order, HP/condition tracking per
   combatant, referencing character sheet and bestiary rows for their
   base stats; live within a session (likely wants realtime sync between
@@ -305,8 +355,11 @@ screen is built, per the rule above:
 2. **DM world-building** — done. Campaign hub (create/join/list),
    encyclopedia + bestiary + notes, all with Markdown export. Light/dark
    theme toggle and the free-flowing ornament pass also landed here.
-3. **Player tools** — character sheet is the remaining piece; personal
-   notes already shipped in phase 2 (notes aren't DM-only).
+3. **Player tools** — done. Character sheets (DM hands out, player edits
+   their own, DM-only conditions/debilitations — §4/§7), personal notes
+   (shipped in phase 2, notes aren't DM-only), and a no-account "join a
+   campaign as a player" path via anonymous sign-in (§4). Bottom
+   swipeable tab nav also landed here.
 4. **Live play**: battle tracker, initiative, condition tracking —
    likely the first feature needing Supabase Realtime.
 5. **Polish**: offline sync queue, guest→account migration, campaign

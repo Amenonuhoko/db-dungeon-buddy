@@ -67,9 +67,10 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql`, `002_world_building.sql`, `003_anonymous_players.sql`,
-   …). Together they create `profiles`, `campaigns`, `campaign_members`,
-   `encyclopedia_entries`, `bestiary_entries`, and `notes`, with the
+   (`001_core.sql` → `004_character_sheets.sql`, and onward as new ones
+   land). Together they create `profiles`, `campaigns`,
+   `campaign_members`, `encyclopedia_entries`, `bestiary_entries`,
+   `notes`, `character_sheets`, and `character_conditions`, with the
    triggers and RLS policies documented inline — see the comments in each
    file for what it does and why. New content types get their own
    numbered file here as they're built (see `BIBLE.md` §7) rather than

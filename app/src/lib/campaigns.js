@@ -97,6 +97,17 @@ export async function getMyCampaign(id) {
   return { ...data.campaigns, role: data.role };
 }
 
+// Used by the DM's "hand out a character sheet" picker (CharactersScreen)
+// — needs a friendly name per member, hence the join to profiles.
+export async function listCampaignMembers(campaignId) {
+  const { data, error } = await supabase
+    .from('campaign_members')
+    .select('user_id, role, profiles(display_name)')
+    .eq('campaign_id', campaignId);
+  if (error) throw error;
+  return data.map((m) => ({ userId: m.user_id, role: m.role, displayName: m.profiles?.display_name || 'Unknown' }));
+}
+
 export async function leaveCampaign(id) {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
