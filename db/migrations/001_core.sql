@@ -29,8 +29,15 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Anonymous sign-ins (see BIBLE.md §4, "join as a player, no account")
+  -- have no email at all, so split_part(new.email, ...) alone can return
+  -- null and trip the not-null check below — the final fallback catches
+  -- that case.
   insert into profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1)));
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1), 'Traveler')
+  );
   return new;
 end;
 $$;

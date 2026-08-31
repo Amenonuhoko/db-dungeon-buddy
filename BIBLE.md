@@ -167,6 +167,18 @@ DM for one campaign and a player in another.
 - **Account**: Supabase Auth (email/password to start; magic link is a
   cheap follow-on). Profile row keyed to `auth.users.id`. Enables
   cross-device sync and being invited into other people's campaigns.
+- **Anonymous account** (a third thing, not a variant of the other two):
+  `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
+  real campaign as a player, no signup." It's a genuine Supabase Auth
+  session with a real `auth.uid()`, so every RLS policy applies exactly
+  as it does for a full account (membership, notes authorship, later a
+  character sheet's `player_id`) — it is emphatically not the same thing
+  as Guest above, which never touches the network at all. The tradeoff
+  it accepts: the session lives only in that browser, tied to Supabase's
+  own anonymous-session persistence — no email recovery if it's lost.
+  Needs **Anonymous sign-ins** turned on in the Supabase project's Auth
+  settings (a dashboard toggle, not something a migration can set) —
+  see `db/migrations/003_anonymous_players.sql`.
 
 ### DM vs Player
 

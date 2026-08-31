@@ -46,6 +46,14 @@ export function HomeScreen() {
           </button>
           <button
             className="btn btn-ghost"
+            onClick={() => navigate('/join')}
+            disabled={!hasBackend}
+            title={hasBackend ? undefined : 'Joining a campaign needs a configured backend'}
+          >
+            Join a Campaign
+          </button>
+          <button
+            className="btn btn-ghost"
             onClick={() => navigate('/login')}
             disabled={!hasBackend}
             title={hasBackend ? undefined : 'Account login needs a configured backend'}

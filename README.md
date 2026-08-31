@@ -67,12 +67,13 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql`, then `002_world_building.sql`). Together they create
-   `profiles`, `campaigns`, `campaign_members`, `encyclopedia_entries`,
-   `bestiary_entries`, and `notes`, with the triggers and RLS policies
-   documented inline — see the comments in each file for what it does and
-   why. New content types get their own numbered file here as they're
-   built (see `BIBLE.md` §7) rather than editing old ones.
+   (`001_core.sql`, `002_world_building.sql`, `003_anonymous_players.sql`,
+   …). Together they create `profiles`, `campaigns`, `campaign_members`,
+   `encyclopedia_entries`, `bestiary_entries`, and `notes`, with the
+   triggers and RLS policies documented inline — see the comments in each
+   file for what it does and why. New content types get their own
+   numbered file here as they're built (see `BIBLE.md` §7) rather than
+   editing old ones.
 3. In the project's **Settings → API**, copy the **Project URL** and the
    **anon public** key.
 4. Add them as env vars on the **Vercel** project (Settings →
@@ -80,6 +81,10 @@ data lives only in that browser's `localStorage`.
 5. If also keeping GitHub Pages up, add the same two as GitHub repo
    secrets (Settings → Secrets and variables → Actions).
 6. For local dev, copy `app/.env.example` to `app/.env` and fill in both.
+7. To let players join a campaign without creating an account (the
+   `/join` screen, `BIBLE.md` §4), turn on **Anonymous sign-ins** under
+   **Authentication → Sign In / Providers** in the Supabase dashboard —
+   that's a project setting, not something the SQL migrations can flip.
 
 (Unlike `little-bonfire`, there's no `SUPABASE_SERVICE_ROLE_KEY` yet —
 auth and campaign membership are handled by Supabase Auth and guarded

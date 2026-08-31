@@ -8,6 +8,7 @@ import { CampaignIndexRedirect, CampaignScreen } from './screens/CampaignScreen.
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
+import { JoinCampaignScreen } from './screens/JoinCampaignScreen.jsx';
 import { NotesScreen } from './screens/NotesScreen.jsx';
 
 function RequireSession({ children }) {
@@ -34,6 +35,7 @@ function Routed() {
       <Route path="/" element={status === 'loading' ? <Splash /> : <HomeScreen />} />
       <Route path="/guest" element={<GuestRoleScreen />} />
       <Route path="/login" element={<AuthScreen />} />
+      <Route path="/join" element={<JoinCampaignScreen />} />
       <Route
         path="/dashboard"
         element={

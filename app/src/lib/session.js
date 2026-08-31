@@ -60,6 +60,21 @@ export async function signIn(email, password) {
   return data;
 }
 
+// A real Supabase Auth session (auth.uid() works, RLS applies exactly as
+// it does for a full account) with no email/password — the "join a
+// campaign as a player, no account needed" path from BIBLE.md §4. Needs
+// Anonymous Sign-ins turned on in the Supabase project's Auth settings;
+// db/migrations/003_anonymous_players.sql covers the one schema change
+// it requires (a display-name fallback for users with no email).
+export async function signInAnonymously(displayName) {
+  requireBackend();
+  const { data, error } = await supabase.auth.signInAnonymously({
+    options: { data: { display_name: displayName } },
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function signOut() {
   if (!hasBackend) return;
   const { error } = await supabase.auth.signOut();

@@ -116,6 +116,7 @@ export function CampaignHubScreen() {
     navigate('/');
   }
 
+  const isAnonymous = Boolean(user?.is_anonymous);
   const name = status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || user?.email;
 
   return (
@@ -123,7 +124,9 @@ export function CampaignHubScreen() {
       <div className="screen-enter" style={{ width: 'min(640px, 100%)' }}>
         <h2 style={{ textAlign: 'center' }}>Welcome, {name}</h2>
         <p style={{ textAlign: 'center', marginTop: '0.4rem' }}>
-          {status === 'guest' ? `${ROLE_LABEL[guest.role]} · local device` : 'Your campaigns'}
+          {status === 'guest' && `${ROLE_LABEL[guest.role]} · local device`}
+          {status === 'authenticated' && isAnonymous && 'Joined as a player · no account'}
+          {status === 'authenticated' && !isAnonymous && 'Your campaigns'}
         </p>
 
         <div style={{ margin: '1.5rem 0' }}>
@@ -198,7 +201,7 @@ export function CampaignHubScreen() {
           )}
 
           <button className="btn btn-ghost" onClick={handleLogOut} type="button">
-            {status === 'guest' ? 'Leave Table' : 'Log Out'}
+            {status === 'guest' || isAnonymous ? 'Leave Table' : 'Log Out'}
           </button>
         </Panel>
       </div>

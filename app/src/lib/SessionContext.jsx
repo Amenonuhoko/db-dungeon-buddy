@@ -4,6 +4,7 @@ import {
   getGuestSession,
   onAuthChange,
   signIn,
+  signInAnonymously,
   signOut as accountSignOut,
   signUp,
   startGuestSession,
@@ -56,6 +57,11 @@ export function SessionProvider({ children }) {
       },
       async register(email, password, displayName) {
         await signUp(email, password, displayName);
+      },
+      async joinAsPlayer(displayName) {
+        await signInAnonymously(displayName);
+        // onAuthChange fires and updates status/user — same real account
+        // path as logIn, just with no email/password (BIBLE.md §4).
       },
       async logOut() {
         clearGuestSession();
