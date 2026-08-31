@@ -126,9 +126,14 @@ than an even split:
   teardrops planted along a curved stem via its tangent angle (not fixed
   ellipses at fixed angles), with a couple of berries near the base —
   reads as a hand-drawn branch, not a repeating stamp.
-- **Greek key (meander)** (`GreekKeyRule.jsx`) — demoted to a *small*
-  accent only: an 8px strip across the top of a primary panel
-  (`Panel`'s `topRule` prop) — a console-readout detail, used sparingly.
+- **Panel crest** (`PanelCrest.jsx`) — the ornament across the top of a
+  primary panel (`Panel`'s `topRule` prop): end studs, tapering rules, a
+  pair of laurel sprigs, and a faceted gem at center. Replaced an
+  earlier flat Greek-key (meander) strip in this role — same "small,
+  sparing accent" job, just reads as a heraldic crest instead of a
+  repeating pattern. `GreekKeyRule.jsx` still exists and is available
+  for a genuinely angular accent elsewhere, but nothing currently uses
+  it.
 - **Angular corner brackets** (`.corner-frame` on `Panel`) — the other
   deliberately blocky element, a Warframe targeting-reticle on the
   screen's primary panel. Kept blocky on purpose, as the counterpoint the

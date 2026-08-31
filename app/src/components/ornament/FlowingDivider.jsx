@@ -1,8 +1,8 @@
 // The primary horizontal divider used under headings — a single flowing
 // vine (smooth S-curve, bezier leaves, a small center reticle-dot where
 // the Warframe half of the theme gets one deliberate accent) rather than
-// the angular Greek-key rule, which is now reserved for small tech
-// accents (see GreekKeyRule.jsx / Panel's `topRule`).
+// an angular rule. Panel's `topRule` prop uses PanelCrest.jsx for its own
+// (different) top-of-panel ornament — see BIBLE.md §3.
 export function FlowingDivider({ width = 320, height = 28 }) {
   const midY = height / 2;
   const amp = height * 0.32;

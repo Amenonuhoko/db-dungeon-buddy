@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { LaurelFlourish } from './ornament/Laurel.jsx';
 import { Panel } from './ornament/Panel.jsx';
 
 // Global utility, not tied to a session or campaign — rendered once at
@@ -10,6 +11,8 @@ import { Panel } from './ornament/Panel.jsx';
 const PRESETS = [4, 6, 8, 10, 12, 20, 100];
 const MAX_HISTORY = 12;
 const MAX_COUNT = 100;
+const BUMP_MS = 260;
+const ROLL_SPIN_MS = 480;
 
 function rollOne(sides) {
   const buf = new Uint32Array(1);
@@ -51,6 +54,10 @@ export function DiceRoller() {
   // actually wants a modifier — see the field below.
   const [modifier, setModifier] = useState('');
   const [history, setHistory] = useState([]);
+  const [bumpSides, setBumpSides] = useState(null);
+  const [rolling, setRolling] = useState(false);
+  const bumpTimeout = useRef(null);
+  const rollTimeout = useRef(null);
 
   const effectiveModifier = modifier === '' ? 0 : Number(modifier) || 0;
 
@@ -61,10 +68,15 @@ export function DiceRoller() {
   // Tapping a preset builds the pool rather than rolling immediately:
   // the same die tapped again adds one more to Count (three taps on d6
   // → 3d6), a different die swaps the selection and starts a fresh
-  // count of 1. Hit Roll to actually roll the pool.
+  // count of 1. Hit Roll to actually roll the pool. The brief "bump"
+  // class is the "another die was added" cue — small, not a full
+  // animated die joining a pile, but enough to feel like a confirmed tap.
   function tapPreset(dieSides) {
     setSides(dieSides);
     setCount((prev) => (dieSides === sides ? Math.min(prev + 1, MAX_COUNT) : 1));
+    setBumpSides(dieSides);
+    window.clearTimeout(bumpTimeout.current);
+    bumpTimeout.current = window.setTimeout(() => setBumpSides(null), BUMP_MS);
   }
 
   function handleRoll(event) {
@@ -72,6 +84,9 @@ export function DiceRoller() {
     const safeCount = Math.min(Math.max(Number(count) || 1, 1), MAX_COUNT);
     const safeSides = Math.min(Math.max(Number(sides) || 2, 2), 1000);
     addRoll(rollDice(safeCount, safeSides, effectiveModifier));
+    setRolling(true);
+    window.clearTimeout(rollTimeout.current);
+    rollTimeout.current = window.setTimeout(() => setRolling(false), ROLL_SPIN_MS);
   }
 
   const latest = history[0];
@@ -80,9 +95,10 @@ export function DiceRoller() {
     <>
       <button
         type="button"
-        className="dice-fab"
+        className={`dice-fab${open ? ' active' : ''}${rolling ? ' rolling' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? 'Close dice roller' : 'Open dice roller'}
+        aria-pressed={open}
         title="Roll dice"
       >
         <DiceIcon />
@@ -91,14 +107,16 @@ export function DiceRoller() {
       {open && (
         <div className="dice-panel">
           <Panel corners topRule>
-            <h3 style={{ fontSize: '1rem', textAlign: 'center' }}>Roll the Dice</h3>
+            <LaurelFlourish>
+              <h3 style={{ fontSize: '1rem' }}>Roll the Dice</h3>
+            </LaurelFlourish>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', marginTop: '1.1rem' }}>
               {PRESETS.map((n) => (
                 <button
                   key={n}
                   type="button"
-                  className={`btn btn-small ${n === sides ? 'btn-primary' : 'btn-ghost'}`}
+                  className={`btn btn-small ${n === sides ? 'btn-primary' : 'btn-ghost'}${n === sides && bumpSides === n ? ' dice-bump' : ''}`}
                   onClick={() => tapPreset(n)}
                   title={n === sides ? `Tap again to add another d${n}` : `Select d${n}`}
                 >
@@ -147,13 +165,11 @@ export function DiceRoller() {
             </form>
 
             {latest && (
-              <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+              <div key={latest.id} className="dice-result" style={{ marginTop: '1.25rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   {formatExpression(latest)}
                 </div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.25rem', color: 'var(--gold-bright)', lineHeight: 1.2 }}>
-                  {latest.total}
-                </div>
+                <div className="dice-result-total">{latest.total}</div>
                 {latest.rolls.length > 1 && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>[{latest.rolls.join(', ')}]</div>
                 )}
