@@ -173,6 +173,14 @@ navigation, not two separate systems. Icons live in
 `components/ornament/TabIcons.jsx`, same free-flowing stroke style as
 the rest of the ornament vocabulary.
 
+Every fixed-position UI element (`.tab-dock`, `.dice-fab`, `.dice-panel`,
+`.theme-toggle`) carries a `transform: translateZ(0)` + `-webkit-
+backface-visibility: hidden` pair — a GPU-layer-promotion hint, not a
+visual effect. It mitigates a known iOS Safari bug where `position:
+fixed` elements can visibly detach and scroll with the page during the
+address-bar show/hide animation. Carry this forward on any new
+fixed-position element rather than dropping it as dead-looking CSS.
+
 ## 4. Identity & roles
 
 Two independent axes — **how you're signed in** and **what hat you're
@@ -355,14 +363,20 @@ Built, but not a `db/migrations/` table — no backend at all:
 - **Dice roller** (`components/DiceRoller.jsx`) — a floating button
   rendered once at the App root (`App.jsx`, sibling to the router), so
   it's reachable from every screen including the very first one, before
-  a visitor has picked Guest/Join/Log In. Quick-roll presets (d4 through
-  d100) plus a count/sides/modifier builder that rolls *any* die size,
-  not just the standard set. Rolls use `crypto.getRandomValues` rather
-  than `Math.random()`. Per-visitor roll history only (component state,
-  resets on reload) — it is deliberately **not** synced across the
-  table; that's the one piece of the original "dice roller with shared
-  roll history" idea still open, and it's really the battle tracker's
-  realtime problem (below) more than the roller's.
+  a visitor has picked Guest/Join/Log In. Presets (d4 through d100)
+  build a pool rather than rolling instantly: tapping a die adds one to
+  Count if it's already the selected die (three taps on d6 → 3d6),
+  otherwise it switches the selection and resets Count to 1. The
+  Count/d/Sides/+Modifier row underneath is a plain "any die size"
+  builder (not capped to the presets), reading like the dice-notation
+  shorthand it produces; the Modifier field starts blank with a `+5`
+  placeholder rather than defaulting to a literal `0`. Rolls use
+  `crypto.getRandomValues` rather than `Math.random()`. Per-visitor roll
+  history only (component state, resets on reload) — it is deliberately
+  **not** synced across the table; that's the one piece of the original
+  "dice roller with shared roll history" idea still open, and it's
+  really the battle tracker's realtime problem (below) more than the
+  roller's.
 
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:

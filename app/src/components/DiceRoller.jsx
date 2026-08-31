@@ -9,6 +9,7 @@ import { Panel } from './ornament/Panel.jsx';
 // distribution than Math.random().
 const PRESETS = [4, 6, 8, 10, 12, 20, 100];
 const MAX_HISTORY = 12;
+const MAX_COUNT = 100;
 
 function rollOne(sides) {
   const buf = new Uint32Array(1);
@@ -46,22 +47,31 @@ export function DiceRoller() {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(1);
   const [sides, setSides] = useState(20);
-  const [modifier, setModifier] = useState(0);
+  // Blank, not 0, so the "+5" placeholder is visible until the table
+  // actually wants a modifier — see the field below.
+  const [modifier, setModifier] = useState('');
   const [history, setHistory] = useState([]);
+
+  const effectiveModifier = modifier === '' ? 0 : Number(modifier) || 0;
 
   function addRoll(result) {
     setHistory((prev) => [result, ...prev].slice(0, MAX_HISTORY));
   }
 
-  function quickRoll(dieSides) {
-    addRoll(rollDice(1, dieSides, modifier));
+  // Tapping a preset builds the pool rather than rolling immediately:
+  // the same die tapped again adds one more to Count (three taps on d6
+  // → 3d6), a different die swaps the selection and starts a fresh
+  // count of 1. Hit Roll to actually roll the pool.
+  function tapPreset(dieSides) {
+    setSides(dieSides);
+    setCount((prev) => (dieSides === sides ? Math.min(prev + 1, MAX_COUNT) : 1));
   }
 
-  function handleCustomRoll(event) {
+  function handleRoll(event) {
     event.preventDefault();
-    const safeCount = Math.min(Math.max(Number(count) || 1, 1), 100);
+    const safeCount = Math.min(Math.max(Number(count) || 1, 1), MAX_COUNT);
     const safeSides = Math.min(Math.max(Number(sides) || 2, 2), 1000);
-    addRoll(rollDice(safeCount, safeSides, Number(modifier) || 0));
+    addRoll(rollDice(safeCount, safeSides, effectiveModifier));
   }
 
   const latest = history[0];
@@ -81,33 +91,58 @@ export function DiceRoller() {
       {open && (
         <div className="dice-panel">
           <Panel corners topRule>
-            <h3 style={{ fontSize: '1rem', textAlign: 'center' }}>Roll the Bones</h3>
+            <h3 style={{ fontSize: '1rem', textAlign: 'center' }}>Roll the Dice</h3>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', marginTop: '1rem' }}>
               {PRESETS.map((n) => (
-                <button key={n} type="button" className="btn btn-ghost btn-small" onClick={() => quickRoll(n)}>
+                <button
+                  key={n}
+                  type="button"
+                  className={`btn btn-small ${n === sides ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => tapPreset(n)}
+                  title={n === sides ? `Tap again to add another d${n}` : `Select d${n}`}
+                >
                   d{n}
+                  {n === sides && count > 1 ? ` ×${count}` : ''}
                 </button>
               ))}
             </div>
+            <p className="hint-text" style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+              Tap a die again to roll more of it — three taps on d6 makes 3d6.
+            </p>
 
-            <form onSubmit={handleCustomRoll} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', marginTop: '1.25rem', flexWrap: 'wrap' }}>
-              <div className="field" style={{ flex: '1 1 60px' }}>
-                <label htmlFor="diceCount">Count</label>
-                <input id="diceCount" type="number" min={1} max={100} value={count} onChange={(e) => setCount(e.target.value)} />
-              </div>
-              <span style={{ paddingBottom: '0.7rem', color: 'var(--text-dim)', fontFamily: 'var(--font-display)' }}>d</span>
-              <div className="field" style={{ flex: '1 1 70px' }}>
-                <label htmlFor="diceSides">Sides</label>
-                <input id="diceSides" type="number" min={2} max={1000} value={sides} onChange={(e) => setSides(e.target.value)} />
-              </div>
-              <div className="field" style={{ flex: '1 1 70px' }}>
-                <label htmlFor="diceModifier">Modifier</label>
-                <input id="diceModifier" type="number" value={modifier} onChange={(e) => setModifier(e.target.value)} />
-              </div>
-              <button className="btn btn-primary btn-small" type="submit" style={{ flex: '1 1 100%' }}>
+            <form onSubmit={handleRoll} className="dice-roll-row">
+              <input
+                aria-label="Number of dice"
+                type="number"
+                min={1}
+                max={MAX_COUNT}
+                value={count}
+                onChange={(e) => setCount(e.target.value)}
+                className="dice-input"
+              />
+              <span className="dice-d">d</span>
+              <input
+                aria-label="Die sides"
+                type="number"
+                min={2}
+                max={1000}
+                value={sides}
+                onChange={(e) => setSides(e.target.value)}
+                className="dice-input"
+              />
+              <span className="dice-mod-sign">+</span>
+              <input
+                aria-label="Modifier"
+                type="number"
+                value={modifier}
+                onChange={(e) => setModifier(e.target.value)}
+                placeholder="+5"
+                className="dice-input dice-input-mod"
+              />
+              <button className="btn btn-primary btn-small" type="submit" style={{ flex: '1 1 100%', marginTop: '0.6rem' }}>
                 Roll {count || 1}d{sides || 2}
-                {Number(modifier) > 0 ? ` +${modifier}` : Number(modifier) < 0 ? ` ${modifier}` : ''}
+                {effectiveModifier > 0 ? ` +${effectiveModifier}` : effectiveModifier < 0 ? ` ${effectiveModifier}` : ''}
               </button>
             </form>
 
