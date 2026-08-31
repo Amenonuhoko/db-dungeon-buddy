@@ -186,15 +186,17 @@ export function DiceRoller() {
                   )}
                 </div>
 
-                <div
-                  className="dice-result-total"
-                  style={{
-                    marginTop: '0.5rem',
-                    animationDelay: `${Math.min(latest.rolls.length, MAX_VISIBLE_DICE) * 55 + 150}ms`,
-                  }}
-                >
-                  {latest.total}
-                </div>
+                {(latest.rolls.length > 1 || latest.modifier !== 0) && (
+                  <div
+                    className="dice-result-total"
+                    style={{
+                      marginTop: '0.5rem',
+                      animationDelay: `${Math.min(latest.rolls.length, MAX_VISIBLE_DICE) * 55 + 150}ms`,
+                    }}
+                  >
+                    {latest.total}
+                  </div>
+                )}
               </div>
             )}
 
