@@ -58,7 +58,14 @@ export function CharactersScreen() {
   const [conditionFormFor, setConditionFormFor] = useState(null);
   const [conditionForm, setConditionForm] = useState(BLANK_CONDITION);
 
-  const canCreate = isDM || isGuest;
+  // A guest who chose "Player" at the door already gets that choice
+  // respected everywhere else (Encyclopedia/Bestiary lock to read-only
+  // for them) — this screen used to ignore it and grant blanket DM
+  // powers to any guest. Now a guest-player gets exactly what a real
+  // player gets: their own single sheet, not "hand out a sheet to
+  // someone else" DM tooling.
+  const isGuestPlayer = isGuest && !isDM;
+  const canCreate = isDM || (isGuestPlayer && sheets.length === 0);
 
   useEffect(() => {
     setLoading(true);
@@ -86,7 +93,8 @@ export function CharactersScreen() {
   }, [conditions]);
 
   function canEditSheet(sheet) {
-    if (isDM || isGuest) return true;
+    if (isDM) return true;
+    if (isGuest) return sheet.playerId === LOCAL_PLAYER_ID;
     return status === 'authenticated' && sheet.playerId === user?.id;
   }
 
@@ -193,7 +201,7 @@ export function CharactersScreen() {
         </button>
         {canCreate && (
           <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            Hand Out a Sheet
+            {isGuestPlayer ? 'Create My Sheet' : 'Hand Out a Sheet'}
           </button>
         )}
       </div>
@@ -348,7 +356,7 @@ export function CharactersScreen() {
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="btn btn-primary" type="submit" disabled={!form.playerId}>
-                {editingId ? 'Save Changes' : 'Hand Out Sheet'}
+                {editingId ? 'Save Changes' : isGuestPlayer ? 'Create Sheet' : 'Hand Out Sheet'}
               </button>
               <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
                 Cancel
@@ -360,7 +368,13 @@ export function CharactersScreen() {
 
       {loading && <p>Loading the roster…</p>}
       {!loading && sheets.length === 0 && (
-        <p>{canCreate ? 'No sheets yet — hand out the first one.' : "You don't have a character sheet yet — ask your DM."}</p>
+        <p>
+          {canCreate
+            ? isGuestPlayer
+              ? 'No sheet yet — create yours below.'
+              : 'No sheets yet — hand out the first one.'
+            : "You don't have a character sheet yet — ask your DM."}
+        </p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

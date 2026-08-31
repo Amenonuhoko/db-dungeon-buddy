@@ -240,7 +240,24 @@ or `player` per campaign (schema in §7). The home screen's "Player or DM"
 choice is really "what do you want to do right now" —
 create/run a campaign (DM) vs join one (Player) — and for guests, who
 have no campaign row yet, it's a pure UI-mode toggle held in the local
-session.
+session (`campaign.role` on the guest campaign object, `isDM` on every
+screen).
+
+**A guest who chose Player has to get the same read/write boundary a
+real player gets — no screen should grant it blanket "you're a guest,
+here's DM powers" access.** Encyclopedia/Bestiary already gate purely on
+`isDM`, which is correct. CharactersScreen used to also check `isGuest`
+as an unconditional bypass on top of that — meaning a guest-player saw
+"Hand Out a Sheet" and could edit any sheet, DM language and all, even
+though `isDM` already correctly said they weren't one. Fixed: guest mode
+still needs *some* self-service path (a solo guest-player has no DM
+handing them anything), but it's scoped to "create/edit your own one
+sheet" (`isGuestPlayer = isGuest && !isDM`, capped at `sheets.length ===
+0`, copy swapped to "Create My Sheet"), not "do anything a DM can do."
+When adding a new screen, check both roles this way before shipping it —
+open it as a guest-player (`campaign.role: 'player'` in
+`localStorage['codex.guest.campaigns']`) and confirm nothing DM-flavored
+leaks through via an `isGuest` shortcut.
 
 ## 5. Security posture
 
