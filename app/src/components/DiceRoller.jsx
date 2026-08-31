@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Die } from './ornament/Die.jsx';
 import { LaurelFlourish } from './ornament/Laurel.jsx';
 import { Panel } from './ornament/Panel.jsx';
 
@@ -13,6 +14,10 @@ const MAX_HISTORY = 12;
 const MAX_COUNT = 100;
 const BUMP_MS = 260;
 const ROLL_SPIN_MS = 480;
+// A pool bigger than this shows the first MAX_VISIBLE_DICE dice plus a
+// "+N more" chip rather than flooding the panel — the total is always
+// computed over every die regardless of how many are actually drawn.
+const MAX_VISIBLE_DICE = 24;
 
 function rollOne(sides) {
   const buf = new Uint32Array(1);
@@ -169,10 +174,27 @@ export function DiceRoller() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   {formatExpression(latest)}
                 </div>
-                <div className="dice-result-total">{latest.total}</div>
-                {latest.rolls.length > 1 && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>[{latest.rolls.join(', ')}]</div>
-                )}
+
+                <div className="dice-face-row">
+                  {latest.rolls.slice(0, MAX_VISIBLE_DICE).map((value, i) => (
+                    <Die key={i} sides={latest.sides} value={value} index={i} />
+                  ))}
+                  {latest.rolls.length > MAX_VISIBLE_DICE && (
+                    <span className="chip" style={{ alignSelf: 'center' }}>
+                      +{latest.rolls.length - MAX_VISIBLE_DICE} more
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  className="dice-result-total"
+                  style={{
+                    marginTop: '0.5rem',
+                    animationDelay: `${Math.min(latest.rolls.length, MAX_VISIBLE_DICE) * 55 + 150}ms`,
+                  }}
+                >
+                  = {latest.total}
+                </div>
               </div>
             )}
 

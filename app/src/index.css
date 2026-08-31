@@ -662,5 +662,42 @@ input:focus-visible {
   line-height: 1.2;
   color: var(--gold-bright);
   filter: drop-shadow(0 0 10px rgba(232, 200, 118, 0.4));
-  animation: dice-result-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* `both`: holds the 0% (invisible) keyframe state through its
+     animation-delay too, so it doesn't flash at full size/opacity
+     before the delayed pop actually starts. Safe here — unlike
+     .screen-enter, nothing fixed-position is ever a descendant of this
+     element, so the "non-none transform makes a containing block"
+     gotcha (see §3's note on that) doesn't apply. */
+  animation: dice-result-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Individual rolled dice — actual die faces, not just a number list.
+   Each tumbles in with its own stagger (index * delay, set inline —
+   see Die.jsx) so a pool of dice visibly lands one after another. */
+@keyframes die-tumble {
+  0% {
+    transform: rotate(-55deg) scale(0.35);
+    opacity: 0;
+  }
+  65% {
+    transform: rotate(12deg) scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.dice-face-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+
+.die-face {
+  display: inline-flex;
+  animation: die-tumble 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }

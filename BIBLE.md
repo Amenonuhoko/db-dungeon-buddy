@@ -382,6 +382,17 @@ Built, but not a `db/migrations/` table — no backend at all:
   "dice roller with shared roll history" idea still open, and it's
   really the battle tracker's realtime problem (below) more than the
   roller's.
+  Each roll renders as actual dice (`Die.jsx`), not just a number list:
+  a d6 gets a real pip face (standard 1-6 layouts), every other size
+  gets a gem-cut badge with the numeral — drawing real per-polyhedron
+  shapes for d4/d8/d10/d12/d20 was judged not worth the geometry for
+  what it'd add at 34px, and pips-vs-badge already reads as "two kinds
+  of actual dice." Each die tumbles in staggered by index
+  (`animationDelay`, capped so a big pool doesn't take forever to
+  settle), and the total pops in slightly after the last die lands. A
+  pool over `MAX_VISIBLE_DICE` (24) shows the first 24 plus a "+N more"
+  chip — the total is always the real sum over every die rolled,
+  whether or not it's drawn.
 
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
