@@ -382,12 +382,20 @@ Built, but not a `db/migrations/` table — no backend at all:
   "dice roller with shared roll history" idea still open, and it's
   really the battle tracker's realtime problem (below) more than the
   roller's.
-  Each roll renders as actual dice (`Die.jsx`), not just a number list:
-  a d6 gets a real pip face (standard 1-6 layouts), every other size
-  gets a gem-cut badge with the numeral — drawing real per-polyhedron
-  shapes for d4/d8/d10/d12/d20 was judged not worth the geometry for
-  what it'd add at 34px, and pips-vs-badge already reads as "two kinds
-  of actual dice." Each die tumbles in staggered by index
+  Each roll renders as actual dice (`Die.jsx`), not just a number list —
+  and each die's outline is its real shape, confirmed rather than
+  guessed: d6 gets a real pip face (standard 1-6 layouts); d4 and d20
+  are triangles (a tetrahedron's and an icosahedron's actual faces),
+  widened for d20 into a hexagon so "many-sided, almost round" doesn't
+  read as the same shape as d4's sharp point; d12 is a pentagon
+  (dodecahedron face); d10 is a kite (a pentagonal trapezohedron's face
+  really is a kite quadrilateral, not a pentagon); d8 is drawn as the
+  bipyramid's diamond silhouette (two square pyramids base-to-base)
+  rather than one triangular face, since a bare triangle there would be
+  indistinguishable from d4/d20 at this size. Anything else (a custom
+  d7, d47, …) falls back to a plain circle — there's no real polyhedron
+  to reference, so it doesn't pretend to be one. Each die tumbles in
+  staggered by index
   (`animationDelay`, capped so a big pool doesn't take forever to
   settle), and the total pops in slightly after the last die lands. A
   pool over `MAX_VISIBLE_DICE` (24) shows the first 24 plus a "+N more"

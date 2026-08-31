@@ -198,7 +198,7 @@ export function DiceRoller() {
               </div>
             )}
 
-            {history.length > 1 && (
+            {history.length > 0 && (
               <div style={{ marginTop: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
@@ -208,8 +208,11 @@ export function DiceRoller() {
                     Clear
                   </button>
                 </div>
+                {/* Includes the roll shown big above, not just the ones
+                    before it — it lands in the log the instant it
+                    happens, not on the next roll. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem', maxHeight: '9rem', overflowY: 'auto' }}>
-                  {history.slice(1).map((roll) => (
+                  {history.map((roll) => (
                     <div key={roll.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
                       <span>{formatExpression(roll)}</span>
                       <span style={{ color: 'var(--text)' }}>{roll.total}</span>
