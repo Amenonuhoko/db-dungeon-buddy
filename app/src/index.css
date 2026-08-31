@@ -506,6 +506,14 @@ input:focus-visible {
   color: var(--text-dim);
 }
 
+/* A smidge smaller — for a chip sharing a row with other chrome (e.g.
+ * the role badge up next to the back button) rather than sitting beside
+ * page content at full size. */
+.chip-small {
+  font-size: 0.6rem;
+  padding: 0.15rem 0.5rem;
+}
+
 /* ---------------------------------------------------------------------
  * Sample/example content — never real campaign data, so it must never
  * look like it. Dashed border + a distinct chip, no gilded edge, no

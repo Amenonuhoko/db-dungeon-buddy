@@ -96,18 +96,19 @@ export function CampaignScreen() {
   return (
     <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 7rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
-        <BackButton to="/dashboard" label="Campaigns" />
-
-        <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2>{campaign.name}</h2>
-          <span className="chip">{isDM ? 'Dungeon Master' : 'Player'}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+          <BackButton to="/dashboard" label="Campaigns" />
+          <span className="chip chip-small">{isDM ? 'Dungeon Master' : 'Player'}</span>
         </div>
 
-        {isDM && campaign.invite_code && (
-          <p style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>
-            Invite code: <span style={{ color: 'var(--gold-bright)', letterSpacing: '0.08em' }}>{campaign.invite_code}</span>
-          </p>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h2>{campaign.name}</h2>
+          {isDM && campaign.invite_code && (
+            <p style={{ fontSize: '0.85rem' }}>
+              Invite code: <span style={{ color: 'var(--gold-bright)', letterSpacing: '0.08em' }}>{campaign.invite_code}</span>
+            </p>
+          )}
+        </div>
 
         <div
           className="swipe-area"
