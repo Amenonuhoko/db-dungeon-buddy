@@ -52,13 +52,27 @@ function requireBackend() {
 // Supabase Auth is built around email/password — usernames aren't a
 // native identity type. Rather than pull in a different backend, we
 // deterministically map a username to a synthetic address under a
-// reserved (RFC 2606) .invalid TLD — guaranteed never a real,
-// deliverable domain — so the same Auth/RLS machinery still applies,
-// but nobody ever sees or types an email. The tradeoff this accepts:
-// there's no email to send a password-reset link to (see BIBLE.md §4).
+// dedicated domain so the same Auth/RLS machinery still applies, but
+// nobody ever sees or types an email. The tradeoff this accepts: there's
+// no email to send a password-reset link to (see BIBLE.md §4).
+//
+// This used to be a reserved (RFC 2606) `.invalid` TLD — the textbook-
+// correct choice for "guaranteed never a real, deliverable domain" — but
+// live testing (2026-09) showed Supabase Auth's own server-side email
+// validator rejects it outright with "Email address ... is invalid"
+// (400), before the request ever reaches our trigger or the network
+// error handling below. GoTrue validates the domain against a real
+// top-level-domain list, and `.invalid` — precisely because it's
+// reserved to never be a real, registerable TLD — isn't on it. A real
+// TLD is required to pass that check, so this is *not* a domain we
+// control or that resolves to anything; it just needs to look
+// structurally like one Supabase's validator accepts. Confirm-email
+// stays OFF (see BIBLE.md §4) specifically so no mail is ever actually
+// sent here — if that ever changed, the domain would need to be one we
+// genuinely own instead.
 // Same function used for both signup and login, so login is
 // case/whitespace-insensitive to whatever the account was created with.
-const USERNAME_EMAIL_DOMAIN = 'accounts.codex.invalid';
+const USERNAME_EMAIL_DOMAIN = 'accounts.codex-companion.com';
 
 export function usernameToEmail(username) {
   const slug = username
@@ -90,8 +104,8 @@ export function usernameError(username) {
 
 // Maps a raw Supabase Auth error to something a non-technical player can
 // actually act on. Two things this exists to prevent: (1) a raw error
-// message mentioning the synthetic @accounts.codex.invalid address ever
-// reaching the screen — nobody typed an email, so seeing one back is
+// message mentioning the synthetic @accounts.codex-companion.com address
+// ever reaching the screen — nobody typed an email, so seeing one back is
 // alarming and unexplained; (2) a network hiccup or rate limit reading as
 // a dead end ("Failed to fetch") instead of "try again."
 //

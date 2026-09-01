@@ -257,19 +257,34 @@ DM for one campaign and a player in another.
   nobody at the table wants to give an email address to sign up. Supabase
   Auth has no native username identity type, so `lib/session.js`
   deterministically maps a username to a synthetic address under a
-  reserved (RFC 2606) `.invalid` TLD (`stormcaller` →
-  `stormcaller@accounts.codex.invalid`) — guaranteed never a real,
-  deliverable domain — and everything downstream (RLS, `auth.uid()`,
-  `profiles`) works exactly as it would with a real email, because as
-  far as Postgres is concerned it's just an email column. The username
-  *is* the display name (one field to fill in, not two). The tradeoff
-  this accepts, same shape as the anonymous path below: no email means
-  no password-reset-by-email — losing the password loses the account.
+  dedicated domain (`stormcaller` → `stormcaller@accounts.codex-companion.com`)
+  — not a domain we own or that resolves to anything, just a stable
+  slug — and everything downstream (RLS, `auth.uid()`, `profiles`) works
+  exactly as it would with a real email, because as far as Postgres is
+  concerned it's just an email column. The username *is* the display
+  name (one field to fill in, not two). The tradeoff this accepts, same
+  shape as the anonymous path below: no email means no
+  password-reset-by-email — losing the password loses the account.
   **Requires "Confirm email" turned OFF** under the Supabase project's
   Authentication → Providers → Email settings — a dashboard toggle, not
-  something a migration can set — because a confirmation email sent to a
-  `.invalid` address can never be delivered or clicked, which would
+  something a migration can set — because a confirmation email sent to
+  this synthetic address can never be delivered or clicked, which would
   otherwise permanently lock every new signup out.
+
+  **This domain was originally a reserved (RFC 2606) `.invalid` TLD** —
+  the textbook-correct choice for "guaranteed never a real, deliverable
+  domain." Live signup testing (2026-09) surfaced that Supabase Auth's
+  own server-side validator rejects it outright — `Email address
+  "x@accounts.codex.invalid" is invalid` (400), thrown by GoTrue before
+  the request ever reaches our database trigger. GoTrue checks the
+  domain against a real top-level-domain list, and `.invalid` isn't on
+  it (precisely because it's reserved to *never* be one). So the domain
+  had to switch to something using a real TLD purely to satisfy that
+  format check — it's still not a domain the app owns or that resolves
+  to anything real; "Confirm email" staying OFF is what keeps that safe
+  (no mail is ever actually sent to it). If Confirm Email is ever turned
+  on, this needs to become a domain genuinely controlled by whoever runs
+  the deployment, not a placeholder string.
 
   **Because losing the password loses the account with zero recovery
   path, a signup-time typo is the single worst failure mode in the whole
@@ -295,21 +310,28 @@ DM for one campaign and a player in another.
   Every Supabase Auth error also passes through `friendlyAuthError()`
   (`lib/session.js`) rather than showing `error.message` verbatim — it
   exists specifically so a raw error can never mention
-  `accounts.codex.invalid` (confusing and alarming to someone who never
-  typed an email), and so a network hiccup or rate limit reads as "try
-  again" instead of a dead end. Anything genuinely unrecognized still
-  gets a usable fallback message, with the real error logged to the
-  console (not shown) so it stays diagnosable. `lib/supabase.js` closes
+  `accounts.codex-companion.com` (confusing and alarming to someone who
+  never typed an email), and so a network hiccup or rate limit reads as
+  "try again" instead of a dead end. Anything recognized gets a specific,
+  friendly message; anything genuinely unrecognized still gets a usable
+  fallback, but with the real (sanitized) error detail and HTTP status
+  appended in parentheses rather than hidden — debugging a live signup
+  failure with someone who has no dev tools access proved that a plain
+  "try again in a moment" isn't enough to diagnose from; the real reason
+  has to reach the screen, not just the console. `lib/supabase.js` closes
   the last gap upstream of all of this: a malformed `VITE_SUPABASE_URL`
   (a stray quote character, a trailing `/rest/v1`, copy-paste whitespace)
   used to produce a client that looked configured but wasn't, surfacing
   as a raw, unexplained fetch/URL error the moment someone actually
-  submitted the sign-up form — almost certainly what the "Invalid path
-  specified in request URL" report earlier in this project's history
-  actually was. `isLikelyValidSupabaseUrl()` catches the obviously-broken
-  shapes at load time and falls back to Guest-only mode (a real, working,
-  permanent feature, not a placeholder) instead, logging a loud
-  console.error naming the exact problem for whoever configured it.
+  submitted the sign-up form — confirmed to be exactly what the "Invalid
+  path specified in request URL" report earlier in this project's history
+  actually was, once a live `/rest/v1`-suffixed `VITE_SUPABASE_URL` on
+  Vercel reproduced the same symptom. `describeUrlProblem()` /
+  `describeKeyProblem()` catch the specific, wrong shape at load time
+  (not just "something's wrong") and fall back to Guest-only mode (a
+  real, working, permanent feature, not a placeholder) instead, surfacing
+  `supabaseConfigError` directly on the Home screen — no dev tools
+  needed — as well as logging it to the console for whoever can check.
 - **Anonymous account** (a third thing, not a variant of the other two):
   `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
   real campaign as a player, no signup." It's a genuine Supabase Auth
