@@ -93,9 +93,17 @@ export function usernameError(username) {
 // message mentioning the synthetic @accounts.codex.invalid address ever
 // reaching the screen — nobody typed an email, so seeing one back is
 // alarming and unexplained; (2) a network hiccup or rate limit reading as
-// a dead end ("Failed to fetch") instead of "try again." Anything not
-// specifically recognized still gets a usable fallback, and the original
-// error is logged (not shown) so it's still diagnosable.
+// a dead end ("Failed to fetch") instead of "try again."
+//
+// Anything not specifically recognized still leads with a friendly
+// fallback, but — unlike an earlier version of this function — no longer
+// *hides* the real reason: it's appended in parentheses (with the HTTP
+// status if there is one), sanitized so the synthetic domain can't leak
+// through. This is what "diagnosable without dev tools" actually
+// requires: debugging a live signup failure over chat with someone who
+// can't open a console proved a plain "try again in a moment" isn't
+// enough to go on — the real error also needs to reach the person who
+// hit it, not just the console they can't see.
 function friendlyAuthError(error, fallback) {
   const message = error?.message || '';
   if (/already registered/i.test(message)) return new Error('That username is already taken — try another.');
@@ -107,11 +115,10 @@ function friendlyAuthError(error, fallback) {
   if (/fetch|network|NetworkError/i.test(message) || error?.name === 'TypeError') {
     return new Error("Couldn't reach the server — check your connection and try again.");
   }
-  if (message.includes(USERNAME_EMAIL_DOMAIN) || !message) {
-    console.error('Auth error:', error);
-    return new Error(fallback);
-  }
-  return new Error(message);
+  console.error('Auth error:', error);
+  const detail = message ? message.replaceAll(USERNAME_EMAIL_DOMAIN, '(internal)') : null;
+  const status = error?.status ? ` [${error.status}]` : '';
+  return new Error(detail ? `${fallback} (${detail}${status})` : `${fallback}${status}`);
 }
 
 export async function signUp(username, password) {
