@@ -1,4 +1,4 @@
-import { hasBackend, supabase } from './supabase';
+import { hasBackend, supabase, supabaseConfigError } from './supabase';
 
 // Everything the app needs to know "who is at the table right now" lives
 // behind this module — see BIBLE.md §4. Two independent things:
@@ -38,7 +38,14 @@ export function clearGuestSession() {
 
 function requireBackend() {
   if (!hasBackend) {
-    throw new Error('Account login needs a configured backend — see app/.env.example.');
+    // supabaseConfigError is only set when a VITE_SUPABASE_* var is
+    // present but structurally wrong (see lib/supabase.js) — a much more
+    // useful thing to show than the generic message below when that's
+    // the actual situation, since "needs a configured backend" reads
+    // identically whether nothing was ever set up or someone configured
+    // it with one typo. No dev tools needed to see this one — it's the
+    // error message the login screen shows.
+    throw new Error(supabaseConfigError || 'Account login needs a configured backend — see app/.env.example.');
   }
 }
 

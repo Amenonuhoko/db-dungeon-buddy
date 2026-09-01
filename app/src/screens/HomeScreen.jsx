@@ -4,7 +4,7 @@ import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { useSession } from '../lib/SessionContext.jsx';
-import { hasBackend } from '../lib/supabase.js';
+import { hasBackend, supabaseConfigError } from '../lib/supabase.js';
 
 export function HomeScreen() {
   const { status } = useSession();
@@ -58,8 +58,11 @@ export function HomeScreen() {
             Join a Campaign
           </button>
           {!hasBackend && (
+            // A specific, actionable reason (a malformed env var) beats the
+            // generic message whenever one is available — see lib/supabase.js.
             <p style={{ fontSize: '0.8rem' }}>
-              Running without a backend — see BIBLE.md §2 to add one. Guest mode below still works fully.
+              {supabaseConfigError ||
+                'Running without a backend — see BIBLE.md §2 to add one. Guest mode below still works fully.'}
             </p>
           )}
           <button className="btn btn-ghost" onClick={() => navigate('/guest')}>
