@@ -88,7 +88,14 @@ export function Die({ sides, value, index = 0 }) {
               strokeWidth={isCritical || isFumble ? 1.8 : 1.2}
             />
             {PIP_LAYOUTS[value].map(([x, y]) => (
-              <circle key={`${x}-${y}`} cx={x} cy={y} r="1.7" fill="var(--surface)" />
+              // Same fix as .btn-primary (index.css): --surface flips to a
+              // pale cream in light mode, which was nearly invisible
+              // against this rect's gold fill. --on-gold is fixed
+              // near-black regardless of theme, matching how the pips
+              // already looked in dark mode. Left the fumble/oxblood rect
+              // alone — that's a separate contrast question this pass
+              // didn't set out to answer.
+              <circle key={`${x}-${y}`} cx={x} cy={y} r="1.7" fill={isFumble ? 'var(--surface)' : 'var(--on-gold)'} />
             ))}
           </>
         ) : shape ? (

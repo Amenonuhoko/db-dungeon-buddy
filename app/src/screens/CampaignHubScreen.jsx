@@ -126,7 +126,10 @@ export function CampaignHubScreen() {
   const name = status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || user?.email;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: '3rem 1.5rem' }}>
+    // Bottom padding matches CampaignScreen's — same reasoning: has to
+    // clear the global dice-fab (bottom:5.5rem + 52px ≈ 140px from the
+    // viewport bottom), not just look roomy.
+    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: '3rem 1.5rem 10rem' }}>
       <div className="screen-enter" style={{ width: 'min(640px, 100%)' }}>
         <h2 style={{ textAlign: 'center' }}>Welcome, {name}</h2>
         <p style={{ textAlign: 'center', marginTop: '0.4rem' }}>

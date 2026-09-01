@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Die } from './ornament/Die.jsx';
 import { LaurelFlourish } from './ornament/Laurel.jsx';
 import { Panel } from './ornament/Panel.jsx';
@@ -63,8 +63,33 @@ export function DiceRoller() {
   const [rolling, setRolling] = useState(false);
   const bumpTimeout = useRef(null);
   const rollTimeout = useRef(null);
+  const fabRef = useRef(null);
+  const panelRef = useRef(null);
 
   const effectiveModifier = modifier === '' ? 0 : Number(modifier) || 0;
+
+  // Nothing dims behind the panel and it's reachable from every screen —
+  // without this, it was possible to open it over a short screen (the
+  // panel can run to ~350px tall) and find the real page underneath
+  // completely unclickable, with re-tapping the FAB the only way out. A
+  // tap outside, or Escape, closes it the way a floating panel should.
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(event) {
+      if (panelRef.current?.contains(event.target)) return;
+      if (fabRef.current?.contains(event.target)) return;
+      setOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
 
   function addRoll(result) {
     setHistory((prev) => [result, ...prev].slice(0, MAX_HISTORY));
@@ -99,6 +124,7 @@ export function DiceRoller() {
   return (
     <>
       <button
+        ref={fabRef}
         type="button"
         className={`dice-fab${open ? ' active' : ''}${rolling ? ' rolling' : ''}`}
         onClick={() => setOpen((o) => !o)}
@@ -110,7 +136,7 @@ export function DiceRoller() {
       </button>
 
       {open && (
-        <div className="dice-panel">
+        <div className="dice-panel" ref={panelRef}>
           <Panel corners topRule>
             <LaurelFlourish>
               <h3 style={{ fontSize: '1rem' }}>Roll the Dice</h3>

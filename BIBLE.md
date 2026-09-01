@@ -236,6 +236,55 @@ it. This vocabulary is reserved for the character sheet specifically, the
 same way `.corner-frame`'s angularity is reserved for "primary panel,"
 not sprinkled everywhere.
 
+### UI/UX + design pass (2026-09) — floating chrome vs. real content
+
+A full click-through of every screen (both themes, a 390×844 viewport,
+verified with Playwright rather than eyeballing screenshots alone)
+surfaced two bugs specifically about the app's *global floating chrome*
+— the dice-fab and `.tab-dock` (both `position:fixed`, rendered above
+everything) — fighting with the real content underneath them:
+
+- **The dice roller had no way to dismiss itself except re-tapping the
+  FAB.** No backdrop, no click-outside, no Escape. `.dice-panel` can run
+  ~350px tall and, depending on the screen, can fully cover primary
+  content underneath it (confirmed live: on the Home screen it
+  completely occludes "Continue as Guest," making it unclickable while
+  open). `DiceRoller.jsx` now closes on an outside `pointerdown` or
+  Escape — a `panelRef`/`fabRef` pair excluded from the "outside" check
+  so tapping the FAB itself still just toggles normally.
+- **Short tab content could end up permanently stuck behind the
+  dice-fab, unreachable by any amount of scrolling.** The fab
+  (`bottom:5.5rem` + 52px tall) needs ~140px of clearance from the
+  viewport bottom — more than `.tab-dock` needs, since it sits higher up
+  specifically so the two never collide with *each other* (see the
+  dice-fab's own CSS comment) — but the screens rendering underneath
+  both were only padded for the dock. Confirmed live on Bestiary's empty
+  state (a brand new campaign's first real view of that tab): 2 example
+  cards was enough to push "No creatures yet" a few px into the fab's
+  footprint, and the page's total scrollable range fell ~30px short of
+  ever letting it scroll clear. `CampaignScreen.jsx`, `CampaignHubScreen.jsx`,
+  and `.character-sheet-screen` (`index.css`) all now carry `10rem`
+  bottom padding — comfortably past the fab's ~140px requirement — so
+  scrolling to the end of any tab always fully clears it. (The very
+  first, unscrolled paint can still show a few px of overlap in the
+  rare short-content case — padding after an element can't retroactively
+  move that element up — but the content is never unreachable anymore,
+  which is the part that was actually broken.)
+
+A third, unrelated finding from the same pass: **`.btn-primary`'s text
+color was `var(--surface)`**, which is near-black in dark mode (reads
+fine) but a pale cream in light mode — measured ~3:1 contrast against
+the gold gradient background, under WCAG AA's 4.5:1 for normal text.
+Every primary button in the app (the single most prominent action on
+nearly every screen) was affected. Fixed with a new token,
+`--on-gold` — a fixed near-black kept the *same* in both themes rather
+than swapping per-theme, since near-black already worked fine against
+gold in dark mode and measures ~5.9:1 in light mode too (comfortably
+clears AA). The d6 pip die face (`Die.jsx`) had the exact same
+`var(--surface)`-on-gold pattern for its pip dots and got the same fix;
+its oxblood/fumble-state pip color was left alone; that's a separate,
+less clear-cut contrast question this pass didn't set out to answer.
+
 ## 4. Identity & roles
 
 Two independent axes — **how you're signed in** and **what hat you're

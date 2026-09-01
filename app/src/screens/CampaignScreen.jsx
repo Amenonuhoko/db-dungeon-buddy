@@ -109,8 +109,17 @@ export function CampaignScreen() {
 
   const isDM = campaign.role === 'dm';
 
+  // Bottom padding has to clear the taller of the two fixed overlays
+  // that float over every tab here — the global dice-fab (App.jsx),
+  // parked at bottom:5.5rem + 52px tall, needs ~140px of clearance from
+  // the viewport bottom, more than .tab-dock itself needs. A short tab
+  // (an empty Bestiary/Characters list sitting right after the example
+  // cards, say) can otherwise end up with its last line permanently
+  // stuck behind the fab with no amount of scrolling able to reveal it —
+  // confirmed live on a 390×844 viewport. 10rem (160px) clears that with
+  // margin to spare.
   return (
-    <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 7rem' }}>
+    <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 10rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '0.6rem' }}>
           <span className="chip chip-small">{isDM ? 'Dungeon Master' : 'Player'}</span>

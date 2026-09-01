@@ -32,6 +32,16 @@
 
   --radius: 6px;
   --shadow-glow: 0 0 24px rgba(202, 162, 75, 0.25);
+
+  /* Text laid directly on a gold surface (.btn-primary and friends).
+     Deliberately not tied to --surface: that flips to a pale cream in
+     light mode (see the light-theme blocks below), which measures
+     ~3:1 against --gold there — under WCAG AA's 4.5:1 for normal text.
+     A fixed near-black clears 4.5:1 against gold in both themes (dark
+     mode's --surface was already effectively this color, so this is a
+     no-op there), so one token covers both instead of two divergent
+     ones that can drift out of contrast with a future palette tweak. */
+  --on-gold: #171310;
 }
 
 @media (prefers-color-scheme: light) {
@@ -387,7 +397,7 @@ input:focus-visible {
 .btn-primary {
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
   border: 1px solid var(--gold-bright);
-  color: var(--surface);
+  color: var(--on-gold);
 }
 
 .btn-primary:not(:disabled):hover {
@@ -902,7 +912,10 @@ input:focus-visible {
  * ------------------------------------------------------------------- */
 .character-sheet-screen {
   min-height: 100vh;
-  padding: 2.5rem 1.25rem 5rem;
+  /* Bottom padding needs to clear the global dice-fab (DiceRoller.jsx —
+     bottom:5.5rem + 52px tall ≈ 140px from the viewport bottom), the
+     same reasoning as CampaignScreen/CampaignHubScreen's padding. */
+  padding: 2.5rem 1.25rem 10rem;
   background:
     radial-gradient(ellipse 900px 460px at 50% 0%, rgba(232, 200, 118, 0.1), transparent 62%),
     radial-gradient(ellipse 1100px 700px at 50% 115%, rgba(122, 34, 34, 0.12), transparent 65%),
