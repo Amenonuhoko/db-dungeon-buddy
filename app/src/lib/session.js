@@ -122,6 +122,31 @@ function friendlyAuthError(error, fallback) {
   const message = error?.message || '';
   if (/already registered/i.test(message)) return new Error('That username is already taken — try another.');
   if (/invalid login credentials/i.test(message)) return new Error('Unknown username or wrong password.');
+  // "Email not confirmed" only happens if "Confirm email" got left ON in
+  // the Supabase project (BIBLE.md §4 says to turn it off) — the account
+  // was created but is permanently stuck waiting on a confirmation email
+  // that can never arrive at the synthetic address. Worth its own message:
+  // the generic fallback below wouldn't point at the actual fix.
+  if (/email not confirmed/i.test(message)) {
+    return new Error(
+      'This account is waiting on a confirmation email that can never arrive. Turn off "Confirm email" under Authentication → Providers → Email in Supabase, then either confirm this user manually from Authentication → Users, or sign up again with a new username.',
+    );
+  }
+  // Whoever runs this campaign's backend turned off new sign-ups
+  // entirely (Authentication → Sign In / Providers in Supabase) — not
+  // something a player can fix, so say so plainly instead of showing a
+  // raw "not allowed" error.
+  if (/sign[- ]?ups?.{0,15}not allowed/i.test(message)) {
+    return new Error(
+      "Sign-ups are turned off for this campaign's backend right now — ask whoever runs it to enable them under Authentication in Supabase, or continue as Guest.",
+    );
+  }
+  // Order matters here: a too-long password error also contains "password"
+  // and often "character", so it has to be checked before the too-short
+  // branch below or it would show the exact opposite advice.
+  if (/password/i.test(message) && /(more than|maximum|too long|longer)/i.test(message)) {
+    return new Error('Password is too long — keep it under 72 characters.');
+  }
   if (/password/i.test(message) && /(least|character|short|weak)/i.test(message)) {
     return new Error('Password must be at least 6 characters.');
   }

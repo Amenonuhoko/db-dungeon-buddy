@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
@@ -17,11 +17,17 @@ export function AuthScreen() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  // `busy` (state) only disables the button after a re-render — a fast
+  // double-tap, common on mobile, can fire a second submit before that
+  // happens and land two signup/login requests in flight at once. A ref
+  // flips synchronously, closing that gap regardless of render timing.
+  const submitting = useRef(false);
   const { logIn, register } = useSession();
   const navigate = useNavigate();
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (submitting.current) return;
     setError(null);
     setNotice(null);
 
@@ -43,6 +49,7 @@ export function AuthScreen() {
       }
     }
 
+    submitting.current = true;
     setBusy(true);
     try {
       if (mode === 'login') {
@@ -66,6 +73,7 @@ export function AuthScreen() {
     } catch (err) {
       setError(err.message || 'Something went wrong.');
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -88,10 +96,18 @@ export function AuthScreen() {
               onChange={(e) => setUsername(e.target.value)}
               placeholder="stormcaller"
               pattern={USERNAME_PATTERN}
+              maxLength={20}
               title="3-20 letters, numbers, underscores or hyphens"
               required
               autoComplete="username"
               autoFocus
+              // Login is case-insensitive, but mobile keyboards
+              // auto-capitalizing the first letter of a plain text field
+              // by default would still show something the person didn't
+              // type — surprising even if it happens to still work.
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </div>
 
@@ -104,7 +120,15 @@ export function AuthScreen() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+              // bcrypt (what Supabase hashes passwords with) only looks at
+              // the first 72 bytes — capping here means what's typed is
+              // always what actually matters, instead of a longer paste
+              // silently having its tail ignored.
+              maxLength={72}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </div>
 
@@ -118,7 +142,11 @@ export function AuthScreen() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
+                maxLength={72}
                 autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
           )}

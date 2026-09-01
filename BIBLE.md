@@ -332,6 +332,30 @@ DM for one campaign and a player in another.
   real, working, permanent feature, not a placeholder) instead, surfacing
   `supabaseConfigError` directly on the Home screen — no dev tools
   needed — as well as logging it to the console for whoever can check.
+
+  A further hardening pass (2026-09) closed the remaining vectors found
+  by walking the flow end to end rather than waiting for the next one to
+  surface live: `friendlyAuthError()` gained specific messages for
+  `"Email not confirmed"` (an account stuck behind a Confirm-Email
+  setting that was never turned off — the single most likely
+  misconfiguration left, now actionable at login time too, not just
+  right after signup) and `"Signups not allowed"` (the project's
+  Authentication settings disabled new sign-ups outright — not something
+  a player can fix, so say so instead of showing a raw error), and fixed
+  an ordering bug where a too-long-password error and a too-short one
+  both matched the same branch and showed opposite advice. `AuthScreen`
+  now caps the password fields at 72 characters — the point past which
+  bcrypt (what Supabase hashes with) stops looking, so what's typed is
+  always what actually matters instead of a longer paste silently having
+  its tail ignored — and sets `autoCapitalize="none"` / `autoCorrect="off"`
+  / `spellCheck={false}` on the username and password fields so a mobile
+  keyboard can't silently capitalize or "correct" what someone typed
+  (harmless for login, which is case-insensitive, but exactly the kind of
+  surprise this flow is designed to never produce). A `useRef` guard
+  closes a double-submit race a `busy` state alone can't: a fast
+  double-tap can fire a second submit before React re-renders the
+  disabled button, and two in-flight signup/login calls at once is worth
+  ruling out rather than debugging later.
 - **Anonymous account** (a third thing, not a variant of the other two):
   `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
   real campaign as a player, no signup." It's a genuine Supabase Auth
