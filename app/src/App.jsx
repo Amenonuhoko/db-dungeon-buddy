@@ -13,6 +13,7 @@ import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { JoinCampaignScreen } from './screens/JoinCampaignScreen.jsx';
 import { NotesScreen } from './screens/NotesScreen.jsx';
+import { ResetPasswordScreen } from './screens/ResetPasswordScreen.jsx';
 
 function RequireSession({ children }) {
   const { status } = useSession();
@@ -38,6 +39,12 @@ function Routed() {
       <Route path="/" element={status === 'loading' ? <Splash /> : <HomeScreen />} />
       <Route path="/guest" element={<GuestRoleScreen />} />
       <Route path="/login" element={<AuthScreen />} />
+      {/* Not behind RequireSession — it manages its own status-based
+          rendering (lib/session.js's requestPasswordReset() points the
+          emailed link here; ResetPasswordScreen.jsx covers why an
+          already-authenticated visit here is also fine, not just a
+          recovery-link one). */}
+      <Route path="/reset-password" element={<ResetPasswordScreen />} />
       <Route path="/join" element={<JoinCampaignScreen />} />
       <Route
         path="/dashboard"

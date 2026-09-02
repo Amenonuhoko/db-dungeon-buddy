@@ -3,11 +3,13 @@ import {
   clearGuestSession,
   getGuestSession,
   onAuthChange,
+  requestPasswordReset,
   signIn,
   signInAnonymously,
   signOut as accountSignOut,
   signUp,
   startGuestSession,
+  updatePassword,
 } from './session';
 
 const SessionContext = createContext(null);
@@ -51,15 +53,26 @@ export function SessionProvider({ children }) {
         setGuest(startGuestSession(displayName, role));
         setStatus('guest');
       },
-      async logIn(username, password) {
-        await signIn(username, password);
+      async logIn(email, password) {
+        await signIn(email, password);
         // onAuthChange fires and updates status/user.
       },
-      async register(username, password) {
+      async register(email, password, displayName) {
         // Returns the raw signUp() response so the caller can tell
-        // whether it came back with an active session (email
-        // confirmation off, as instructed) or not.
-        return signUp(username, password);
+        // whether it came back with an active session (Confirm Email off)
+        // or needs the emailed confirmation link clicked first (on —
+        // see BIBLE.md §4, the expected default now that email is real).
+        return signUp(email, password, displayName);
+      },
+      async requestReset(email) {
+        await requestPasswordReset(email);
+      },
+      async setNewPassword(newPassword) {
+        await updatePassword(newPassword);
+        // Unlike logIn/register, no onAuthChange follow-up needed here —
+        // the recovery-link session updatePassword() runs against is
+        // already "authenticated" as far as SessionContext is concerned
+        // (see ResetPasswordScreen.jsx), so status is already correct.
       },
       async joinAsPlayer(displayName) {
         await signInAnonymously(displayName);

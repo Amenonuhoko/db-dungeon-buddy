@@ -49,88 +49,69 @@ function requireBackend() {
   }
 }
 
-// Supabase Auth is built around email/password — usernames aren't a
-// native identity type. Rather than pull in a different backend, we
-// deterministically map a username to a synthetic address under a
-// dedicated domain so the same Auth/RLS machinery still applies, but
-// nobody ever sees or types an email. The tradeoff this accepts: there's
-// no email to send a password-reset link to (see BIBLE.md §4).
-//
-// This used to be a reserved (RFC 2606) `.invalid` TLD — the textbook-
-// correct choice for "guaranteed never a real, deliverable domain" — but
-// live testing (2026-09) showed Supabase Auth's own server-side email
-// validator rejects it outright with "Email address ... is invalid"
-// (400), before the request ever reaches our trigger or the network
-// error handling below. GoTrue validates the domain against a real
-// top-level-domain list, and `.invalid` — precisely because it's
-// reserved to never be a real, registerable TLD — isn't on it. A real
-// TLD is required to pass that check, so this is *not* a domain we
-// control or that resolves to anything; it just needs to look
-// structurally like one Supabase's validator accepts. Confirm-email
-// stays OFF (see BIBLE.md §4) specifically so no mail is ever actually
-// sent here — if that ever changed, the domain would need to be one we
-// genuinely own instead.
-// Same function used for both signup and login, so login is
-// case/whitespace-insensitive to whatever the account was created with.
-const USERNAME_EMAIL_DOMAIN = 'accounts.codex-companion.com';
-
-export function usernameToEmail(username) {
-  const slug = username
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return `${slug}@${USERNAME_EMAIL_DOMAIN}`;
+// Where Supabase should send someone back to after clicking an emailed
+// link (confirmation or password-reset) — the deployed app's own origin
+// plus its base path (matches the `basename` App.jsx gives BrowserRouter,
+// so this works the same whether the app is served from a domain's root
+// or a subpath like GitHub Pages' `/repo-name/`).
+function redirectTo(path) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  return `${window.location.origin}${base}${path}`;
 }
 
-// A username that's technically valid against AuthScreen's pattern
-// attribute (letters/digits/underscore/hyphen, 3-20 chars) can still
-// collapse to an empty local-part once usernameToEmail strips leading/
-// trailing hyphens — "---" is a real example. That produces a
-// structurally invalid email Supabase will reject with a raw, confusing
-// error, so catch it here — one place, checked before either signUp or
-// signIn ever reaches the network — instead of only in the form's regex.
-export function usernameError(username) {
-  const trimmed = username.trim();
-  if (trimmed.length < 3 || trimmed.length > 20) return 'Username must be 3-20 characters.';
-  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
-    return 'Username can only use letters, numbers, underscores, and hyphens.';
-  }
-  if (!usernameToEmail(trimmed).split('@')[0]) {
-    return 'That username is all separators — add a letter or number.';
-  }
+// A real account used to mean a real email address collected up front —
+// nobody wants to give one just to sit down at the table, so an earlier
+// version of this module mapped a username to a synthetic, undeliverable
+// address instead (see the git history / BIBLE.md §4 for the full
+// account of why that got reverted: live testing showed Supabase Auth's
+// server-side validator rejects an email domain that doesn't have real,
+// resolving DNS — confirmed against *two* different invented domains,
+// which rules out "pick a better fake domain" as a fix). Real email is
+// back, but the constraint it was trying to avoid is worth keeping in
+// mind: an email address is the login identifier, not automatically the
+// display name shown at the table, so signup collects both separately.
+export function emailError(email) {
+  const trimmed = email.trim();
+  if (!trimmed) return 'Email is required.';
+  // Deliberately loose — an accurate email regex is famously not worth
+  // writing by hand, and the input's own type="email" already blocks the
+  // obviously-malformed cases before this ever runs. This is a backstop
+  // for a form submitted programmatically or a validation attribute
+  // stripped some other way, not the real check (Supabase's own is).
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return "That doesn't look like a valid email address.";
+  return null;
+}
+
+export function displayNameError(name) {
+  const trimmed = name.trim();
+  // Matches profiles.display_name's own check constraint
+  // (db/migrations/001_core.sql) — catching it here means a too-long
+  // name fails with a plain message before the network call, not a raw
+  // Postgres constraint-violation error after.
+  if (trimmed.length < 1 || trimmed.length > 60) return 'Display name must be 1-60 characters.';
   return null;
 }
 
 // Maps a raw Supabase Auth error to something a non-technical player can
-// actually act on. Two things this exists to prevent: (1) a raw error
-// message mentioning the synthetic @accounts.codex-companion.com address
-// ever reaching the screen — nobody typed an email, so seeing one back is
-// alarming and unexplained; (2) a network hiccup or rate limit reading as
-// a dead end ("Failed to fetch") instead of "try again."
-//
-// Anything not specifically recognized still leads with a friendly
-// fallback, but — unlike an earlier version of this function — no longer
-// *hides* the real reason: it's appended in parentheses (with the HTTP
-// status if there is one), sanitized so the synthetic domain can't leak
-// through. This is what "diagnosable without dev tools" actually
-// requires: debugging a live signup failure over chat with someone who
-// can't open a console proved a plain "try again in a moment" isn't
-// enough to go on — the real error also needs to reach the person who
-// hit it, not just the console they can't see.
+// actually act on. Two things this exists to prevent: (1) a network
+// hiccup or rate limit reading as a dead end ("Failed to fetch") instead
+// of "try again"; (2) an unrecognized error hiding the real reason —
+// unlike an early version of this function, the fallback below no longer
+// *hides* the detail, it appends it (with the HTTP status if there is
+// one). Debugging a live signup failure over chat with someone who has
+// no dev tools access proved that "try again in a moment" alone isn't
+// enough to go on.
 function friendlyAuthError(error, fallback) {
   const message = error?.message || '';
-  if (/already registered/i.test(message)) return new Error('That username is already taken — try another.');
-  if (/invalid login credentials/i.test(message)) return new Error('Unknown username or wrong password.');
-  // "Email not confirmed" only happens if "Confirm email" got left ON in
-  // the Supabase project (BIBLE.md §4 says to turn it off) — the account
-  // was created but is permanently stuck waiting on a confirmation email
-  // that can never arrive at the synthetic address. Worth its own message:
-  // the generic fallback below wouldn't point at the actual fix.
+  if (/already registered/i.test(message)) {
+    return new Error('That email is already registered — log in instead, or use "Forgot password?" if you need to reset it.');
+  }
+  if (/invalid login credentials/i.test(message)) return new Error('Incorrect email or password.');
+  // A real, working "Confirm email" setting (BIBLE.md §4) is exactly why
+  // real email is worth the signup friction — this is the expected,
+  // recoverable state right after signing up, not a dead end.
   if (/email not confirmed/i.test(message)) {
-    return new Error(
-      'This account is waiting on a confirmation email that can never arrive. Turn off "Confirm email" under Authentication → Providers → Email in Supabase, then either confirm this user manually from Authentication → Users, or sign up again with a new username.',
-    );
+    return new Error('Check your inbox (and spam folder) for the confirmation link, then log in again.');
   }
   // Whoever runs this campaign's backend turned off new sign-ups
   // entirely (Authentication → Sign In / Providers in Supabase) — not
@@ -155,32 +136,64 @@ function friendlyAuthError(error, fallback) {
     return new Error("Couldn't reach the server — check your connection and try again.");
   }
   console.error('Auth error:', error);
-  const detail = message ? message.replaceAll(USERNAME_EMAIL_DOMAIN, '(internal)') : null;
   const status = error?.status ? ` [${error.status}]` : '';
-  return new Error(detail ? `${fallback} (${detail}${status})` : `${fallback}${status}`);
+  return new Error(message ? `${fallback} (${message}${status})` : `${fallback}${status}`);
 }
 
-export async function signUp(username, password) {
+export async function signUp(email, password, displayName) {
   requireBackend();
-  const usernameProblem = usernameError(username);
-  if (usernameProblem) throw new Error(usernameProblem);
+  const problem = emailError(email) || displayNameError(displayName);
+  if (problem) throw new Error(problem);
   const { data, error } = await supabase.auth.signUp({
-    email: usernameToEmail(username),
+    email: email.trim(),
     password,
-    options: { data: { display_name: username.trim() } },
+    options: {
+      data: { display_name: displayName.trim() },
+      emailRedirectTo: redirectTo('/'),
+    },
   });
   if (error) throw friendlyAuthError(error, "Couldn't create that account — try again in a moment.");
   return data;
 }
 
-export async function signIn(username, password) {
+export async function signIn(email, password) {
   requireBackend();
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: usernameToEmail(username),
+    email: email.trim(),
     password,
   });
   if (error) throw friendlyAuthError(error, "Couldn't log in — try again in a moment.");
   return data;
+}
+
+// Sends a password-reset email — the thing a synthetic email address
+// could never do (BIBLE.md §4). Always resolves without error even for
+// an email that isn't registered: Supabase itself doesn't distinguish
+// ("Password Recovery" is sent either way) specifically so this can't be
+// used to probe which addresses have accounts, and the UI shouldn't
+// either — same "Check your email" message regardless.
+export async function requestPasswordReset(email) {
+  requireBackend();
+  const problem = emailError(email);
+  if (problem) throw new Error(problem);
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: redirectTo('/reset-password'),
+  });
+  if (error) throw friendlyAuthError(error, "Couldn't send that reset email — try again in a moment.");
+}
+
+// The second half of the reset flow — called from ResetPasswordScreen
+// once the emailed link has landed the browser in a recovery session
+// (supabase-js exchanges the link's token for one automatically; see
+// that screen for how it confirms the session is actually a recovery
+// one before showing the form). Requires 6+ characters the same as
+// signup — Supabase itself enforces this project-wide, so a mismatch
+// here would just be this constant drifting from that setting, not a
+// deliberate difference.
+export async function updatePassword(newPassword) {
+  requireBackend();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw friendlyAuthError(error, "Couldn't update the password — try again in a moment.");
 }
 
 // A real Supabase Auth session (auth.uid() works, RLS applies exactly as

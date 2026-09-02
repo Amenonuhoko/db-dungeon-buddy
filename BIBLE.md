@@ -302,109 +302,113 @@ DM for one campaign and a player in another.
   Guest data can later be claimed by an account (v2: "sign up and keep
   this character" migration) — worth designing for, not required at
   launch.
-- **Account**: Supabase Auth, but **username/password**, not email —
-  nobody at the table wants to give an email address to sign up. Supabase
-  Auth has no native username identity type, so `lib/session.js`
-  deterministically maps a username to a synthetic address under a
-  dedicated domain (`stormcaller` → `stormcaller@accounts.codex-companion.com`)
-  — not a domain we own or that resolves to anything, just a stable
-  slug — and everything downstream (RLS, `auth.uid()`, `profiles`) works
-  exactly as it would with a real email, because as far as Postgres is
-  concerned it's just an email column. The username *is* the display
-  name (one field to fill in, not two). The tradeoff this accepts, same
-  shape as the anonymous path below: no email means no
-  password-reset-by-email — losing the password loses the account.
-  **Requires "Confirm email" turned OFF** under the Supabase project's
-  Authentication → Providers → Email settings — a dashboard toggle, not
-  something a migration can set — because a confirmation email sent to
-  this synthetic address can never be delivered or clicked, which would
-  otherwise permanently lock every new signup out.
+- **Account**: Supabase Auth with a **real email address** and a
+  separate **display name** — two fields, not one. `AuthScreen.jsx`
+  collects both on signup: the email is the login identifier (what
+  Supabase Auth actually keys on) and never shown to other players; the
+  display name is what the table sees, stored on `profiles` via the
+  `handle_new_user()` trigger (`db/migrations/001_core.sql`) exactly like
+  before. `signUp()`/`signIn()` (`lib/session.js`) pass the email straight
+  through to Supabase — no transformation, no synthetic domain.
 
-  **This domain was originally a reserved (RFC 2606) `.invalid` TLD** —
-  the textbook-correct choice for "guaranteed never a real, deliverable
-  domain." Live signup testing (2026-09) surfaced that Supabase Auth's
-  own server-side validator rejects it outright — `Email address
-  "x@accounts.codex.invalid" is invalid` (400), thrown by GoTrue before
-  the request ever reaches our database trigger. GoTrue checks the
-  domain against a real top-level-domain list, and `.invalid` isn't on
-  it (precisely because it's reserved to *never* be one). So the domain
-  had to switch to something using a real TLD purely to satisfy that
-  format check — it's still not a domain the app owns or that resolves
-  to anything real; "Confirm email" staying OFF is what keeps that safe
-  (no mail is ever actually sent to it). If Confirm Email is ever turned
-  on, this needs to become a domain genuinely controlled by whoever runs
-  the deployment, not a placeholder string.
+  **This wasn't the original design.** The first version mapped a
+  *username* to a synthetic, undeliverable email under a made-up domain
+  specifically so nobody had to give a real address to sign up — and it
+  had to be abandoned. Live testing (2026-09) found Supabase Auth's
+  server-side validator rejects a signup outright — `Email address "x"
+  is invalid` (400) — whenever the domain doesn't have real, resolving
+  DNS. Swapping the reserved `.invalid` TLD for an ordinary-looking
+  `.com` one *also* failed identically, which ruled out "the TLD looks
+  fake" as the cause: two different invented domains, rejected the same
+  way, means no invented domain was ever going to work without actually
+  owning real DNS for it — not a naming problem a better guess could fix.
+  Real email is the one signup identifier Supabase Auth is actually built
+  around, so that's what this uses now.
 
-  **Because losing the password loses the account with zero recovery
-  path, a signup-time typo is the single worst failure mode in the whole
-  app** — someone types a password once, believes it's saved, and is
-  locked out on their very next login with no way back in. Everything in
-  `AuthScreen.jsx`'s signup mode exists to make that specific mistake
-  hard to make: a required Confirm Password field checked against
-  Password client-side before the form ever submits (`"Passwords don't
-  match"`, no network round-trip spent finding out), and a shared
-  show/hide toggle for both fields so a typo is visible before hitting
-  Sign Up rather than only discovered on the failed login after.
-  `usernameError()` (`lib/session.js`) is the other half — it independently
-  re-derives what `usernameToEmail()` would slugify a username down to
-  and rejects anything that collapses to an empty local-part (`"---"` is
-  a real example: passes the field's `3-20 chars, letters/digits/_/-`
-  pattern attribute, but strips to nothing once leading/trailing hyphens
-  are trimmed, which would otherwise reach Supabase as a structurally
-  invalid email and come back as a raw, confusing error). Called from
-  `AuthScreen` before any network call, and again inside `signUp()`
-  itself as a defense-in-depth check for any future caller that skips the
-  screen's own validation.
+  This isn't a pure downgrade, either: a synthetic address could never
+  receive a password-reset link, so losing a password used to mean
+  losing the account outright with zero way back in — the single
+  biggest risk flagged about the old design. A real email fixes that for
+  real (see "Forgot password?" below), which is worth the small extra
+  step of asking for one at signup.
 
-  Every Supabase Auth error also passes through `friendlyAuthError()`
-  (`lib/session.js`) rather than showing `error.message` verbatim — it
-  exists specifically so a raw error can never mention
-  `accounts.codex-companion.com` (confusing and alarming to someone who
-  never typed an email), and so a network hiccup or rate limit reads as
-  "try again" instead of a dead end. Anything recognized gets a specific,
-  friendly message; anything genuinely unrecognized still gets a usable
-  fallback, but with the real (sanitized) error detail and HTTP status
+  **Confirm Email works properly now, either way you leave it.** Under
+  the Supabase project's Authentication → Providers → Email settings:
+  leave it **on** (the default) for the standard "click the link we
+  emailed you" flow — `signUp()` passes `emailRedirectTo` pointing back
+  at the app's own root, so clicking it lands the visitor back here
+  already signed in — or turn it **off** if immediate sign-in without a
+  confirmation step is preferred. Neither choice needs a workaround
+  anymore; `friendlyAuthError()`'s `"Email not confirmed"` message
+  (`lib/session.js`) reads as an ordinary "check your inbox" instruction
+  now instead of a report of the app being stuck.
+
+  **Forgot password?** `requestPasswordReset()` (`lib/session.js`) calls
+  `supabase.auth.resetPasswordForEmail()` with `redirectTo` pointing at
+  `/reset-password` (`ResetPasswordScreen.jsx`, a new top-level route in
+  `App.jsx` — not behind `RequireSession`, since it manages its own
+  status-based rendering: "checking your link" while `SessionContext`'s
+  `status` is still `'loading'`, "this link is invalid or expired" if it
+  resolves to `'signed-out'`/`'guest'` — no recovery session was ever
+  established — and the actual "set a new password" form once it's
+  `'authenticated'`). Clicking the emailed link is itself what
+  authenticates the visitor here — supabase-js detects the link's token
+  in the URL and exchanges it for a real session automatically, which
+  `SessionContext`'s existing `onAuthStateChange` listener picks up
+  exactly like a normal login. The request step always shows the same
+  "if that email has an account, we've sent a link" message regardless
+  of whether it actually does — Supabase's own API doesn't distinguish
+  either, deliberately, so this can't be used to probe which addresses
+  are registered.
+
+  **A signup- or reset-time typo is still worth designing against**, even
+  with recovery now possible — it's still friction nobody wants to hit.
+  `AuthScreen.jsx`'s signup mode keeps the required Confirm Password
+  field checked against Password client-side before the form ever submits
+  (`"Passwords don't match"`, no network round-trip spent finding out)
+  and a shared show/hide toggle for both fields. `displayNameError()` and
+  `emailError()` (`lib/session.js`) are lightweight client-side backstops
+  — matching `profiles.display_name`'s own 1-60-character check
+  constraint and a loose "does this look like an email" shape check
+  respectively — not the real validation (Supabase's own is), just enough
+  to fail with a plain message before a network round-trip instead of a
+  raw error after one.
+
+  Every Supabase Auth error passes through `friendlyAuthError()`
+  (`lib/session.js`) rather than showing `error.message` verbatim, so a
+  network hiccup or rate limit reads as "try again" instead of a dead
+  end, "That email is already registered" points at logging in or
+  resetting instead of a raw duplicate-key error, and "Signups not
+  allowed" (the project's Authentication settings disabled new sign-ups
+  outright) reads as something to ask whoever runs the backend about
+  rather than a mysterious failure. Anything genuinely unrecognized still
+  gets a usable fallback, but with the real error detail and HTTP status
   appended in parentheses rather than hidden — debugging a live signup
   failure with someone who has no dev tools access proved that a plain
   "try again in a moment" isn't enough to diagnose from; the real reason
   has to reach the screen, not just the console. `lib/supabase.js` closes
-  the last gap upstream of all of this: a malformed `VITE_SUPABASE_URL`
-  (a stray quote character, a trailing `/rest/v1`, copy-paste whitespace)
+  the gap upstream of all of this: a malformed `VITE_SUPABASE_URL` (a
+  stray quote character, a trailing `/rest/v1`, copy-paste whitespace)
   used to produce a client that looked configured but wasn't, surfacing
   as a raw, unexplained fetch/URL error the moment someone actually
-  submitted the sign-up form — confirmed to be exactly what the "Invalid
-  path specified in request URL" report earlier in this project's history
-  actually was, once a live `/rest/v1`-suffixed `VITE_SUPABASE_URL` on
-  Vercel reproduced the same symptom. `describeUrlProblem()` /
-  `describeKeyProblem()` catch the specific, wrong shape at load time
-  (not just "something's wrong") and fall back to Guest-only mode (a
-  real, working, permanent feature, not a placeholder) instead, surfacing
-  `supabaseConfigError` directly on the Home screen — no dev tools
-  needed — as well as logging it to the console for whoever can check.
+  submitted the sign-up form. `describeUrlProblem()` / `describeKeyProblem()`
+  catch the specific, wrong shape at load time (not just "something's
+  wrong") and fall back to Guest-only mode (a real, working, permanent
+  feature, not a placeholder) instead, surfacing `supabaseConfigError`
+  directly on the Home screen — no dev tools needed — as well as logging
+  it to the console for whoever can check.
 
-  A further hardening pass (2026-09) closed the remaining vectors found
-  by walking the flow end to end rather than waiting for the next one to
-  surface live: `friendlyAuthError()` gained specific messages for
-  `"Email not confirmed"` (an account stuck behind a Confirm-Email
-  setting that was never turned off — the single most likely
-  misconfiguration left, now actionable at login time too, not just
-  right after signup) and `"Signups not allowed"` (the project's
-  Authentication settings disabled new sign-ups outright — not something
-  a player can fix, so say so instead of showing a raw error), and fixed
-  an ordering bug where a too-long-password error and a too-short one
-  both matched the same branch and showed opposite advice. `AuthScreen`
-  now caps the password fields at 72 characters — the point past which
-  bcrypt (what Supabase hashes with) stops looking, so what's typed is
-  always what actually matters instead of a longer paste silently having
-  its tail ignored — and sets `autoCapitalize="none"` / `autoCorrect="off"`
-  / `spellCheck={false}` on the username and password fields so a mobile
-  keyboard can't silently capitalize or "correct" what someone typed
-  (harmless for login, which is case-insensitive, but exactly the kind of
-  surprise this flow is designed to never produce). A `useRef` guard
-  closes a double-submit race a `busy` state alone can't: a fast
-  double-tap can fire a second submit before React re-renders the
-  disabled button, and two in-flight signup/login calls at once is worth
-  ruling out rather than debugging later.
+  A couple of smaller hardenings carried over from the username-based
+  version, still relevant to email/password either way: password fields
+  cap at 72 characters (the point past which bcrypt, what Supabase
+  hashes with, stops looking — so what's typed is always what actually
+  matters instead of a longer paste silently having its tail ignored),
+  `autoCapitalize="none"` / `autoCorrect="off"` / `spellCheck={false}` on
+  the email and password fields (a mobile keyboard silently
+  "correcting" what someone typed is exactly the kind of surprise this
+  flow is designed to never produce), and a `useRef` guard closing a
+  double-submit race a `busy` state alone can't (a fast double-tap can
+  fire a second submit before React re-renders the disabled button).
 - **Anonymous account** (a third thing, not a variant of the other two):
   `supabase.auth.signInAnonymously()` behind the `/join` screen — "join a
   real campaign as a player, no signup." It's a genuine Supabase Auth
@@ -723,9 +727,11 @@ screen is built, per the rule above:
   above the heading — never a plain "Back" button buried below the
   primary action. It's the one standing back-navigation affordance;
   don't hand-roll another "← X" button. The navigation map:
-  - `/guest`, `/login`, `/join` → back to `/` (Home). Home already
-    redirects an authenticated/guest session straight to `/dashboard`,
-    so this is safe even mid-session.
+  - `/guest`, `/login`, `/join`, `/reset-password` → back to `/` (Home).
+    Home already redirects an authenticated/guest session straight to
+    `/dashboard`, so this is safe even mid-session — including right
+    after a password-reset link has landed someone on `/reset-password`
+    already authenticated.
   - `/campaigns/:id` (and everything nested under it — Encyclopedia,
     Notes, Bestiary, Characters, reached via the bottom tab dock, not
     stack navigation) → back to `/dashboard`, labeled "Campaigns". One
