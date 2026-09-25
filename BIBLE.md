@@ -1291,6 +1291,23 @@ initials show on a colour of their own (`components/Portrait.jsx`).
   doesn't let SQL delete storage files, so clear them from the Storage
   dashboard if it matters.
 
+**Sheet flair.** The sheet has some pageantry now, all CSS on top of
+fields it already had:
+- **Class colour:** each class has a hue (`classHue()` in
+  `lib/builder.js`: Paladin azure, Druid green, Rogue violet, …). A
+  custom class gets a stable hue made from its name. The colour shows as
+  a band along the top of the plate, a halo behind the portrait, the
+  class/species ribbon and the level badge. The theme decides the
+  lightness (`.sheet-crest` tokens), so it reads on parchment and on
+  leather.
+- **Level:** a shield badge on the portrait, read from "Paladin 5"
+  (`levelOf()`).
+- **Proficiency:** a fourth hex beside Armor, Initiative and Speed,
+  worked out from the level. On a phone all four fit on one row.
+- **Headings:** section headings are "◆ RESOURCES ———" in brass.
+- **Backstory:** it opens with a large first letter in the class colour.
+
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

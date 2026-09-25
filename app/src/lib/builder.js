@@ -63,6 +63,32 @@ export const CLASS_INFO = {
 
 export const HIT_DICE = [6, 8, 10, 12];
 
+// Each class's colour on the sheet (the glow behind the portrait, the
+// band on top, the ribbon) — hue only; the theme sets how light.
+const CLASS_HUES = {
+  Barbarian: 6, Bard: 320, Cleric: 44, Druid: 105, Fighter: 24, Monk: 185,
+  Paladin: 205, Ranger: 140, Rogue: 270, Sorcerer: 345, Warlock: 290, Wizard: 228,
+};
+
+// "Paladin 5" → 5; null when there's no number to read.
+export function levelOf(classAndLevel) {
+  const match = /(\d+)\s*$/.exec(classAndLevel || '');
+  const level = match ? Number(match[1]) : null;
+  return level >= 1 && level <= 20 ? level : null;
+}
+
+export const proficiencyBonus = (level) => Math.ceil(level / 4) + 1;
+
+// A custom class still gets a colour of its own, just not a chosen one.
+export function classHue(classAndLevel) {
+  const name = (classAndLevel || '').replace(/\s*\d+\s*$/, '').trim();
+  if (CLASS_HUES[name] != null) return CLASS_HUES[name];
+  if (!name) return 38; // brass
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 360;
+}
+
 // Species with a shorter stride (the 2014 PHB's 25 ft.); everyone else 30.
 const SHORT_STRIDE = ['Dwarf', 'Halfling', 'Gnome'];
 
@@ -227,7 +253,7 @@ export function classBasics(className, hitDie, level) {
   const lvl = Math.max(1, Math.min(20, Number(level) || 1));
   const parts = [`Hit Dice: ${lvl}d${hitDie}`];
   if (info) parts.push(`Saving throws: ${info.saves.map((k) => ABILITY_NAMES[k]).join(', ')}`);
-  parts.push(`Proficiency bonus: +${Math.ceil(lvl / 4) + 1}`);
+  parts.push(`Proficiency bonus: +${proficiencyBonus(lvl)}`);
   return `${parts.join(' · ')}.`;
 }
 

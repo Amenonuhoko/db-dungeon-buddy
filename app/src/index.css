@@ -3942,10 +3942,6 @@ button.presence-card:active {
     var(--shadow-glow);
 }
 
-.character-sheet-header > .portrait,
-.character-sheet-header > .portrait-picker {
-  margin: 0 auto 0.9rem;
-}
 
 .portrait-picker {
   display: flex;
@@ -4040,4 +4036,186 @@ button.presence-card:active {
 
 .my-characters .portrait-picker {
   margin-bottom: 1rem;
+}
+
+/* ---------------------------------------------------------------------
+ * Sheet flair — each class gets a colour of its own (--class-hue, set
+ * from lib/builder.js classHue()): a band along the top of the plate, a
+ * glow behind the portrait, the class ribbon and the level badge. The
+ * theme decides how light, so it reads on both parchment and leather.
+ * ------------------------------------------------------------------- */
+.sheet-crest {
+  --crest: hsl(var(--class-hue, 38) 58% 62%);
+  --crest-soft: hsl(var(--class-hue, 38) 65% 55% / 0.24);
+  --on-crest: #140d0a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .sheet-crest {
+    --crest: hsl(var(--class-hue, 38) 55% 36%);
+    --crest-soft: hsl(var(--class-hue, 38) 60% 50% / 0.18);
+    --on-crest: #fff8ec;
+  }
+}
+
+:root[data-theme='light'] .sheet-crest {
+  --crest: hsl(var(--class-hue, 38) 55% 36%);
+  --crest-soft: hsl(var(--class-hue, 38) 60% 50% / 0.18);
+  --on-crest: #fff8ec;
+}
+
+.sheet-crest::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 12%;
+  right: 12%;
+  height: 5px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(90deg, transparent, var(--crest) 20%, var(--crest) 80%, transparent);
+  pointer-events: none;
+}
+
+.sheet-portrait-wrap {
+  position: relative;
+  isolation: isolate;
+  width: fit-content;
+  margin: 0 auto 0.9rem;
+}
+
+/* A soft halo in the class colour, behind the portrait. */
+.sheet-crest .sheet-portrait-wrap::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 3.75rem;
+  width: 15rem;
+  height: 11rem;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, var(--crest-soft), transparent);
+  pointer-events: none;
+}
+
+.sheet-level-badge {
+  position: absolute;
+  top: 0;
+  right: -0.55rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.75rem;
+  background: var(--crest);
+  color: var(--on-crest);
+  border: 3px solid var(--ink);
+  /* A heater shield. */
+  clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%);
+  border-radius: 6px 6px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding-bottom: 0.45rem;
+}
+
+.sheet-level-badge small {
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.sheet-ribbon {
+  color: inherit;
+}
+
+.sheet-ribbon span {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.3rem 1.5rem;
+  background: var(--crest);
+  color: var(--on-crest);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.7rem) 50%, 100% 100%, 0 100%, 0.7rem 50%);
+}
+
+.sheet-crest .sheet-personality-item {
+  border-left-color: var(--crest);
+}
+
+/* Ornamented section headings: ◆ RESOURCES ———— */
+.character-sheet-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+}
+
+.character-sheet-section-label::before,
+.character-sheet-scroll h3::before {
+  content: '◆';
+  font-size: 0.55rem;
+  color: var(--gold);
+}
+
+.character-sheet-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  opacity: 0.6;
+}
+
+.death-saves .character-sheet-section-label {
+  justify-content: center;
+}
+
+.death-saves .character-sheet-section-label::after {
+  display: none;
+}
+
+.character-sheet-scroll h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* The backstory opens like a storybook. */
+.sheet-backstory p::first-letter {
+  float: left;
+  margin: 0.08em 0.14em 0 0;
+  font-family: var(--font-display);
+  font-size: 2.9em;
+  font-weight: 700;
+  line-height: 0.82;
+  color: var(--crest, var(--gold-bright));
+}
+
+/* Armor, Initiative, Speed and Proficiency in one row on a phone. */
+@media (max-width: 480px) {
+  .character-sheet-combat-row {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .character-sheet-combat-row .stat-hex-big {
+    width: 70px;
+    height: 80px;
+  }
+
+  .character-sheet-combat-row .stat-hex-big .stat-hex-value {
+    font-size: 1rem;
+  }
+
+  .character-sheet-combat-row .stat-hex-label {
+    font-size: 0.5rem;
+  }
 }

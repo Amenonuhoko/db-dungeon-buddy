@@ -29,6 +29,7 @@ import {
   shortRestPatch,
   updateSheet,
 } from '../lib/characters.js';
+import { classHue, levelOf, proficiencyBonus } from '../lib/builder.js';
 import { absoluteTabs } from '../lib/campaignTabs.jsx';
 import { rollD20 } from '../lib/encounters.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
@@ -377,6 +378,7 @@ export function CharacterSheetScreen() {
   // Death saves only mean anything at 0 HP (and only if HP is being
   // tracked at all) — the block stays out of the way otherwise.
   const down = sheet.maxHp != null && (sheet.currentHp ?? 0) <= 0;
+  const level = levelOf(sheet.classAndLevel);
   const deathStatus =
     (sheet.deathSaveFailures ?? 0) >= 3 ? 'Dead' : (sheet.deathSaveSuccesses ?? 0) >= 3 ? 'Stable' : null;
 
@@ -396,7 +398,7 @@ export function CharacterSheetScreen() {
           />
         )}
 
-        <div className="character-sheet-plate corner-frame">
+        <div className="character-sheet-plate corner-frame sheet-crest" style={{ '--class-hue': classHue(sheet.classAndLevel) }}>
           {editable && !editing && <DeleteButton onConfirm={handleDelete} label={sheet.name} />}
 
           {editing ? (
@@ -553,22 +555,30 @@ export function CharacterSheetScreen() {
           ) : (
             <>
               <div className="character-sheet-header">
-                {editable ? (
-                  <PortraitPicker
-                    path={sheet.portraitPath}
-                    name={sheet.name}
-                    onSave={savePortrait}
-                    onRemove={removePortrait}
-                    describeError={explainPortraitError}
-                  />
-                ) : (
-                  <Portrait path={sheet.portraitPath} name={sheet.name} size="lg" />
-                )}
+                <div className="sheet-portrait-wrap">
+                  {editable ? (
+                    <PortraitPicker
+                      path={sheet.portraitPath}
+                      name={sheet.name}
+                      onSave={savePortrait}
+                      onRemove={removePortrait}
+                      describeError={explainPortraitError}
+                    />
+                  ) : (
+                    <Portrait path={sheet.portraitPath} name={sheet.name} size="lg" />
+                  )}
+                  {level && (
+                    <span className="sheet-level-badge" title={`Level ${level}`}>
+                      <small>Lv</small>
+                      {level}
+                    </span>
+                  )}
+                </div>
                 <LaurelFlourish>
                   <h1 className="character-sheet-name">{sheet.name}</h1>
                 </LaurelFlourish>
-                <p className="character-sheet-subtitle">
-                  {[sheet.classAndLevel, sheet.race].filter(Boolean).join(' · ') || 'Adventurer'}
+                <p className="character-sheet-subtitle sheet-ribbon">
+                  <span>{[sheet.classAndLevel, sheet.race].filter(Boolean).join(' · ') || 'Adventurer'}</span>
                 </p>
                 {sheet.background && <p className="character-sheet-background">{sheet.background}</p>}
               </div>
@@ -583,6 +593,7 @@ export function CharacterSheetScreen() {
                 <StatHex big label="Armor" value={sheet.armorClass ?? '—'} />
                 <StatHex big label="Initiative" value={detailsHidden ? '—' : modifier(abilities.dex)} />
                 <StatHex big label="Speed" value={sheet.speed || '—'} />
+                {level && <StatHex big label="Proficiency" value={`+${proficiencyBonus(level)}`} />}
               </div>
 
               <div className="hp-block">
