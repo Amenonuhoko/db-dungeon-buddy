@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuilder.jsx';
+import { useCreateMode } from '../lib/createMode.js';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { PartyStash } from '../components/PartyStash.jsx';
 import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
@@ -77,6 +79,10 @@ export function CharactersScreen() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
   const [picks, setPicks] = useState(BLANK_PICKS);
+  // A DM stocking pre-mades wants the quick form; a player making their
+  // one character gets walked through it. Either way, remembered.
+  const [mode, setMode] = useCreateMode(isDM ? 'quick' : 'guided');
+  const [saving, setSaving] = useState(false);
 
   // Players — guest or account — make their own character (one each; the
   // DM can add more for them) instead of waiting for the DM to hand one
@@ -142,18 +148,25 @@ export function CharactersScreen() {
       playerId: ownPlayerId,
     });
     setPicks({ ...parseClassAndLevel(example.classAndLevel, custom.classes), ...parseRace(example.race, custom.races) });
+    setMode('quick'); // a template fills in the quick form
     setShowForm(true);
   }
 
-  async function handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
     if (!form.name.trim() || !form.playerId) return;
+    return createFrom({ ...form, ...finalizeQuickFields(form, picks) });
+  }
+
+  // Quick form or guided builder: either way, whoever "Played by" says.
+  async function createFrom(built) {
+    if (!form.playerId || saving) return;
     const fields = {
-      ...form,
-      ...finalizeQuickFields(form, picks),
+      ...built,
       // A DM pre-made worn by nobody yet — anyone can slip into it.
       playerId: form.playerId === POOL ? null : form.playerId,
     };
+    setSaving(true);
     try {
       const created = await createSheet(status, campaignId, fields);
       setSheets((prev) => [created, ...prev]);
@@ -163,6 +176,8 @@ export function CharactersScreen() {
       navigate(`/campaigns/${campaignId}/characters/${created.id}`);
     } catch (err) {
       setError(explainCreateError(err, isPlayer));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -181,6 +196,33 @@ export function CharactersScreen() {
   }, {});
 
   const onlinePlayers = presence?.online || {};
+
+  // The DM's "who plays this?" — on both the quick form and the builder.
+  const playedBy = !isGuest && isDM && (
+    <div className="field">
+      <label htmlFor="sheetPlayer">Played by</label>
+      <select
+        id="sheetPlayer"
+        value={form.playerId}
+        onChange={(e) => setForm({ ...form, playerId: e.target.value })}
+      >
+        <option value="" disabled>
+          Choose…
+        </option>
+        <option value={POOL}>Nobody yet — a pre-made anyone can slip into</option>
+        {players.map((p) => (
+          <option key={p.userId} value={p.userId}>
+            {p.displayName}
+            {worn?.[p.userId] ? ` (now playing ${worn[p.userId]})` : ''}
+          </option>
+        ))}
+      </select>
+      <span className="hint-text" style={{ margin: 0 }}>
+        Players wear one character at a time — giving someone this one slips them out of their current one.
+      </span>
+    </div>
+  );
+
   const unreadTalk = talk?.totalUnread || 0;
 
   return (
@@ -299,55 +341,46 @@ export function CharactersScreen() {
 
           {showForm && canCreate && (
             <Panel style={{ marginBottom: '1.5rem' }}>
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <p className="hint-text">
-                  Just the basics — ability scores, equipment and features go on the full sheet, which opens as soon as
-                  this is saved.
-                </p>
-
-                {!isGuest && isDM && (
-                  <div className="field">
-                    <label htmlFor="sheetPlayer">Played by</label>
-                    <select
-                      id="sheetPlayer"
-                      value={form.playerId}
-                      onChange={(e) => setForm({ ...form, playerId: e.target.value })}
-                    >
-                      <option value="" disabled>
-                        Choose…
-                      </option>
-                      <option value={POOL}>Nobody yet — a pre-made anyone can slip into</option>
-                      {players.map((p) => (
-                        <option key={p.userId} value={p.userId}>
-                          {p.displayName}
-                          {worn?.[p.userId] ? ` (now playing ${worn[p.userId]})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="hint-text" style={{ margin: 0 }}>
-                      Players wear one character at a time — giving someone this one slips them out of their current one.
-                    </span>
-                  </div>
-                )}
-
-                <QuickCharacterFields
-                  form={form}
-                  setForm={setForm}
-                  picks={picks}
-                  setPicks={setPicks}
+              <CreateModeSwitch mode={mode} setMode={setMode} />
+              {mode === 'guided' ? (
+                <CharacterBuilder
                   extraClasses={custom.classes}
                   extraRaces={custom.races}
-                />
+                  busy={saving}
+                  canSubmit={Boolean(form.playerId)}
+                  onSubmit={createFrom}
+                  onCancel={() => setShowForm(false)}
+                >
+                  {playedBy}
+                </CharacterBuilder>
+              ) : (
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <p className="hint-text">
+                    Just the basics — ability scores, equipment and features go on the full sheet, which opens as soon as
+                    this is saved.
+                  </p>
 
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
-                    Create Character
-                  </button>
-                  <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
+                  {playedBy}
+
+                  <QuickCharacterFields
+                    form={form}
+                    setForm={setForm}
+                    picks={picks}
+                    setPicks={setPicks}
+                    extraClasses={custom.classes}
+                    extraRaces={custom.races}
+                  />
+
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button className="btn btn-primary" type="submit" disabled={saving || !form.playerId || !form.name.trim()}>
+                      Create Character
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </Panel>
           )}
 

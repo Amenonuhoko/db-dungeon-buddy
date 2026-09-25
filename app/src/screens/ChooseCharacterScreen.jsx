@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
+import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuilder.jsx';
+import { useCreateMode } from '../lib/createMode.js';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
@@ -54,6 +56,7 @@ export function ChooseCharacterScreen() {
   const [form, setForm] = useState(BLANK_FORM);
   const [picks, setPicks] = useState(BLANK_PICKS);
   const [keepInRoster, setKeepInRoster] = useState(true);
+  const [mode, setMode] = useCreateMode('guided');
 
   const presenceMe = useMemo(
     () => (user ? { userId: user.id, name: user.user_metadata?.display_name || 'Adventurer', role: isDM ? 'dm' : 'player' } : null),
@@ -104,8 +107,13 @@ export function ChooseCharacterScreen() {
   function create(event) {
     event.preventDefault();
     if (!form.name.trim()) return;
-    act(async () => {
-      const fields = { ...finalizeQuickFields(form, picks), abilities: BLANK_ABILITIES };
+    return createFrom({ ...finalizeQuickFields(form, picks), abilities: BLANK_ABILITIES });
+  }
+
+  // Quick form or guided builder, same path in: optionally keep a copy in
+  // My Characters, then put it on.
+  function createFrom(fields) {
+    return act(async () => {
       let rosterId = null;
       if (keepInRoster && !isAnonymous) {
         try {
@@ -117,6 +125,13 @@ export function ChooseCharacterScreen() {
       await createSheet('authenticated', campaignId, { ...fields, playerId: user.id, ...(rosterId ? { rosterId } : {}) });
     });
   }
+
+  const keepRosterCheck = !isAnonymous && (
+    <label className="check-row">
+      <input type="checkbox" checked={keepInRoster} onChange={(e) => setKeepInRoster(e.target.checked)} />
+      Also keep in My Characters, to bring into other campaigns
+    </label>
+  );
 
   if (campaignError) {
     return (
@@ -213,33 +228,42 @@ export function ChooseCharacterScreen() {
             </button>
           ) : (
             <Panel>
-              <form onSubmit={create} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <p className="hint-text" style={{ margin: 0 }}>
-                  Just the basics — ability scores, gear and features go on the full sheet afterwards.
-                </p>
-                <QuickCharacterFields
-                  form={form}
-                  setForm={setForm}
-                  picks={picks}
-                  setPicks={setPicks}
+              <CreateModeSwitch mode={mode} setMode={setMode} />
+              {mode === 'guided' ? (
+                <CharacterBuilder
                   extraClasses={custom.classes}
                   extraRaces={custom.races}
-                />
-                {!isAnonymous && (
-                  <label className="check-row">
-                    <input type="checkbox" checked={keepInRoster} onChange={(e) => setKeepInRoster(e.target.checked)} />
-                    Also keep in My Characters, to bring into other campaigns
-                  </label>
-                )}
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <button className="btn btn-primary" type="submit" disabled={busy || !form.name.trim()}>
-                    {busy ? 'Creating…' : 'Create & Play'}
-                  </button>
-                  <button className="btn btn-ghost" type="button" onClick={() => setCreating(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
+                  busy={busy}
+                  submitLabel="Create & Play"
+                  onSubmit={createFrom}
+                  onCancel={() => setCreating(false)}
+                >
+                  {keepRosterCheck}
+                </CharacterBuilder>
+              ) : (
+                <form onSubmit={create} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <p className="hint-text" style={{ margin: 0 }}>
+                    Just the basics — ability scores, gear and features go on the full sheet afterwards.
+                  </p>
+                  <QuickCharacterFields
+                    form={form}
+                    setForm={setForm}
+                    picks={picks}
+                    setPicks={setPicks}
+                    extraClasses={custom.classes}
+                    extraRaces={custom.races}
+                  />
+                  {keepRosterCheck}
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button className="btn btn-primary" type="submit" disabled={busy || !form.name.trim()}>
+                      {busy ? 'Creating…' : 'Create & Play'}
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={() => setCreating(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </Panel>
           )}
         </section>

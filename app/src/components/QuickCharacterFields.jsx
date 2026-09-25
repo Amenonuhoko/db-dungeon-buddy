@@ -8,8 +8,10 @@ import { CLASSES, RACES } from '../lib/characters.js';
 // the stored fields. extraClasses / extraRaces are custom ones already
 // used in this campaign or My Characters (customOptions()), offered in
 // the list so nobody retypes "Artificer" for every character. The parent owns the state so it can prefill from a
-// template and add its own fields around these.
-export function QuickCharacterFields({ form, setForm, picks, setPicks, extraClasses = [], extraRaces = [] }) {
+// template and add its own fields around these. The guided builder
+// (CharacterBuilder.jsx) passes vitals={false} — it works out HP and AC
+// itself, later.
+export function QuickCharacterFields({ form, setForm, picks, setPicks, extraClasses = [], extraRaces = [], vitals = true }) {
   return (
     <>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -102,14 +104,18 @@ export function QuickCharacterFields({ form, setForm, picks, setPicks, extraClas
             <option value="Other">Other…</option>
           </select>
         </div>
-        <div className="field" style={{ flex: '1 1 90px' }}>
-          <label htmlFor="charMaxHp">Max HP</label>
-          <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
-        </div>
-        <div className="field" style={{ flex: '1 1 90px' }}>
-          <label htmlFor="charAC">Armor Class</label>
-          <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
-        </div>
+        {vitals && (
+          <>
+            <div className="field" style={{ flex: '1 1 90px' }}>
+              <label htmlFor="charMaxHp">Max HP</label>
+              <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
+            </div>
+            <div className="field" style={{ flex: '1 1 90px' }}>
+              <label htmlFor="charAC">Armor Class</label>
+              <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
+            </div>
+          </>
+        )}
       </div>
 
       {picks.raceChoice === 'Other' && (

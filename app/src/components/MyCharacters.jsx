@@ -7,6 +7,8 @@ import {
   listRoster,
   updateRosterCharacter,
 } from '../lib/roster.js';
+import { CharacterBuilder, CreateModeSwitch } from './CharacterBuilder.jsx';
+import { useCreateMode } from '../lib/createMode.js';
 import { DeleteButton } from './DeleteButton.jsx';
 import { Panel } from './ornament/Panel.jsx';
 import { QuickCharacterFields } from './QuickCharacterFields.jsx';
@@ -16,7 +18,7 @@ import { QuickCharacterFields } from './QuickCharacterFields.jsx';
 // from its "Choose your character" step; "Save to My Characters" on a
 // campaign sheet copies progress back here. Quick fields only for now —
 // the full sheet (abilities, gear, features) comes along with anything
-// saved back from a campaign.
+// saved back from a campaign — or with the guided builder.
 const BLANK_FORM = { name: '', maxHp: '', armorClass: '', currentHp: '' };
 
 export function MyCharacters() {
@@ -27,6 +29,7 @@ export function MyCharacters() {
   const [form, setForm] = useState(BLANK_FORM);
   const [picks, setPicks] = useState(BLANK_PICKS);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useCreateMode('guided');
 
   useEffect(() => {
     listRoster()
@@ -66,6 +69,20 @@ export function MyCharacters() {
         const updated = await updateRosterCharacter(editingId, { ...existing, ...quick });
         if (updated) setCharacters((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
       }
+      setEditingId(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createBuilt(fields) {
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createRosterCharacter(fields);
+      setCharacters((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setEditingId(null);
     } catch (err) {
       setError(err.message);
@@ -121,7 +138,23 @@ export function MyCharacters() {
         Yours to bring into any campaign — pick one when you join a table.
       </p>
       {error && <p className="error-text">{error}</p>}
-      {editingId === 'new' && <Panel style={{ marginBottom: '0.75rem' }}>{form$}</Panel>}
+      {editingId === 'new' && (
+        <Panel style={{ marginBottom: '0.75rem' }}>
+          <CreateModeSwitch mode={mode} setMode={setMode} />
+          {mode === 'guided' ? (
+            <CharacterBuilder
+              extraClasses={customOptions(characters || []).classes}
+              extraRaces={customOptions(characters || []).races}
+              busy={busy}
+              submitLabel="Add to My Characters"
+              onSubmit={createBuilt}
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
+            form$
+          )}
+        </Panel>
+      )}
       {characters === null && <p className="hint-text">Loading…</p>}
       {characters?.length === 0 && editingId !== 'new' && <p className="hint-text">No characters saved yet.</p>}
       <ul className="choose-list">

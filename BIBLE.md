@@ -1025,8 +1025,8 @@ character per campaign at a time and can slip in and out:
   anyone comes back to swap. Its options:
   - slip into a character from the pool;
   - bring one from My Characters (accounts only);
-  - create a new one, quick fields only (the guided builder comes
-    later), optionally also kept in My Characters;
+  - create a new one — step by step or with the quick form (see
+    **Guided builder** below) — optionally also kept in My Characters;
   - "Join the table without a character for now".
 
   The Party tab shows "You're playing X · Open Sheet · Change Character",
@@ -1055,6 +1055,41 @@ character per campaign at a time and can slip in and out:
   the Party tab, the chooser and My Characters.
   `finalizeQuickFields()`, `explainCreateError()` and the dropdown
   helpers live in `lib/characters.js`.
+- **Guided builder** (`components/CharacterBuilder.jsx`, rules in
+  `lib/builder.js`) — the step-by-step alternative to the quick form,
+  in the same three places. A "Step by step / Quick" switch picks
+  between them. The last choice is remembered on the device
+  (`lib/createMode.js`); otherwise players start step by step and the
+  DM (stocking pre-mades) starts quick. Four steps:
+  1. **Who**: name, class, level and species (the quick fields without
+     HP/AC). A custom class asks for its hit die.
+  2. **Abilities**: standard array, point buy (27 points, 8–15), 4d6
+     drop lowest (the dropped die shown struck through), or typed in.
+     "Best fit" places the array or rolls in the class's order of
+     importance. Then the bonus: +2/+1, three +1s, +1 to all (classic
+     Human) or none — deliberately not tied to species, so it suits
+     both the 2014 and 2024 rules. Saving throw proficiencies are
+     marked.
+  3. **Story**: background (PHB 2014 + 2024 list, or Other), a
+     one-line origin, the four personality prompts with an "Idea"
+     button that offers an original prompt, and backstory. All
+     optional; blank ones aren't sent, so a backend without 011 still
+     takes the character.
+  4. **Review**: a summary card, then **suggested** HP (max hit die +
+     CON at 1st level, then the fixed average), AC (the class's usual
+     starting armor, with how it was worked out) and speed (25 ft. for
+     Dwarf, Halfling and Gnome). Each can be overridden, with a "Use
+     suggested" to undo. Class trackers (Rage, Bardic Inspiration,
+     Second Wind, Action Surge, Ki, Channel Divinity, Wild Shape, Lay on
+     Hands, Sorcery Points, Pact Magic and spell slots by level) are
+     added as ordinary resources, which can be switched off. The
+     caller's own extras render here too ("Played by",
+     "Also keep in My Characters").
+
+  The builder only fills in fields the sheet already has — abilities,
+  background, features (a "Hit Dice · Saving throws · Proficiency
+  bonus" line), resources, speed and the 011 story fields — so nothing
+  is enforced afterwards and no migration is needed.
 
 Offline campaigns are unchanged: one person on one device, no pool,
 roster or chooser.
