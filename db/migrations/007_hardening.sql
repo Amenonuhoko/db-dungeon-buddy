@@ -515,7 +515,14 @@ begin
     ) as v(tbl, name, expr)
   loop
     execute format('alter table %I drop constraint if exists %I', c.tbl, c.name);
-    execute format('alter table %I add constraint %I check (%s) not valid', c.tbl, c.name, c.expr);
+    -- A later migration can move a column elsewhere (010 moves a sheet's
+    -- private fields to character_details, which carries its own
+    -- limits) — re-running this file afterwards just skips that check.
+    begin
+      execute format('alter table %I add constraint %I check (%s) not valid', c.tbl, c.name, c.expr);
+    exception when undefined_column then
+      null;
+    end;
   end loop;
 end;
 $$;
