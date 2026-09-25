@@ -16,6 +16,21 @@ const conditionsFor = (status) => (status === 'guest' ? localConditions : remote
 // fixed id instead of a real auth.uid(). See BIBLE.md §7.
 export const LOCAL_PLAYER_ID = 'local-player';
 
+// Dropdown options for the "New Character" quick-create form
+// (CharactersScreen.jsx) — the 12 core 5e classes and the PHB's common
+// species, so picking one is the fast path. Neither list is enforced:
+// `class_and_level`/`race` are still plain text columns, so "Other"
+// falls through to a free-text field for homebrew/third-party options,
+// same escape hatch the app already gives ability scores (BIBLE.md §7).
+export const CLASSES = [
+  'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk',
+  'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
+];
+
+export const RACES = [
+  'Human', 'Elf', 'Half-Elf', 'Dwarf', 'Halfling', 'Gnome', 'Half-Orc', 'Dragonborn', 'Tiefling',
+];
+
 // Reference sample — not stored anywhere, shown in an "Examples" panel
 // and usable as a one-click starting point (see CharactersScreen.jsx's
 // "Use as Template"), same pattern as the other content types.
