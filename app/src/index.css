@@ -1652,3 +1652,24 @@ button.pip {
   min-width: 3.2rem;
   text-align: center;
 }
+
+/* A failed emailed auth link (expired / already used) — HomeScreen. */
+.auth-link-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--oxblood);
+  border-radius: var(--radius);
+  background: rgba(122, 34, 34, 0.06);
+  text-align: left;
+}
+
+.auth-link-error p {
+  flex: 1;
+}
+
+.example-toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
-import { displayNameError } from '../lib/session.js';
+import { displayNameError, RESEND_COOLDOWN_SECONDS } from '../lib/session.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 const TITLES = { login: 'Welcome Back', signup: 'Join the Codex', forgot: 'Reset Password' };
@@ -19,16 +19,28 @@ export function AuthScreen() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Set when the one thing standing between this person and logging in
+  // is an unclicked confirmation email — right after signing up, or when
+  // a login comes back "not confirmed". Shows "Resend confirmation".
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   // `busy` (state) only disables the button after a re-render — a fast
   // double-tap, common on mobile, can fire a second submit before that
   // happens and land two requests in flight at once. A ref flips
   // synchronously, closing that gap regardless of render timing.
   const submitting = useRef(false);
-  const { logIn, register, requestReset } = useSession();
+  const { logIn, register, requestReset, resendConfirmationEmail } = useSession();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    const t = window.setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendCooldown]);
 
   function switchMode(next) {
     setMode(next);
+    setNeedsConfirmation(false);
     setPassword('');
     setConfirmPassword('');
     setError(null);
@@ -72,7 +84,10 @@ export function AuthScreen() {
           navigate('/dashboard');
         } else {
           switchMode('login');
-          setNotice('Account created — check your inbox for a confirmation link, then log in below.');
+          setNotice('Account created — check your inbox (and spam folder) for a confirmation link, then log in below.');
+          setNeedsConfirmation(true);
+          // Signing up just sent one — same cooldown as a manual resend.
+          setResendCooldown(RESEND_COOLDOWN_SECONDS);
         }
       } else {
         await requestReset(email);
@@ -84,9 +99,26 @@ export function AuthScreen() {
       }
     } catch (err) {
       setError(err.message || 'Something went wrong.');
+      if (err.kind === 'email_not_confirmed') setNeedsConfirmation(true);
     } finally {
       submitting.current = false;
       setBusy(false);
+    }
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0) return;
+    if (!email.trim()) {
+      setError('Enter the email you signed up with first.');
+      return;
+    }
+    setError(null);
+    try {
+      await resendConfirmationEmail(email);
+      setNotice(`Sent a fresh confirmation link to ${email.trim()} — check your inbox and spam folder.`);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setError(err.message || "Couldn't resend the confirmation email.");
     }
   }
 
@@ -204,6 +236,18 @@ export function AuthScreen() {
 
           {error && <p className="error-text">{error}</p>}
           {notice && <p className="error-text">{notice}</p>}
+
+          {needsConfirmation && mode === 'login' && (
+            <button
+              type="button"
+              className="example-toggle"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={handleResend}
+              disabled={resendCooldown > 0}
+            >
+              {resendCooldown > 0 ? `Resend confirmation email (${resendCooldown}s)` : 'Resend confirmation email'}
+            </button>
+          )}
 
           <button className="btn btn-primary" type="submit" disabled={busy}>
             {busy ? 'Working…' : SUBMIT_LABELS[mode]}

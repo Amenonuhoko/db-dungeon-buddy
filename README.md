@@ -91,13 +91,24 @@ data lives only in that browser's `localStorage`.
    `/join` screen, `BIBLE.md` §4), turn on **Anonymous sign-ins** under
    **Authentication → Sign In / Providers** in the Supabase dashboard —
    that's a project setting, not something the SQL migrations can flip.
-8. Account signup (`BIBLE.md` §4) uses a real email address, so
-   **"Confirm email"** under **Authentication → Providers → Email**
-   works either way — leave it **on** (Supabase's default) for the usual
-   "click the link we emailed you" flow, or turn it **off** if you'd
-   rather new signups land signed in immediately with no confirmation
-   step. Password reset (`ResetPasswordScreen.jsx`) sends its own email
-   regardless of this setting and needs no extra configuration.
+8. **Authentication → URL Configuration**: set **Site URL** to your
+   deployed app (e.g. `https://your-app.vercel.app`) and add
+   `https://your-app.vercel.app/**` under **Redirect URLs** (plus your
+   preview-deployment pattern if you test on previews). Signup
+   confirmation and password-reset emails link back through these —
+   leave the default and they point at `http://localhost:3000`.
+9. **Email delivery** — decide before anyone else signs up. Without
+   custom SMTP, Supabase's built-in mailer only sends to addresses on
+   your own Supabase org team, about 2 emails an hour; anyone else gets
+   "Email address not authorized". Two options:
+   - Turn **off** "Confirm email" (**Authentication → Sign In /
+     Providers → Email**): signups land signed in immediately and no
+     email is sent. Password reset still sends email, so it will only
+     reach your team until you do the next option.
+   - Or set up **custom SMTP** (**Authentication → Emails → SMTP
+     Settings** — any provider works; Resend's free tier is the quickest).
+     Then leave "Confirm email" on for the usual "click the link we
+     emailed you" flow, and password reset works for everyone.
 
 (Unlike `little-bonfire`, there's no `SUPABASE_SERVICE_ROLE_KEY` yet —
 auth and campaign membership are handled by Supabase Auth and guarded

@@ -361,6 +361,33 @@ DM for one campaign and a player in another.
   either, deliberately, so this can't be used to probe which addresses
   are registered.
 
+  **Email links, end to end** (added after scoping what signup still
+  needed): a link can fail (expired, already used) or land somewhere
+  unexpected, and the Supabase client handles neither visibly on its
+  own. `authRedirect` in `lib/supabase.js` reads the URL *before*
+  `createClient()` runs (the client clears it asynchronously once it
+  starts): a failed link's `error_code`/`error_description` becomes a
+  plain message shown on Home or `/reset-password` (dismissable, and
+  stripped from the URL so a reload doesn't repeat it), and a
+  `type=recovery` hash marks a password-reset link. `RecoveryRedirect` in
+  `App.jsx` sends a reset link to `/reset-password` wherever it landed —
+  carrying the hash along so the client can still exchange its token —
+  because if the deployed URL isn't in Supabase's Redirect URLs
+  allow-list the link lands on the Site URL root, and Home would
+  otherwise just send the now-signed-in visitor to the dashboard without
+  ever asking for a new password. The client's `PASSWORD_RECOVERY` event
+  triggers the same redirect as a second signal. An unconfirmed login,
+  or a signup that came back without a session, offers **Resend
+  confirmation email** (`resendConfirmation()`), cooled down 60 seconds
+  to match Supabase's own per-address limit.
+
+  **Supabase's built-in mailer only emails the project's own team** (and
+  about 2 an hour) unless custom SMTP is configured — everyone else gets
+  "Email address not authorized" / "Error sending confirmation email".
+  `friendlyAuthError()` names that for whoever runs the backend instead
+  of showing it raw; README.md's setup steps cover the dashboard side
+  (URL Configuration, and custom SMTP or "Confirm email" off).
+
   **A signup- or reset-time typo is still worth designing against**, even
   with recovery now possible — it's still friction nobody wants to hit.
   `AuthScreen.jsx`'s signup mode keeps the required Confirm Password

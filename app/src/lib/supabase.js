@@ -74,4 +74,45 @@ const key = keyProblem ? undefined : rawKey;
 // Guest-only mode — see lib/session.js — which is a permanent feature,
 // not just a placeholder (BIBLE.md §4), so this is never a crash path.
 export const hasBackend = Boolean(url && key);
+
+// What an emailed auth link (signup confirmation, password reset) handed
+// back in the URL. Read here, synchronously, *before* createClient() —
+// the client processes and clears the URL asynchronously once it starts.
+//   - error: a failed link (expired, already used) comes back as
+//     `#error=…&error_code=otp_expired&error_description=…`. The client
+//     just drops it, so without this the visitor lands on Home with no
+//     idea why nothing happened.
+//   - recovery: `type=recovery` in the hash means a password-reset link,
+//     wherever it landed — if the deployed URL isn't in Supabase's
+//     Redirect URLs allow-list, it lands on the Site URL root instead of
+//     /reset-password, and the visitor would otherwise just be silently
+//     logged in without ever being asked for a new password.
+function readAuthRedirect() {
+  if (typeof window === 'undefined') return { error: null, recovery: false };
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  const code = hash.get('error_code') || query.get('error_code');
+  const description = hash.get('error_description') || query.get('error_description');
+  const failed = Boolean(code || hash.get('error') || query.get('error'));
+  if (failed) {
+    // Clear the error params so a reload doesn't show it again. Only ever
+    // on the failure path — a successful link's tokens are left for the
+    // client to consume.
+    const clean = new URL(window.location.href);
+    clean.hash = '';
+    ['error', 'error_code', 'error_description'].forEach((k) => clean.searchParams.delete(k));
+    window.history.replaceState(null, '', clean.toString());
+  }
+  let error = null;
+  if (failed) {
+    error =
+      code === 'otp_expired'
+        ? 'That email link has expired or was already used — request a fresh one.'
+        : `That email link didn't work${description ? ` (${description})` : ''} — request a fresh one.`;
+  }
+  return { error, recovery: hash.get('type') === 'recovery' };
+}
+
+export const authRedirect = readAuthRedirect();
+
 export const supabase = hasBackend ? createClient(url, key) : null;

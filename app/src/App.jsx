@@ -1,6 +1,8 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { DiceRoller } from './components/DiceRoller.jsx';
 import { ThemeToggle } from './components/ThemeToggle.jsx';
+import { landedFromRecoveryLink, onPasswordRecovery } from './lib/session.js';
 import { SessionProvider, useSession } from './lib/SessionContext.jsx';
 import { AuthScreen } from './screens/AuthScreen.jsx';
 import { BestiaryScreen } from './screens/BestiaryScreen.jsx';
@@ -21,6 +23,28 @@ function RequireSession({ children }) {
   if (status === 'loading') return <Splash />;
   if (status === 'signed-out') return <Navigate to="/" replace />;
   return children;
+}
+
+// A password-reset link should always end on the new-password form. It
+// normally lands on /reset-password directly, but if the deployed URL
+// isn't in Supabase's Redirect URLs allow-list it lands on the Site URL
+// root instead — where Home would just send the (now signed-in) visitor
+// to the dashboard without ever asking for a new password. Two signals,
+// either is enough: the link's `type=recovery` hash, read at load (the
+// hash is carried along so the Supabase client can still exchange its
+// token), and the client's own PASSWORD_RECOVERY event.
+function RecoveryRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const toResetScreen = () => {
+      if (!window.location.pathname.endsWith('/reset-password')) {
+        navigate(`/reset-password${window.location.hash}`, { replace: true });
+      }
+    };
+    if (landedFromRecoveryLink) toResetScreen();
+    return onPasswordRecovery(toResetScreen);
+  }, [navigate]);
+  return null;
 }
 
 function Splash() {
@@ -109,6 +133,7 @@ export default function App() {
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <ThemeToggle />
         <DiceRoller />
+        <RecoveryRedirect />
         <Routed />
       </BrowserRouter>
     </SessionProvider>

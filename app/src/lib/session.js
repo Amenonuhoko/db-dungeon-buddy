@@ -1,4 +1,4 @@
-import { hasBackend, supabase, supabaseConfigError } from './supabase';
+import { authRedirect, hasBackend, supabase, supabaseConfigError } from './supabase';
 
 // Everything the app needs to know "who is at the table right now" lives
 // behind this module — see BIBLE.md §4. Two independent things:
@@ -111,7 +111,20 @@ function friendlyAuthError(error, fallback) {
   // real email is worth the signup friction — this is the expected,
   // recoverable state right after signing up, not a dead end.
   if (/email not confirmed/i.test(message)) {
-    return new Error('Check your inbox (and spam folder) for the confirmation link, then log in again.');
+    // `kind` lets AuthScreen offer "Resend confirmation email" right
+    // there instead of leaving the visitor to wonder where it went.
+    return Object.assign(new Error('Check your inbox (and spam folder) for the confirmation link, then log in again.'), {
+      kind: 'email_not_confirmed',
+    });
+  }
+  // Supabase's built-in mailer (no custom SMTP configured) only delivers
+  // to addresses on the Supabase project's own team, ~2 an hour — anyone
+  // else gets "Email address not authorized" or "Error sending … email".
+  // Not something the person signing up can fix, so say who can.
+  if (/not authorized/i.test(message) || /error sending .*email/i.test(message)) {
+    return new Error(
+      "Couldn't send email to that address. (Whoever runs this backend: Supabase's built-in mailer only emails your own Supabase team — set up custom SMTP under Authentication → Emails, or turn off \"Confirm email\" for signups.)",
+    );
   }
   // Whoever runs this campaign's backend turned off new sign-ups
   // entirely (Authentication → Sign In / Providers in Supabase) — not
@@ -181,6 +194,50 @@ export async function requestPasswordReset(email) {
   });
   if (error) throw friendlyAuthError(error, "Couldn't send that reset email — try again in a moment.");
 }
+
+// Supabase only lets the same address be re-sent a confirmation once a
+// minute; AuthScreen enforces that cooldown on its side too, so the
+// button can't be mashed into a rate-limit error.
+export const RESEND_COOLDOWN_SECONDS = 60;
+
+export async function resendConfirmation(email) {
+  requireBackend();
+  const problem = emailError(email);
+  if (problem) throw new Error(problem);
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim(),
+    options: { emailRedirectTo: redirectTo('/') },
+  });
+  if (error) throw friendlyAuthError(error, "Couldn't resend the confirmation email — try again in a moment.");
+}
+
+// Fires when a password-reset link has just signed the visitor in (the
+// client's PASSWORD_RECOVERY event) — App.jsx uses it to route to the
+// new-password form wherever the link happened to land.
+export function onPasswordRecovery(callback) {
+  if (!hasBackend) return () => {};
+  const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') callback();
+  });
+  return () => sub.subscription.unsubscribe();
+}
+
+// A failed emailed link (see authRedirect in lib/supabase.js), shown once
+// on whichever screen the visitor lands on until they dismiss it. Kept in
+// module scope, not read-and-cleared, so React StrictMode's double-run of
+// state initializers can't swallow it.
+let pendingRedirectError = authRedirect.error;
+
+export function getAuthRedirectError() {
+  return pendingRedirectError;
+}
+
+export function dismissAuthRedirectError() {
+  pendingRedirectError = null;
+}
+
+export const landedFromRecoveryLink = authRedirect.recovery;
 
 // The second half of the reset flow — called from ResetPasswordScreen
 // once the emailed link has landed the browser in a recovery session

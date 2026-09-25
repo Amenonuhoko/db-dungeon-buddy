@@ -4,6 +4,7 @@ import {
   getGuestSession,
   onAuthChange,
   requestPasswordReset,
+  resendConfirmation,
   signIn,
   signInAnonymously,
   signOut as accountSignOut,
@@ -66,6 +67,9 @@ export function SessionProvider({ children }) {
       },
       async requestReset(email) {
         await requestPasswordReset(email);
+      },
+      async resendConfirmationEmail(email) {
+        await resendConfirmation(email);
       },
       async setNewPassword(newPassword) {
         await updatePassword(newPassword);

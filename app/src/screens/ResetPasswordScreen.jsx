@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { getAuthRedirectError } from '../lib/session.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // Landed on by clicking the link a password-reset email sends
@@ -61,7 +62,7 @@ export function ResetPasswordScreen() {
           {(status === 'signed-out' || status === 'guest') && (
             <>
               <p className="error-text" style={{ textAlign: 'center' }}>
-                This link is invalid or has expired.
+                {getAuthRedirectError() || 'This link is invalid or has expired.'}
               </p>
               <button className="btn btn-primary" type="button" onClick={() => navigate('/login')}>
                 Request a New Link
