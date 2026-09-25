@@ -3346,3 +3346,99 @@ button.presence-card:active {
   border-radius: var(--radius);
   user-select: all;
 }
+
+/* =====================================================================
+ * Personal board in Notes (PersonalBoard.jsx, 013).
+ * ===================================================================== */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.board-swatches {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.board-swatch {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 3px solid var(--surface-raised);
+  outline: 2px solid var(--outline);
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.board-swatch.active {
+  outline: 3px solid var(--accent);
+  transform: scale(1.1);
+}
+
+.board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.board-canvas-wrap {
+  position: relative;
+  width: 100%;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lip-small);
+  overflow: hidden;
+  /* Faint dot grid to sketch maps against. */
+  background-color: var(--surface-raised);
+  background-image: radial-gradient(var(--line) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+.board-canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.board-canvas.erasing {
+  cursor: cell;
+}
+
+.board-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+}
+
+.board-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  font-size: 0.8rem;
+}
+
+.board-save {
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.board-save-saved {
+  color: var(--laurel);
+}
+
+.board-save-error {
+  color: var(--oxblood);
+}

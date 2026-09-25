@@ -1191,6 +1191,28 @@ working.
   `regenerate_invite_code()` get replaced again when 012 runs, which it
   does last when all migrations are run in order.
 
+**Personal board (`013_personal_boards.sql`).** Notes has two views,
+**Notes | My Board**, kept in the URL (`?view=board`).
+
+My Board is a private sketch board, one per person per campaign
+(`boards`, keyed on campaign + owner). The owner is stamped server-side,
+and only the owner, while still a member, can read or write it: not the
+party, not the DM. The DM's own board is equally private.
+
+`PersonalBoard.jsx` is deliberately simple:
+- five pen colours, stored by name and drawn from the theme's tokens,
+  so boards read right in light and dark;
+- Fine and Bold widths, an eraser, Undo and a two-tap Clear;
+- auto-save 0.8s after the last stroke, with the status shown.
+
+Storage details:
+- Strokes are integer points in a fixed 1000 × 1250 space, so the board
+  scales to any screen. The database caps a board at 1 MB (the app
+  warns at 900 KB).
+- Offline campaigns keep the board on the device; deleting the
+  campaign clears it.
+- Images on the board wait for Supabase Storage (with portraits).
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no
