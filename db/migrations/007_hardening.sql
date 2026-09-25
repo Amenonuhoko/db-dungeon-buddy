@@ -376,7 +376,7 @@ create policy "anonymous users can't create campaigns" on campaigns
 -- ---------------------------------------------------------------------
 alter table campaigns drop constraint if exists campaigns_invite_code_format;
 alter table campaigns add constraint campaigns_invite_code_format
-  check (invite_code ~ '^[a-z0-9]{8,40}$') not valid;
+  check (invite_code ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(invite_code) between 8 and 40) not valid;
 
 create or replace function join_campaign_with_code(p_code text)
 returns uuid
