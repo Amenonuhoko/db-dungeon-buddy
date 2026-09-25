@@ -163,14 +163,9 @@ export function CampaignHubScreen() {
           </div>
 
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <h3 style={{ fontSize: '1rem' }}>
-                {status === 'guest' ? 'Start a Local Campaign' : 'Create a Campaign'}
-              </h3>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate('/generate')}>
-                ✦ Generate with AI
-              </button>
-            </div>
+            <h3 style={{ fontSize: '1rem' }}>
+              {status === 'guest' ? 'Start a Local Campaign' : 'Create a Campaign'}
+            </h3>
             <div className="field">
               <label htmlFor="campaignName">Name</label>
               <input

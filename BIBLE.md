@@ -717,45 +717,6 @@ inventory/currency (a real item list with weight/gold, instead of
 session the way a missing initiative tracker does, so both are left for
 a later phase rather than growing this one further.
 
-- **AI campaign generator** (`GenerateCampaignScreen.jsx`, route `/generate`,
-  reached from a "✦ Generate with AI" button on `CampaignHubScreen`) —
-  a DM types a one-line premise, a party level, and a size (small/
-  standard/large), and gets back a "campaign seed": a campaign name/
-  description plus a batch of Encyclopedia entries, Bestiary stat
-  blocks, and (optionally) one DM-only session-zero note. The pipeline
-  is two pieces on purpose, split at the same secret-key boundary as
-  everything else in §5:
-  - `app/api/generate-campaign.js` — a serverless function, the only
-    place in the app that talks to Claude, since it needs
-    `ANTHROPIC_API_KEY` (a secret the browser must never hold — same
-    doctrine as the Supabase service-role key). It calls
-    `client.messages.parse()` with a Zod schema (`output_config.format`)
-    matching the seed shape exactly, so the response is guaranteed
-    parseable rather than hand-parsed free text; the schema's enums
-    (encyclopedia category ids, ability-score keys, note-visibility ids)
-    are duplicated from `src/lib/{encyclopedia,bestiary,notes}.js`
-    rather than imported, because those modules import `lib/supabase.js`,
-    which reads `import.meta.env` — a Vite build-time global that
-    doesn't exist in this plain Node function.
-  - `lib/campaignGenerator.js` — the client half.
-    `generateCampaignSeed()` just calls the endpoint;
-    `importCampaignSeed()` turns the returned seed into a real campaign
-    by calling `createGuestCampaign()`/`createCampaign()` then looping
-    `createEntry()`/`createCreature()`/`createNote()` — the *exact* same
-    guest/account-aware functions the manual "New Entry" forms already
-    use. An AI-authored entry is indistinguishable from a hand-typed one
-    the moment it lands: same storage, same RLS, same edit/delete/export
-    behavior. This is why the generator needed no new database schema,
-    no new RLS policy, and works in Guest mode for free.
-  A generated seed is a preview, not a commitment — `GenerateCampaignScreen`
-  shows the drafted titles/creatures before anything is created, with a
-  "Start Over" to re-roll rather than a way to edit the draft in place
-  (editing after import, via the screens that already exist, covers
-  that). Without `ANTHROPIC_API_KEY` configured, the button still shows
-  but the endpoint fails with a plain "not configured" message — same
-  "fails loud, not silent" instinct as `lib/supabase.js`'s config-error
-  messages — everything else in the app (guest mode, manual entry
-  creation) is completely unaffected.
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
   already exists per-entry, but there's no cross-content tagging/
   filtering (e.g. one tag spanning encyclopedia + bestiary + notes +
@@ -869,8 +830,6 @@ a later phase rather than growing this one further.
   above the heading — never a plain "Back" button buried below the
   primary action. It's the one standing back-navigation affordance;
   don't hand-roll another "← X" button. The navigation map:
-  - `/generate` → back to `/dashboard`, labeled "Campaigns" — same target
-    as the campaign-shell tabs below, since it's reached from the hub.
   - `/guest`, `/login`, `/join`, `/reset-password` → back to `/` (Home).
     Home already redirects an authenticated/guest session straight to
     `/dashboard`, so this is safe even mid-session — including right
