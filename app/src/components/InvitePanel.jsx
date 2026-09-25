@@ -79,9 +79,10 @@ export function InvitePanel({ code, campaignName, onClose, onReset }) {
           </button>
         )}
       </div>
-      <p className="hint-text" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-        Or they can enter the code <strong className="invite-code">{code}</strong> under “Join a Game”.
-      </p>
+      <div className="invite-code-block">
+        <span className="hint-text" style={{ margin: 0 }}>Or say the code out loud — they enter it under “Join a Game”:</span>
+        <strong className="invite-code-big">{code}</strong>
+      </div>
       {onReset && (
         <div className="invite-reset">
           <ConfirmButton onConfirm={reset} className="example-toggle" confirmLabel="Tap again — the old link will stop working" disabled={resetting}>

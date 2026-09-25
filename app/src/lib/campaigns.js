@@ -114,14 +114,16 @@ export async function createCampaign(name, description) {
   return { ...data, role: 'dm' };
 }
 
-// Codes are generated as lowercase hex (001_core.sql). People copy them
-// out of chat apps and type them on phones, so forgive stray spaces,
-// capitals, and a pasted whole invite link.
+// Codes are words and a number ("ember-wolf-417", 012) or, for older
+// campaigns, lowercase hex. People say them across a table, copy them out
+// of chat apps and type them on phones, so only the letters and digits
+// matter — capitals, spaces, hyphens and underscores are all ignored (the
+// server compares the same way) — and a pasted whole invite link works.
 export function normalizeInviteCode(input) {
   const raw = (input || '').trim();
   const fromLink = raw.match(/[?&]code=([^&#\s]+)/);
   const code = fromLink ? decodeURIComponent(fromLink[1]) : raw;
-  return code.replace(/\s+/g, '').toLowerCase();
+  return code.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 export async function joinCampaignByCode(code) {
@@ -129,6 +131,9 @@ export async function joinCampaignByCode(code) {
     p_code: normalizeInviteCode(code),
   });
   if (rpcError) throw friendlyJoinError(rpcError);
+  // Since 012 a wrong code comes back as null rather than an error (so
+  // the server can count wrong guesses) — same message either way.
+  if (!campaignId) throw friendlyJoinError({ message: 'Invalid invite code' });
   const { data, error } = await supabase.from('campaigns').select().eq('id', campaignId).single();
   if (error) throw friendlyJoinError(error);
   // The DM opening their own invite link lands here too — keep their
@@ -138,6 +143,7 @@ export async function joinCampaignByCode(code) {
 
 function friendlyJoinError(error) {
   const message = error?.message || '';
+  if (/too many wrong codes|campaign is full/i.test(message)) return new Error(`${message}.`);
   if (/invalid invite code/i.test(message)) {
     return new Error("That code doesn't match any campaign — double-check it with your DM (or ask them for the invite link).");
   }

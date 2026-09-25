@@ -1165,6 +1165,32 @@ in the dropdowns under "Used in your games". It's derived from what's
 already stored (`customOptions()` in `lib/characters.js`), so there's
 nothing extra to manage.
 
+**Invite codes you can say out loud (`012_word_invite_codes.sql`).**
+New campaigns, and every "Reset link", get a code like
+**`ember-wolf-417`**: 128 adjectives × 136 nouns × 900 numbers, about
+15.7 million codes, from `new_invite_code()`. Existing campaigns keep
+their old hex codes until the DM resets, so links already sent keep
+working.
+
+- **Forgiving matching.** Joining compares letters and digits only, so
+  "Ember Wolf 417", "emberwolf417" and "ember_wolf_417" all work, on
+  the server (via an index on the code with hyphens removed) and in
+  `normalizeInviteCode()`.
+- **Wrong guesses are limited.** A 15.7-million space is guessable
+  where a trillion wasn't, so each account gets 10 wrong codes per
+  hour (`join_attempts`, RLS-locked, written only by the join
+  function). That's on top of Supabase's per-IP limit on anonymous
+  sign-ins.
+- **A wrong code returns NULL** instead of raising, so the recorded
+  attempt isn't rolled back. The app shows the same "doesn't match"
+  message.
+- **The invite panel** shows the code large, to read out, next to the
+  link.
+- 007's code-format check now accepts hyphens too, so re-running it
+  after 012 is safe. 007's older `join_campaign_with_code()` and
+  `regenerate_invite_code()` get replaced again when 012 runs, which it
+  does last when all migrations are run in order.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

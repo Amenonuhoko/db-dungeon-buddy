@@ -105,7 +105,7 @@ export function JoinCampaignScreen() {
                 id="joinInviteCode"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="from your DM"
+                placeholder="e.g. ember-wolf-417"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
