@@ -1761,8 +1761,13 @@ button.pip {
 }
 
 .home-hero {
-  width: min(160px, 42vw);
+  width: min(240px, 64vw);
   height: auto;
+  /* The art's own outline is near-black, which melts into the dark
+     leather background — a thin cream edge (like a real sticker's
+     die-cut border) plus a solid drop keeps its silhouette. Harmless on
+     parchment too. */
+  filter: drop-shadow(0 0 1.5px var(--text-dim)) drop-shadow(0 6px 0 rgba(0, 0, 0, 0.3));
   display: block;
   margin: 0 auto;
 }

@@ -174,14 +174,17 @@ they add character, never compete with content:
   (`body::before`, ~5% opacity, overlay blend) — leather in the dark
   theme, paper in the light one.
 
-**Mascot and icons.** The Home screen shows the mascot as its hero image
-from `app/public/mascot.png` (`HomeScreen.jsx`, `.home-hero`), falling
-back to the app icon if the file isn't there. The app icon
-(`public/icon.svg`, `icon-maskable.svg`) is the mascot's black d20 with a
-red "20" on a dragon-red sticker tile; the PNG sizes the manifest and
-iOS need (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
-`apple-touch-icon.png`) are rendered from those SVGs. If the icon SVGs
-change, re-render the PNGs.
+**Mascot and icons.** The mascot art lives at `app/public/mascot.png`
+(512×512, transparent background). The Home screen shows it as its hero
+image (`HomeScreen.jsx`, `.home-hero`, with a thin cream edge so its
+dark outline doesn't vanish into the dark theme), and it doubles as the
+manifest's 512px icon. The other installed-app icons are rendered from
+the same art: `icon-192.png` (transparent), and `icon-maskable-512.png` /
+`apple-touch-icon.png` (the mascot on a parchment square, inset so
+Android's mask and iOS's rounded corners never clip it). The browser-tab
+favicon stays the simple d20 (`public/icon.svg`): at 16px the full
+illustration is unreadable. To change the art, replace `mascot.png` and
+re-render the PNG icons from it.
 
 Motion is light and tactile: screens fade/lift in on mount
 (`.screen-enter`), sticker buttons press down onto their lip when

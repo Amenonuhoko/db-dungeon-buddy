@@ -15,12 +15,12 @@ The design is taken from the Dungeon Buddy mascot (a red dragon hugging
 a black d20): dragon-red accent, leather/parchment surfaces, brass trim,
 rounded sticker-style buttons and cards. Details in `BIBLE.md` §3.
 
-- **Mascot art:** put it at `app/public/mascot.png` (a square-ish PNG
-  with a transparent background works best). The Home screen shows it
-  as the hero image; until the file exists it shows the d20 app icon.
-- **App icons:** `app/public/icon.svg` and `icon-maskable.svg` are the
-  sources; the PNGs next to them are rendered from those and need
-  re-rendering if the SVGs change.
+- **Mascot art:** `app/public/mascot.png` (512×512, transparent). It's
+  the Home screen's hero image and the 512px app icon.
+- **App icons:** `icon-192.png`, `icon-maskable-512.png` and
+  `apple-touch-icon.png` are rendered from the mascot, so re-render them
+  if it changes. The browser-tab favicon is the simpler d20
+  (`icon.svg`), which stays readable at 16px.
 
 ## Stack
 
