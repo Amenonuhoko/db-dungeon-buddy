@@ -2970,3 +2970,19 @@ button.presence-card:active {
   background: var(--surface-raised);
   font-size: 0.88rem;
 }
+
+/* The character sheet's labelled delete — below the everyday actions. */
+.sheet-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin-top: 1.75rem;
+  padding-top: 1.1rem;
+  border-top: 2px dashed var(--line);
+}
+
+.sheet-danger .hint-text {
+  margin: 0;
+  flex: 1 1 14rem;
+}

@@ -55,7 +55,7 @@ function describeLoadError(err) {
 }
 
 export function CombatScreen() {
-  const { campaignId, isDM, isGuest } = useOutletContext();
+  const { campaignId, isDM, isGuest, previewAsPlayer } = useOutletContext();
   const { status, user } = useSession();
 
   const [encounters, setEncounters] = useState([]);
@@ -142,7 +142,12 @@ export function CombatScreen() {
   const ordered = encounter ? sortCombatants(combatants.filter((c) => c.encounterId === encounter.id)) : [];
   const current = ordered.find((c) => c.id === encounter?.currentCombatantId) || null;
   const sheetsById = Object.fromEntries(sheets.map((s) => [s.id, s]));
-  const conditionsByCharacter = conditions.reduce((acc, c) => {
+  // A DM previewing as a player (lib/viewAs.js) shouldn't see conditions
+  // the DM hid from the party — RLS still returns them to the real DM.
+  const shownConditions = previewAsPlayer
+    ? conditions.filter((c) => c.visibleToParty !== false || sheetsById[c.characterId]?.playerId === user?.id)
+    : conditions;
+  const conditionsByCharacter = shownConditions.reduce((acc, c) => {
     (acc[c.characterId] ||= []).push(c);
     return acc;
   }, {});

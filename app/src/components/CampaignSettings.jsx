@@ -90,7 +90,9 @@ export function CampaignSettings({ campaign, isDM, isGuest, onUpdated, onClose }
     });
   }
 
-  const deleteMatches = deleteText.trim().toLowerCase() === campaign.name.trim().toLowerCase();
+  // Typing a word on purpose is the confirmation — "delete" rather than
+  // the campaign's exact name, which was fiddly to get right on a phone.
+  const deleteMatches = deleteText.trim().toLowerCase() === 'delete';
 
   function destroy(event) {
     event.preventDefault();
@@ -194,7 +196,7 @@ export function CampaignSettings({ campaign, isDM, isGuest, onUpdated, onClose }
           </p>
           <div className="field">
             <label htmlFor="settingsDeleteConfirm">
-              Type <strong>{campaign.name}</strong> to confirm
+              Type <strong>delete</strong> to confirm
             </label>
             <input
               id="settingsDeleteConfirm"

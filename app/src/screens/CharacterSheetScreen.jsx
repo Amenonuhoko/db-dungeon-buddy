@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
+import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { DeleteButton } from '../components/DeleteButton.jsx';
 import { SheetWearerBar } from '../components/SheetWearerBar.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
@@ -807,6 +808,21 @@ export function CharacterSheetScreen() {
                   </button>
                 )}
               </div>
+
+              {/* The corner × is easy to miss — deleting a character gets a
+                  plainly labelled, two-tap button too. */}
+              {editable && (
+                <div className="sheet-danger">
+                  <ConfirmButton className="btn btn-danger btn-small" confirmLabel="Tap again to delete for good" onConfirm={handleDelete}>
+                    Delete Character
+                  </ConfirmButton>
+                  <span className="hint-text">
+                    {status === 'authenticated'
+                      ? 'Removes it from this campaign for good. To stop playing it but keep it here, use Slip Out instead.'
+                      : 'Removes this character for good.'}
+                  </span>
+                </div>
+              )}
             </>
           )}
         </div>
