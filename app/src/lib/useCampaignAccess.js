@@ -23,7 +23,7 @@ export function useCampaignAccess(campaignId) {
     if (status === 'authenticated') {
       getMyCampaign(campaignId)
         .then(setCampaign)
-        .catch(() => setError("You don't have access to that campaign."));
+        .catch((err) => setError(err.message || "You don't have access to that campaign."));
     }
   }, [status, campaignId]);
 

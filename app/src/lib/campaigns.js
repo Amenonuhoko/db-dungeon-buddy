@@ -56,10 +56,25 @@ export function deleteGuestCampaign(id) {
 // `supabase` directly.
 // ---------------------------------------------------------------------
 
+// campaign_members' RLS lets you see *every* member of a campaign you're
+// in (the DM's roster needs that — listCampaignMembers below), so any
+// "my campaigns" query has to filter to your own rows explicitly. Without
+// the filter, a campaign with players in it came back once per member:
+// duplicated in the hub, and getMyCampaign's .single() failed outright,
+// locking both the DM and their players out the moment anyone joined.
+async function myUserId() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const id = data.session?.user?.id;
+  if (!id) throw new Error('Your session expired — log in again.');
+  return id;
+}
+
 export async function listMyCampaigns() {
   const { data, error } = await supabase
     .from('campaign_members')
     .select('role, campaigns(id, name, description, dm_id, invite_code, created_at)')
+    .eq('user_id', await myUserId())
     .order('created_at', { referencedTable: 'campaigns', ascending: false });
   if (error) throw error;
   return data.map((row) => ({ ...row.campaigns, role: row.role }));
@@ -96,8 +111,7 @@ export async function joinCampaignByCode(code) {
   if (error) throw friendlyJoinError(error);
   // The DM opening their own invite link lands here too — keep their
   // real role rather than claiming they just joined as a player.
-  const { data: auth } = await supabase.auth.getSession();
-  return { ...data, role: data.dm_id === auth.session?.user?.id ? 'dm' : 'player' };
+  return { ...data, role: data.dm_id === (await myUserId()) ? 'dm' : 'player' };
 }
 
 function friendlyJoinError(error) {
@@ -121,8 +135,14 @@ export async function getMyCampaign(id) {
     .from('campaign_members')
     .select('role, campaigns(id, name, description, dm_id, invite_code, created_at)')
     .eq('campaign_id', id)
-    .single();
-  if (error) throw error;
+    .eq('user_id', await myUserId())
+    .maybeSingle();
+  if (error) {
+    console.error('Loading campaign failed:', error);
+    if (/fetch|network/i.test(error.message || '')) throw new Error("Couldn't reach the server — check your connection and try again.");
+    throw new Error(`Couldn't load that campaign (${error.message}).`);
+  }
+  if (!data?.campaigns) throw new Error("You're not in that campaign — ask its DM for the invite link.");
   return { ...data.campaigns, role: data.role };
 }
 
