@@ -3152,3 +3152,176 @@ button.presence-card:active {
   white-space: normal;
   text-align: left;
 }
+
+/* =====================================================================
+ * Fuller character sheet (011): inventory + coins, personality, story.
+ * ===================================================================== */
+.sheet-inventory {
+  margin-top: 1.5rem;
+}
+
+.sheet-coins {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.8rem;
+}
+
+.sheet-coin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.2rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sheet-coin input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: none;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+  padding: 0.1rem;
+}
+
+.sheet-coin input:focus {
+  outline: 2px solid var(--accent);
+  border-radius: 6px;
+}
+
+.sheet-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sheet-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sheet-item.equipped {
+  border-color: var(--gold);
+}
+
+.sheet-item-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 10rem;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.sheet-item-name {
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sheet-item-note {
+  border: none;
+  border-bottom: 1px dashed var(--line);
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.1rem 0;
+}
+
+.sheet-item-note:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.sheet-item-note-text {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.sheet-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sheet-item-add {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.sheet-item-add input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.sheet-item-add .sheet-item-qty {
+  flex: 0 0 4rem;
+}
+
+.sheet-story {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sheet-personality {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+}
+
+.sheet-personality-item {
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid var(--gold);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.sheet-personality-item h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.sheet-personality-item p {
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.sheet-story-empty {
+  margin-top: 1.25rem;
+}
+
+.sheet-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}

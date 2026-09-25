@@ -1133,6 +1133,38 @@ The data refreshes whenever you come back to the tab. "Join with a
 Code" and My Characters live under Playing; "+ New Campaign" and
 import live under Running.
 
+**A fuller character (`011_sheet_depth.sql`).** `character_details`
+(private, 010) and `roster_characters` both gain:
+- `backstory`;
+- the four personality prompts: `personality_traits`, `ideals`,
+  `bonds`, `flaws`;
+- `inventory`: a list of `{ name, qty, note, equipped }`, up to 200
+  items;
+- `coins`: the character's own `{ pp, gp, ep, sp, cp }`, separate from
+  the party purse.
+
+On the sheet:
+- `SheetInventory` (coins plus the item list) is edited in place: add
+  items, change quantity, notes, equip/unequip, remove. Every change
+  saves immediately.
+- `SheetStory` shows the filled-in personality prompts and the
+  backstory, trimmed with "Read the whole story". They're edited
+  through Edit Sheet.
+- The old `equipment` text is relabelled "Gear notes".
+- Edit Sheet now sends only the fields that changed.
+
+My Characters carries the new fields, so a character keeps its story
+and belongings between campaigns; the Markdown export includes them. On
+a backend with 010 but not 011, reads narrow to the 010 fields, and
+writing a new field explains that 011 is needed.
+
+**Remembered custom classes and races.** Anything typed via "Other…" in
+this campaign's sheets (the Party tab), in the campaign plus My
+Characters (the chooser), or in My Characters (the hub) is offered back
+in the dropdowns under "Used in your games". It's derived from what's
+already stored (`customOptions()` in `lib/characters.js`), so there's
+nothing extra to manage.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

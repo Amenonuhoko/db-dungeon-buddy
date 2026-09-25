@@ -8,6 +8,7 @@ import {
   BLANK_ABILITIES,
   BLANK_PICKS,
   createSheet,
+  customOptions,
   donCharacter,
   explainCreateError,
   finalizeQuickFields,
@@ -83,6 +84,7 @@ export function ChooseCharacterScreen() {
   if (status === 'guest') return <Navigate to={partyPath} replace />;
 
   const current = sheets && user ? wornByUser(sheets, user.id) : null;
+  const custom = customOptions([...(sheets || []), ...roster]);
   const pool = (sheets || []).filter(isAvailable);
 
   async function act(action) {
@@ -215,7 +217,14 @@ export function ChooseCharacterScreen() {
                 <p className="hint-text" style={{ margin: 0 }}>
                   Just the basics — ability scores, gear and features go on the full sheet afterwards.
                 </p>
-                <QuickCharacterFields form={form} setForm={setForm} picks={picks} setPicks={setPicks} />
+                <QuickCharacterFields
+                  form={form}
+                  setForm={setForm}
+                  picks={picks}
+                  setPicks={setPicks}
+                  extraClasses={custom.classes}
+                  extraRaces={custom.races}
+                />
                 {!isAnonymous && (
                   <label className="check-row">
                     <input type="checkbox" checked={keepInRoster} onChange={(e) => setKeepInRoster(e.target.checked)} />

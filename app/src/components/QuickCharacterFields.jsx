@@ -5,9 +5,11 @@ import { CLASSES, RACES } from '../lib/characters.js';
 // "Choose your character" step after joining, and My Characters on the
 // hub. Class and race are dropdowns with an "Other…" escape hatch;
 // finalizeQuickFields() (lib/characters.js) turns `form` + `picks` into
-// the stored fields. The parent owns the state so it can prefill from a
+// the stored fields. extraClasses / extraRaces are custom ones already
+// used in this campaign or My Characters (customOptions()), offered in
+// the list so nobody retypes "Artificer" for every character. The parent owns the state so it can prefill from a
 // template and add its own fields around these.
-export function QuickCharacterFields({ form, setForm, picks, setPicks }) {
+export function QuickCharacterFields({ form, setForm, picks, setPicks, extraClasses = [], extraRaces = [] }) {
   return (
     <>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -35,6 +37,15 @@ export function QuickCharacterFields({ form, setForm, picks, setPicks }) {
                 {c}
               </option>
             ))}
+            {extraClasses.length > 0 && (
+              <optgroup label="Used in your games">
+                {extraClasses.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </optgroup>
+            )}
             <option value="Other">Other…</option>
           </select>
         </div>
@@ -79,6 +90,15 @@ export function QuickCharacterFields({ form, setForm, picks, setPicks }) {
                 {r}
               </option>
             ))}
+            {extraRaces.length > 0 && (
+              <optgroup label="Used in your games">
+                {extraRaces.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </optgroup>
+            )}
             <option value="Other">Other…</option>
           </select>
         </div>

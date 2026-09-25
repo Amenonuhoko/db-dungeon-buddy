@@ -12,6 +12,7 @@ import {
   BLANK_PICKS,
   createSheet,
   EXAMPLES,
+  customOptions,
   explainCreateError,
   finalizeQuickFields,
   listConditions,
@@ -91,6 +92,7 @@ export function CharactersScreen() {
   const myCharacter = accountPlayer ? wornByUser(sheets, user?.id) : null;
   const choosePath = `/campaigns/${campaignId}/choose`;
   const canCreate = isDM || (isGuest && isPlayer && !loading && !ownsACharacter);
+  const custom = customOptions(sheets);
   const memberName = (userId) => members.find((m) => m.userId === userId)?.displayName || 'a player';
   const ownPlayerId = isGuest ? LOCAL_PLAYER_ID : isDM ? '' : user?.id || '';
 
@@ -139,7 +141,7 @@ export function CharactersScreen() {
       abilities: { ...BLANK_ABILITIES, ...example.abilities },
       playerId: ownPlayerId,
     });
-    setPicks({ ...parseClassAndLevel(example.classAndLevel), ...parseRace(example.race) });
+    setPicks({ ...parseClassAndLevel(example.classAndLevel, custom.classes), ...parseRace(example.race, custom.races) });
     setShowForm(true);
   }
 
@@ -328,7 +330,14 @@ export function CharactersScreen() {
                   </div>
                 )}
 
-                <QuickCharacterFields form={form} setForm={setForm} picks={picks} setPicks={setPicks} />
+                <QuickCharacterFields
+                  form={form}
+                  setForm={setForm}
+                  picks={picks}
+                  setPicks={setPicks}
+                  extraClasses={custom.classes}
+                  extraRaces={custom.races}
+                />
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>

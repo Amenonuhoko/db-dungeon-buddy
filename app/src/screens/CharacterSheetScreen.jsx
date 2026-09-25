@@ -4,6 +4,8 @@ import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { DeleteButton } from '../components/DeleteButton.jsx';
+import { SheetInventory } from '../components/SheetInventory.jsx';
+import { SheetStory } from '../components/SheetStory.jsx';
 import { SheetWearerBar } from '../components/SheetWearerBar.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
 import {
@@ -93,6 +95,11 @@ const BLANK_FORM = {
   speed: '30 ft.',
   equipment: '',
   features: '',
+  backstory: '',
+  personalityTraits: '',
+  ideals: '',
+  bonds: '',
+  flaws: '',
 };
 
 export function CharacterSheetScreen() {
@@ -178,8 +185,18 @@ export function CharacterSheetScreen() {
       maxHp: form.maxHp === '' ? null : Number(form.maxHp),
       currentHp: form.currentHp === '' ? null : Number(form.currentHp),
     };
+    // Send only what actually changed — cheaper, and it means a backend
+    // without the newest fields (011) can still save everything else.
+    const saved = { ...sheet, abilities: { ...BLANK_ABILITIES, ...sheet.abilities } };
+    const changed = Object.fromEntries(
+      Object.entries(fields).filter(([key, value]) => JSON.stringify(value ?? '') !== JSON.stringify(saved[key] ?? '')),
+    );
+    if (Object.keys(changed).length === 0) {
+      setEditing(false);
+      return;
+    }
     try {
-      const updated = await updateSheet(status, campaignId, sheet.id, fields);
+      const updated = await updateSheet(status, campaignId, sheet.id, changed);
       setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
       setEditing(false);
     } catch (err) {
@@ -472,6 +489,39 @@ export function CharacterSheetScreen() {
                   value={form.features}
                   onChange={(e) => setForm({ ...form, features: e.target.value })}
                   rows={3}
+                />
+              </div>
+
+              <div className="sheet-form-grid">
+                {[
+                  ['personalityTraits', 'csTraits', 'Personality traits', 'I quote proverbs for every occasion.'],
+                  ['ideals', 'csIdeals', 'Ideals', 'Freedom. Chains are meant to be broken.'],
+                  ['bonds', 'csBonds', 'Bonds', 'I owe my life to the priest who took me in.'],
+                  ['flaws', 'csFlaws', 'Flaws', "I can't resist a pretty face."],
+                ].map(([key, id, label, placeholder]) => (
+                  <div className="field" key={key}>
+                    <label htmlFor={id}>{label}</label>
+                    <textarea
+                      id={id}
+                      value={form[key] || ''}
+                      onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                      rows={2}
+                      maxLength={2000}
+                      placeholder={placeholder}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="field">
+                <label htmlFor="csBackstory">Backstory</label>
+                <textarea
+                  id="csBackstory"
+                  value={form.backstory || ''}
+                  onChange={(e) => setForm({ ...form, backstory: e.target.value })}
+                  rows={6}
+                  maxLength={20000}
+                  placeholder="Where they come from, what they want, what they're running from…"
                 />
               </div>
 
@@ -779,10 +829,14 @@ export function CharacterSheetScreen() {
                 )}
               </div>
 
+              {!detailsHidden && <SheetInventory sheet={sheet} editable={editable} onPatch={patchSheet} />}
+
+              {!detailsHidden && <SheetStory sheet={sheet} editable={editable} />}
+
               {!detailsHidden && (
                 <div className="character-sheet-columns">
                   <div className="character-sheet-scroll">
-                    <h3>Equipment</h3>
+                    <h3>Gear notes</h3>
                     <p style={{ whiteSpace: 'pre-wrap' }}>{sheet.equipment?.trim() || 'Nothing recorded yet.'}</p>
                   </div>
                   <div className="character-sheet-scroll">

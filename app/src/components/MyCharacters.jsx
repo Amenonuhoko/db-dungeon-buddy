@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BLANK_ABILITIES, BLANK_PICKS, finalizeQuickFields, parseClassAndLevel, parseRace } from '../lib/characters.js';
+import { BLANK_ABILITIES, BLANK_PICKS, customOptions, finalizeQuickFields, parseClassAndLevel, parseRace } from '../lib/characters.js';
 import {
   createRosterCharacter,
   deleteRosterCharacter,
@@ -46,7 +46,8 @@ export function MyCharacters() {
 
   function startEdit(character) {
     setForm({ name: character.name, maxHp: character.maxHp ?? '', armorClass: character.armorClass ?? '', currentHp: '' });
-    setPicks({ ...parseClassAndLevel(character.classAndLevel), ...parseRace(character.race) });
+    const custom = customOptions(characters);
+    setPicks({ ...parseClassAndLevel(character.classAndLevel, custom.classes), ...parseRace(character.race, custom.races) });
     setEditingId(character.id);
   }
 
@@ -87,7 +88,14 @@ export function MyCharacters() {
 
   const form$ = (
     <form onSubmit={save} className="my-characters-form">
-      <QuickCharacterFields form={form} setForm={setForm} picks={picks} setPicks={setPicks} />
+      <QuickCharacterFields
+        form={form}
+        setForm={setForm}
+        picks={picks}
+        setPicks={setPicks}
+        extraClasses={customOptions(characters || []).classes}
+        extraRaces={customOptions(characters || []).races}
+      />
       <div style={{ display: 'flex', gap: '0.6rem' }}>
         <button className="btn btn-primary btn-small" type="submit" disabled={busy || !form.name.trim()}>
           {editingId === 'new' ? 'Add to My Characters' : 'Save'}

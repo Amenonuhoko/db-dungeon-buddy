@@ -7,7 +7,28 @@ import { supabase } from './supabase';
 // campaign); "Save to My Characters" on a campaign sheet copies its
 // current state back — level-ups, gear, features. Accounts only: an
 // anonymous player has no way back into a roster on another day.
-const COLUMNS = 'id, name, class_and_level, race, background, abilities, armor_class, max_hp, speed, equipment, features, resources, updated_at';
+const COLUMNS_V1 = 'id, name, class_and_level, race, background, abilities, armor_class, max_hp, speed, equipment, features, resources, updated_at';
+// 011 adds the story, personality prompts, inventory and coins; a backend
+// without it yet quietly gets the 009 columns.
+const COLUMNS_V2 = `${COLUMNS_V1}, backstory, personality_traits, ideals, bonds, flaws, inventory, coins`;
+let columns = COLUMNS_V2;
+const EXTRA_FIELDS = ['backstory', 'personalityTraits', 'ideals', 'bonds', 'flaws', 'inventory', 'coins'];
+
+function columnMissing(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /column .* does not exist|could not find the '.*' column/i.test(error?.message || '');
+}
+
+async function withColumns(run) {
+  const asked = columns;
+  let { data, error } = await run(columns);
+  // Judge by what this request asked for — concurrent loads can race.
+  if (error && columnMissing(error) && asked === COLUMNS_V2) {
+    columns = COLUMNS_V1;
+    ({ data, error } = await run(columns));
+  }
+  if (error) throw error;
+  return data;
+}
 
 function toCharacter(row) {
   return {
@@ -23,6 +44,13 @@ function toCharacter(row) {
     equipment: row.equipment,
     features: row.features,
     resources: row.resources,
+    backstory: row.backstory ?? '',
+    personalityTraits: row.personality_traits ?? '',
+    ideals: row.ideals ?? '',
+    bonds: row.bonds ?? '',
+    flaws: row.flaws ?? '',
+    inventory: Array.isArray(row.inventory) ? row.inventory : [],
+    coins: row.coins || { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 },
     updatedAt: row.updated_at,
   };
 }
@@ -42,6 +70,17 @@ function rosterRow(character) {
     equipment: character.equipment || '',
     features: character.features || '',
     resources: resourcesOf(character).map((r) => ({ ...r, current: r.max })),
+    ...(columns === COLUMNS_V2
+      ? {
+          backstory: character.backstory || '',
+          personality_traits: character.personalityTraits || '',
+          ideals: character.ideals || '',
+          bonds: character.bonds || '',
+          flaws: character.flaws || '',
+          inventory: Array.isArray(character.inventory) ? character.inventory : [],
+          coins: character.coins || { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 },
+        }
+      : {}),
   };
 }
 
@@ -50,20 +89,17 @@ export function isMissingRoster(error) {
 }
 
 export async function listRoster() {
-  const { data, error } = await supabase.from('roster_characters').select(COLUMNS).order('name');
-  if (error) throw error;
+  const data = await withColumns((cols) => supabase.from('roster_characters').select(cols).order('name'));
   return data.map(toCharacter);
 }
 
 export async function createRosterCharacter(character) {
-  const { data, error } = await supabase.from('roster_characters').insert(rosterRow(character)).select(COLUMNS).single();
-  if (error) throw error;
+  const data = await withColumns((cols) => supabase.from('roster_characters').insert(rosterRow(character)).select(cols).single());
   return toCharacter(data);
 }
 
 export async function updateRosterCharacter(id, character) {
-  const { data, error } = await supabase.from('roster_characters').update(rosterRow(character)).eq('id', id).select(COLUMNS);
-  if (error) throw error;
+  const data = await withColumns((cols) => supabase.from('roster_characters').update(rosterRow(character)).eq('id', id).select(cols));
   return data.length ? toCharacter(data[0]) : null;
 }
 
@@ -88,6 +124,7 @@ export function bringIntoCampaign(campaignId, userId, character) {
     equipment: character.equipment || '',
     features: character.features || '',
     resources: resourcesOf(character).map((r) => ({ ...r, current: r.max })),
+    ...Object.fromEntries(EXTRA_FIELDS.filter((key) => character[key] !== undefined && columns === COLUMNS_V2).map((key) => [key, character[key]])),
     playerId: userId,
     rosterId: character.id,
   });

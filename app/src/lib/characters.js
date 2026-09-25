@@ -56,19 +56,40 @@ export const EXAMPLES = [
 // the dropdowns below are a UI convenience layered on top, not a schema
 // change — this is what turns a stored "Rogue 3" back into a dropdown
 // selection (or "Other" + the raw text) when starting from a template.
-export function parseClassAndLevel(value) {
+// `extra` = custom options already used in this campaign / My Characters
+// (customOptions below), which the dropdowns offer like built-in ones.
+export function parseClassAndLevel(value, extra = []) {
   const match = /^(.*?)\s+(\d+)\s*$/.exec((value || '').trim());
   const [name, level] = match ? [match[1], match[2]] : [(value || '').trim(), ''];
   if (!name) return { classChoice: '', customClass: '', level: '' };
-  return CLASSES.includes(name)
+  return CLASSES.includes(name) || extra.includes(name)
     ? { classChoice: name, customClass: '', level }
     : { classChoice: 'Other', customClass: name, level };
 }
 
-export function parseRace(value) {
+export function parseRace(value, extra = []) {
   const trimmed = (value || '').trim();
   if (!trimmed) return { raceChoice: '', customRace: '' };
-  return RACES.includes(trimmed) ? { raceChoice: trimmed, customRace: '' } : { raceChoice: 'Other', customRace: trimmed };
+  return RACES.includes(trimmed) || extra.includes(trimmed)
+    ? { raceChoice: trimmed, customRace: '' }
+    : { raceChoice: 'Other', customRace: trimmed };
+}
+
+// Custom classes and races someone has already typed via "Other…" — in
+// this campaign's sheets and/or My Characters — so the next character can
+// pick "Artificer" or "Tabaxi" from the list instead of retyping it.
+// Derived from what's already stored; nothing extra to save or manage.
+export function customOptions(characters) {
+  const classes = new Set();
+  const races = new Set();
+  for (const character of characters || []) {
+    const { classChoice, customClass } = parseClassAndLevel(character.classAndLevel);
+    if (classChoice === 'Other' && customClass) classes.add(customClass);
+    const { raceChoice, customRace } = parseRace(character.race);
+    if (raceChoice === 'Other' && customRace) races.add(customRace);
+  }
+  const sort = (set) => [...set].sort((a, b) => a.localeCompare(b));
+  return { classes: sort(classes), races: sort(races) };
 }
 
 export const BLANK_PICKS = { classChoice: '', customClass: '', level: '', raceChoice: '', customRace: '' };
@@ -129,26 +150,43 @@ export function finalizeQuickFields(form, picks) {
 // still on character_sheets and everything falls back to one table.
 // Offline campaigns are a single local record, as before.
 // ---------------------------------------------------------------------
-const PRIVATE_FIELDS = ['background', 'abilities', 'equipment', 'features', 'resources'];
-const DETAILS_COLUMNS = 'character_id, background, abilities, equipment, features, resources';
+// 010's private fields, plus 011's backstory, personality prompts,
+// inventory and personal coins. On a backend that has 010 but not 011
+// yet, reads quietly narrow to the 010 set.
+const DETAILS_V1 = ['background', 'abilities', 'equipment', 'features', 'resources'];
+const PRIVATE_FIELDS = [...DETAILS_V1, 'backstory', 'personalityTraits', 'ideals', 'bonds', 'flaws', 'inventory', 'coins'];
+const toSnakeKey = (key) => key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+let detailFields = PRIVATE_FIELDS;
+const detailsColumns = () => ['character_id', ...detailFields.map(toSnakeKey)].join(', ');
 
 function detailsMissing(error) {
-  return error?.code === '42P01' || error?.code === 'PGRST205' || /character_details/i.test(error?.message || '');
+  return error?.code === '42P01' || error?.code === 'PGRST205' || /relation .*character_details|table 'public\.character_details'/i.test(error?.message || '');
+}
+
+function columnMissing(error) {
+  return error?.code === '42703' || error?.code === 'PGRST204' || /column .* does not exist|could not find the '.*' column/i.test(error?.message || '');
+}
+
+// Runs a details select, retrying with 010's columns if 011 isn't there.
+async function selectDetails(build) {
+  const asked = detailFields;
+  let { data, error } = await build(detailsColumns());
+  // Judge by what *this* request asked for: two loads can race, and the
+  // first to hit a missing column narrows detailFields for both.
+  if (error && columnMissing(error) && asked !== DETAILS_V1) {
+    detailFields = DETAILS_V1;
+    ({ data, error } = await build(detailsColumns()));
+  }
+  return { data, error };
 }
 
 function fromDetailsRow(row) {
-  return {
-    background: row.background,
-    abilities: row.abilities,
-    equipment: row.equipment,
-    features: row.features,
-    resources: row.resources,
-  };
+  return Object.fromEntries(detailFields.map((key) => [key, row[toSnakeKey(key)]]));
 }
 
 function toDetailsRow(fields) {
   const row = {};
-  for (const key of PRIVATE_FIELDS) if (key in fields) row[key] = fields[key];
+  for (const key of PRIVATE_FIELDS) if (key in fields) row[toSnakeKey(key)] = fields[key];
   return row;
 }
 
@@ -166,7 +204,9 @@ function splitFields(fields) {
 // { [characterId]: details } for every sheet you're allowed to see into,
 // or null on a backend without the details table.
 async function fetchDetails(campaignId) {
-  const { data, error } = await supabase.from('character_details').select(DETAILS_COLUMNS).eq('campaign_id', campaignId);
+  const { data, error } = await selectDetails((columns) =>
+    supabase.from('character_details').select(columns).eq('campaign_id', campaignId),
+  );
   if (error) {
     if (detailsMissing(error)) return null;
     throw error;
@@ -179,10 +219,13 @@ async function writeDetails(campaignId, sheetId, priv) {
     .from('character_details')
     .update(toDetailsRow(priv))
     .eq('character_id', sheetId)
-    .select(DETAILS_COLUMNS);
+    .select(detailsColumns());
   if (error) {
     // Pre-010 backend: the private fields still live on the sheet.
     if (detailsMissing(error)) return remoteSheets.update(campaignId, sheetId, priv);
+    if (columnMissing(error)) {
+      throw new Error('Backstory, personality, inventory and coins need the latest database update — whoever runs the backend should run db/migrations/011_sheet_depth.sql (see README).');
+    }
     throw error;
   }
   if (!data.length) throw new Error("Only this character's player or the DM can change that.");
@@ -196,7 +239,9 @@ async function readSheetRow(sheetId) {
 }
 
 async function readDetails(sheetId) {
-  const { data, error } = await supabase.from('character_details').select(DETAILS_COLUMNS).eq('character_id', sheetId);
+  const { data, error } = await selectDetails((columns) =>
+    supabase.from('character_details').select(columns).eq('character_id', sheetId),
+  );
   if (error) {
     if (detailsMissing(error)) return {};
     throw error;
@@ -333,8 +378,17 @@ export function sheetToMarkdown(sheet, conditions = []) {
   ];
 
   if (sheet.background?.trim()) lines.push('', `**Background** ${sheet.background.trim()}`);
-  if (sheet.equipment?.trim()) lines.push('', '### Equipment', sheet.equipment.trim());
+  const inventory = Array.isArray(sheet.inventory) ? sheet.inventory : [];
+  if (inventory.length) {
+    lines.push('', '### Inventory', ...inventory.map((i) => `- ${i.name}${(i.qty || 1) > 1 ? ` ×${i.qty}` : ''}${i.equipped ? ' (equipped)' : ''}${i.note ? ` — ${i.note}` : ''}`));
+  }
+  const purse = sheet.coins ? ['pp', 'gp', 'ep', 'sp', 'cp'].filter((c) => sheet.coins[c]).map((c) => `${sheet.coins[c]} ${c}`) : [];
+  if (purse.length) lines.push('', `**Coins** ${purse.join(', ')}`);
+  if (sheet.equipment?.trim()) lines.push('', '### Gear notes', sheet.equipment.trim());
   if (sheet.features?.trim()) lines.push('', '### Features', sheet.features.trim());
+  const prompts = [['Personality traits', sheet.personalityTraits], ['Ideals', sheet.ideals], ['Bonds', sheet.bonds], ['Flaws', sheet.flaws]].filter(([, v]) => v?.trim());
+  if (prompts.length) lines.push('', '### Personality', ...prompts.map(([k, v]) => `- **${k}:** ${v.trim()}`));
+  if (sheet.backstory?.trim()) lines.push('', '### Backstory', sheet.backstory.trim());
   if (conditions.length > 0) {
     lines.push(
       '',
