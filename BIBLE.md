@@ -717,6 +717,25 @@ inventory/currency (a real item list with weight/gold, instead of
 session the way a missing initiative tracker does, so both are left for
 a later phase rather than growing this one further.
 
+- **Campaign import from a JSON file** — a small, tucked-away upload icon
+  next to "Your Campaigns" on `CampaignHubScreen` (no dedicated screen —
+  it's a one-shot action, not a flow worth its own route). Picks a
+  `.json` file from device storage matching `campaign-template
+  .example.json` at the repo root — a campaign name/description plus
+  arrays of encyclopedia entries, bestiary stat blocks, and notes — and
+  creates the campaign and every row inside it. Deliberately **not** an
+  in-app AI call: the intended workflow is asking Claude (in chat, this
+  same session or a fresh one) to fill out that template for a given
+  premise, saving the result as a `.json` file, then importing it here —
+  no API key, no server endpoint, no new schema. `lib/campaignImport.js`
+  does the work in two pieces: `validateCampaignTemplate()` checks the
+  shape up front (so a malformed file fails with one plain message
+  instead of a half-imported campaign), and `importCampaignTemplate()`
+  creates everything through the *exact* same guest/account-aware
+  functions the manual "New Entry" forms already use
+  (`lib/campaigns.js`/`encyclopedia.js`/`bestiary.js`/`notes.js`) — an
+  imported entry is indistinguishable from a hand-typed one afterward:
+  same storage, same RLS, same edit/delete/export behavior.
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
   already exists per-entry, but there's no cross-content tagging/
   filtering (e.g. one tag spanning encyclopedia + bestiary + notes +
