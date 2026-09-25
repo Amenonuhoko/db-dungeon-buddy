@@ -830,6 +830,28 @@ would have let them edit the whole row; the narrow function is the safe
 shape. Before 006 runs, the app still works (new PCs just default to 0,
 the old way) and a player's roll attempt says the migration is needed.
 
+**Campaign import from a JSON file** — an "Import a campaign file" link
+at the bottom of `CampaignHubScreen` (it started as an upload icon beside
+the old "Your Campaigns" heading, which the ease-of-use pass removed; no
+dedicated screen — it's a one-shot action, not a flow worth its own
+route). Picks a
+`.json` file from device storage matching `campaign-template
+.example.json` at the repo root — a campaign name/description plus
+arrays of encyclopedia entries, bestiary stat blocks, and notes — and
+creates the campaign and every row inside it. Deliberately **not** an
+in-app AI call: the intended workflow is asking Claude (in chat, this
+same session or a fresh one) to fill out that template for a given
+premise, saving the result as a `.json` file, then importing it here —
+no API key, no server endpoint, no new schema. `lib/campaignImport.js`
+does the work in two pieces: `validateCampaignTemplate()` checks the
+shape up front (so a malformed file fails with one plain message
+instead of a half-imported campaign), and `importCampaignTemplate()`
+creates everything through the *exact* same guest/account-aware
+functions the manual "New Entry" forms already use
+(`lib/campaigns.js`/`encyclopedia.js`/`bestiary.js`/`notes.js`) — an
+imported entry is indistinguishable from a hand-typed one afterward:
+same storage, same RLS, same edit/delete/export behavior.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`

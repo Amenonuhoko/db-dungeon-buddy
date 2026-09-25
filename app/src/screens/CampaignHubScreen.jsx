@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { UploadIcon } from '../components/ornament/UtilityIcons.jsx';
+import { importCampaignTemplate, validateCampaignTemplate } from '../lib/campaignImport.js';
 import {
   createCampaign,
   createGuestCampaign,
@@ -41,6 +43,7 @@ export function CampaignHubScreen() {
   // pick — you're here to open one. With none yet, it's shown straight
   // away (see `showCreate` below).
   const [createOpen, setCreateOpen] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (status === 'guest') {
@@ -84,6 +87,39 @@ export function CampaignHubScreen() {
         setNewDescription('');
         openCampaign(campaign.id);
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Reads a campaign-template JSON file picked from device storage (see
+  // campaign-template.example.json at the repo root for the shape a
+  // filled-out one should have) and creates the campaign + every entry
+  // it contains — see lib/campaignImport.js for why this is exactly the
+  // same create path the manual forms use, not a separate bulk-insert.
+  async function handleImportFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // lets picking the same file twice re-fire onChange
+    if (!file) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const text = await file.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("That file isn't valid JSON.");
+      }
+      const problem = validateCampaignTemplate(data);
+      if (problem) throw new Error(problem);
+
+      const campaign = await importCampaignTemplate(status, guest?.role, data);
+      setCampaigns((prev) => [campaign, ...prev]);
+      openCampaign(campaign.id);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -199,6 +235,29 @@ export function CampaignHubScreen() {
                   Join with a Code
                 </button>
               )}
+            </div>
+          )}
+
+          {/* One-shot import (lib/campaignImport.js) — a quiet link rather
+              than a third big button, since most people never need it. */}
+          {canCreate && (
+            <div style={{ textAlign: 'center' }}>
+              <button
+                className="example-toggle"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy}
+              >
+                <UploadIcon />
+                Import a campaign file
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                style={{ display: 'none' }}
+              />
             </div>
           )}
         </Panel>
