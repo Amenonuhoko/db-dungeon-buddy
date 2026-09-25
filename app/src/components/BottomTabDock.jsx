@@ -11,6 +11,11 @@ export function BottomTabDock({ tabs }) {
         <NavLink key={tab.to} to={tab.to} className={({ isActive }) => `tab-dock-item${isActive ? ' active' : ''}`}>
           {tab.icon}
           <span>{tab.label}</span>
+          {tab.badge ? (
+            <span className="tab-dock-badge" aria-label={`${tab.badge} unread`}>
+              {tab.badge > 9 ? '9+' : tab.badge}
+            </span>
+          ) : null}
         </NavLink>
       ))}
     </nav>

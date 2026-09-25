@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { CampaignSettings } from '../components/CampaignSettings.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
+import { TableToasts } from '../components/TableToasts.jsx';
 import { GearIcon } from '../components/ornament/UtilityIcons.jsx';
 import { ALL_TABS, tabsForRole } from '../lib/campaignTabs.jsx';
 import { getGuestCampaign, getMyCampaign, regenerateInviteCode } from '../lib/campaigns.js';
+import { TABLE_THREAD, useTableTalk } from '../lib/messages.js';
+import { useCampaignPresence, usePresenceEvents } from '../lib/presence.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // Reopening a campaign lands on whichever tab you were last on (per
@@ -57,7 +60,8 @@ function useSwipeTabs(campaignId, tabs) {
 
 export function CampaignScreen() {
   const { campaignId } = useParams();
-  const { status } = useSession();
+  const { status, user } = useSession();
+  const navigate = useNavigate();
   const [campaign, setCampaign] = useState(null);
   const [error, setError] = useState(null);
   // Computed off `campaign?.role` rather than after the loading/error
@@ -69,6 +73,45 @@ export function CampaignScreen() {
   const location = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // --- The live table (account mode): who's here, and Table Talk. Held
+  // here, once per campaign, so the Party page, the tab badge and the
+  // toasts all share one view of it. See lib/presence.js, lib/messages.js.
+  const live = status === 'authenticated' && Boolean(campaign);
+  const currentTab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`))?.to || 'characters';
+  const me = useMemo(
+    () => (user ? { userId: user.id, name: user.user_metadata?.display_name || 'Adventurer', role: campaign?.role } : null),
+    [user, campaign?.role],
+  );
+  const presence = useCampaignPresence(live, campaignId, me, `tab:${currentTab}`);
+
+  const [toasts, setToasts] = useState([]);
+  const dismissToast = useCallback((id) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
+  const pushToast = useCallback(
+    (toast) => {
+      const id = crypto.randomUUID();
+      setToasts((prev) => [...prev.slice(-2), { id, ...toast }]);
+      window.setTimeout(() => dismissToast(id), 5000);
+    },
+    [dismissToast],
+  );
+
+  usePresenceEvents(live, campaignId, (event) =>
+    pushToast({
+      kind: event.type,
+      title: event.type === 'join' ? `${event.who.name} sat down at the table` : `${event.who.name} stepped away`,
+    }),
+  );
+
+  const talk = useTableTalk(live, campaignId, user?.id, (message, thread) => {
+    const from = presence.online[message.senderId]?.name || 'Someone';
+    pushToast({
+      kind: 'message',
+      title: thread === TABLE_THREAD ? `${from} to the table` : `${from} whispered to you`,
+      body: message.body.length > 90 ? `${message.body.slice(0, 90)}…` : message.body,
+      onOpen: () => navigate(`/campaigns/${campaignId}/characters?view=talk&thread=${thread}`),
+    });
+  });
 
   useEffect(() => {
     const tab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`));
@@ -211,6 +254,8 @@ export function CampaignScreen() {
               role: campaign.role,
               isDM,
               isGuest: status === 'guest',
+              presence,
+              talk,
               openInvite: canInvite
                 ? () => {
                     setInviteOpen(true);
@@ -222,7 +267,8 @@ export function CampaignScreen() {
         </div>
       </div>
 
-      <BottomTabDock tabs={tabs} />
+      <TableToasts toasts={toasts} onDismiss={dismissToast} />
+      <BottomTabDock tabs={tabs.map((t) => (t.to === 'characters' && talk.totalUnread ? { ...t, badge: talk.totalUnread } : t))} />
     </div>
   );
 }

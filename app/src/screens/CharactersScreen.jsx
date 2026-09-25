@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
+import { PartyStash } from '../components/PartyStash.jsx';
+import { TablePresence } from '../components/TablePresence.jsx';
+import { TableTalk } from '../components/TableTalk.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
@@ -37,13 +40,26 @@ const BLANK_FORM = {
 };
 
 export function CharactersScreen() {
-  const { campaignId, isDM, isGuest, openInvite } = useOutletContext();
+  const { campaignId, isDM, isGuest, openInvite, presence, talk } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
 
   const [sheets, setSheets] = useState([]);
   const [conditions, setConditions] = useState([]);
-  const [players, setPlayers] = useState([]);
+  const [members, setMembers] = useState([]);
+  const players = members.filter((m) => m.role === 'player');
+  const live = status === 'authenticated';
+  // Which part of the Party page is showing — in the URL, so a message
+  // toast or a tap on someone in "At the table" can open a conversation.
+  const [params, setParams] = useSearchParams();
+  const view = ['stash', 'talk'].includes(params.get('view')) && (live || params.get('view') === 'stash') ? params.get('view') : 'characters';
+  const thread = params.get('thread');
+  const showView = (next, nextThread = null) => {
+    const p = {};
+    if (next !== 'characters') p.view = next;
+    if (nextThread) p.thread = nextThread;
+    setParams(p, { replace: true });
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -67,15 +83,14 @@ export function CharactersScreen() {
     const [s, c] = await Promise.all([listSheets(status, campaignId), listConditions(status, campaignId)]);
     setSheets(s);
     setConditions(c);
-    if (status === 'authenticated' && isDM) {
+    if (status === 'authenticated') {
       try {
-        const members = await listCampaignMembers(campaignId);
-        setPlayers(members.filter((m) => m.role === 'player'));
+        setMembers(await listCampaignMembers(campaignId));
       } catch (err) {
         setError(`Couldn't load the player list — ${err.message}`);
       }
     }
-  }, [status, campaignId, isDM]);
+  }, [status, campaignId]);
 
   useEffect(() => {
     setLoading(true);
@@ -141,180 +156,221 @@ export function CharactersScreen() {
     return map;
   }, {});
 
+  const onlinePlayers = presence?.online || {};
+  const unreadTalk = talk?.totalUnread || 0;
+
   return (
     <div>
-      {error && <p className="error-text" style={{ marginBottom: '1rem' }}>{error}</p>}
+      {live && presence && (
+        <TablePresence
+          members={members}
+          online={onlinePlayers}
+          ready={presence.ready}
+          myId={user?.id}
+          onWhisper={talk?.status === 'unavailable' ? null : (userId) => showView('talk', userId)}
+        />
+      )}
 
-      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
-        <button
-          className="btn btn-ghost btn-small btn-icon"
-          type="button"
-          onClick={() => downloadTextFile('characters.md', sheetsToMarkdown(sheets, conditionsByCharacterId, 'Campaign'))}
-          disabled={sheets.length === 0}
-          title="Export Markdown"
-          aria-label="Export Markdown"
-        >
-          <DownloadIcon />
+      <div className="party-views" role="tablist" aria-label="Party">
+        <button type="button" role="tab" aria-selected={view === 'characters'} className={view === 'characters' ? 'active' : ''} onClick={() => showView('characters')}>
+          Characters
         </button>
-        {/* A player with an empty party gets the button in the empty state
-            below instead — one call to action, not two. */}
-        {canCreate && !(isPlayer && sheets.length === 0) && (
-          <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            {isPlayer ? 'Create My Character' : 'Add Character'}
+        <button type="button" role="tab" aria-selected={view === 'stash'} className={view === 'stash' ? 'active' : ''} onClick={() => showView('stash')}>
+          Stash
+        </button>
+        {live && (
+          <button type="button" role="tab" aria-selected={view === 'talk'} className={view === 'talk' ? 'active' : ''} onClick={() => showView('talk')}>
+            Talk
+            {unreadTalk > 0 && <span className="party-views-badge">{unreadTalk > 9 ? '9+' : unreadTalk}</span>}
           </button>
         )}
       </div>
 
-      {/* No examples until there's a player to give a character to — in
-          account mode every character belongs to a player, so a template
-          can't be used yet, and "invite your players" is the next step. */}
-      {canCreate && !showForm && (isGuest || isPlayer || players.length > 0) && (
-        <ExampleGallery
-          items={EXAMPLES}
-          isEmpty={sheets.length === 0}
-          onUseTemplate={useTemplate}
-          renderItem={(example) => (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-                <h3 style={{ fontSize: '1.05rem' }}>{example.name}</h3>
-                <span className="chip">{example.classAndLevel}</span>
-              </div>
-              <p style={{ marginTop: '0.25rem', fontStyle: 'italic', fontSize: '0.85rem' }}>{example.race}</p>
-              <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{example.background}</p>
-            </>
-          )}
-        />
+      {view === 'stash' && (
+        <PartyStash status={status} campaignId={campaignId} characterNames={sheets.map((sheet) => sheet.name)} />
       )}
 
-      {showForm && canCreate && (
-        <Panel style={{ marginBottom: '1.5rem' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <p className="hint-text">
-              Just the basics — ability scores, equipment and features go on the full sheet, which opens as soon as
-              this is saved.
-            </p>
+      {view === 'talk' && talk && (
+        <TableTalk talk={talk} members={members} online={onlinePlayers} thread={thread} onThread={(t) => showView('talk', t)} />
+      )}
 
-            {!isGuest && isDM && (
-              <div className="field">
-                <label htmlFor="sheetPlayer">Player</label>
-                {players.length === 0 ? (
-                  <p style={{ fontSize: '0.85rem' }}>
-                    No players have joined yet — each character belongs to a player, so invite them first.
-                  </p>
-                ) : (
-                  <select
-                    id="sheetPlayer"
-                    value={form.playerId}
-                    onChange={(e) => setForm({ ...form, playerId: e.target.value })}
-                  >
-                    <option value="" disabled>
-                      Choose a player…
-                    </option>
-                    {players.map((p) => (
-                      <option key={p.userId} value={p.userId}>
-                        {p.displayName}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+      {view === 'characters' && (
+        <>
+          {error && <p className="error-text" style={{ marginBottom: '1rem' }}>{error}</p>}
+
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+            <button
+              className="btn btn-ghost btn-small btn-icon"
+              type="button"
+              onClick={() => downloadTextFile('characters.md', sheetsToMarkdown(sheets, conditionsByCharacterId, 'Campaign'))}
+              disabled={sheets.length === 0}
+              title="Export Markdown"
+              aria-label="Export Markdown"
+            >
+              <DownloadIcon />
+            </button>
+            {/* A player with an empty party gets the button in the empty state
+                below instead — one call to action, not two. */}
+            {canCreate && !(isPlayer && sheets.length === 0) && (
+              <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
+                {isPlayer ? 'Create My Character' : 'Add Character'}
+              </button>
             )}
+          </div>
 
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <div className="field" style={{ flex: '2 1 200px' }}>
-                <label htmlFor="charName">Character name</label>
-                <input
-                  id="charName"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Mira Duskwalker"
-                  maxLength={120}
-                  autoFocus
-                />
-              </div>
-              <div className="field" style={{ flex: '1 1 140px' }}>
-                <label htmlFor="charClass">Class &amp; Level</label>
-                <input
-                  id="charClass"
-                  value={form.classAndLevel}
-                  onChange={(e) => setForm({ ...form, classAndLevel: e.target.value })}
-                  placeholder="Rogue 3"
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <div className="field" style={{ flex: '2 1 160px' }}>
-                <label htmlFor="charRace">Race / Species</label>
-                <input
-                  id="charRace"
-                  value={form.race}
-                  onChange={(e) => setForm({ ...form, race: e.target.value })}
-                  placeholder="Half-Elf"
-                />
-              </div>
-              <div className="field" style={{ flex: '1 1 90px' }}>
-                <label htmlFor="charMaxHp">Max HP</label>
-                <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
-              </div>
-              <div className="field" style={{ flex: '1 1 90px' }}>
-                <label htmlFor="charAC">Armor Class</label>
-                <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
-                Create Character
-              </button>
-              <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </Panel>
-      )}
-
-      {loading && <p>Loading the party…</p>}
-      {!loading && sheets.length === 0 && !showForm && (
-        <Panel style={{ textAlign: 'center' }}>
-          <p>
-            {isPlayer
-              ? isGuest
-                ? 'Create your character to get started.'
-                : 'Create your character to get started — or wait for your DM to make one for you.'
-              : isDM
-                ? players.length === 0 && openInvite
-                  ? 'No players yet. Invite them first — then add a character for each, and they can edit their own.'
-                  : isGuest
-                  ? 'Add a character for each member of your party.'
-                  : 'Add a character for each player — they can edit their own sheet from their device.'
-                : ''}
-          </p>
-          {isPlayer && canCreate && (
-            <button className="btn btn-primary btn-small" type="button" onClick={startCreate} style={{ marginTop: '1rem' }}>
-              Create My Character
-            </button>
+          {/* No examples until there's a player to give a character to — in
+              account mode every character belongs to a player, so a template
+              can't be used yet, and "invite your players" is the next step. */}
+          {canCreate && !showForm && (isGuest || isPlayer || players.length > 0) && (
+            <ExampleGallery
+              items={EXAMPLES}
+              isEmpty={sheets.length === 0}
+              onUseTemplate={useTemplate}
+              renderItem={(example) => (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                    <h3 style={{ fontSize: '1.05rem' }}>{example.name}</h3>
+                    <span className="chip">{example.classAndLevel}</span>
+                  </div>
+                  <p style={{ marginTop: '0.25rem', fontStyle: 'italic', fontSize: '0.85rem' }}>{example.race}</p>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>{example.background}</p>
+                </>
+              )}
+            />
           )}
-          {isDM && players.length === 0 && openInvite && (
-            <button className="btn btn-primary btn-small" type="button" onClick={openInvite} style={{ marginTop: '1rem' }}>
-              Invite Players
-            </button>
-          )}
-        </Panel>
-      )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {orderedSheets.map((sheet) => (
-          <PartyCard
-            key={sheet.id}
-            sheet={sheet}
-            conditions={conditionsByCharacterId[sheet.id] || []}
-            mine={!isDM && canEditSheet(sheet)}
-            onOpen={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
-          />
-        ))}
-      </div>
+          {showForm && canCreate && (
+            <Panel style={{ marginBottom: '1.5rem' }}>
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <p className="hint-text">
+                  Just the basics — ability scores, equipment and features go on the full sheet, which opens as soon as
+                  this is saved.
+                </p>
+
+                {!isGuest && isDM && (
+                  <div className="field">
+                    <label htmlFor="sheetPlayer">Player</label>
+                    {players.length === 0 ? (
+                      <p style={{ fontSize: '0.85rem' }}>
+                        No players have joined yet — each character belongs to a player, so invite them first.
+                      </p>
+                    ) : (
+                      <select
+                        id="sheetPlayer"
+                        value={form.playerId}
+                        onChange={(e) => setForm({ ...form, playerId: e.target.value })}
+                      >
+                        <option value="" disabled>
+                          Choose a player…
+                        </option>
+                        {players.map((p) => (
+                          <option key={p.userId} value={p.userId}>
+                            {p.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div className="field" style={{ flex: '2 1 200px' }}>
+                    <label htmlFor="charName">Character name</label>
+                    <input
+                      id="charName"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="Mira Duskwalker"
+                      maxLength={120}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="field" style={{ flex: '1 1 140px' }}>
+                    <label htmlFor="charClass">Class &amp; Level</label>
+                    <input
+                      id="charClass"
+                      value={form.classAndLevel}
+                      onChange={(e) => setForm({ ...form, classAndLevel: e.target.value })}
+                      placeholder="Rogue 3"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div className="field" style={{ flex: '2 1 160px' }}>
+                    <label htmlFor="charRace">Race / Species</label>
+                    <input
+                      id="charRace"
+                      value={form.race}
+                      onChange={(e) => setForm({ ...form, race: e.target.value })}
+                      placeholder="Half-Elf"
+                    />
+                  </div>
+                  <div className="field" style={{ flex: '1 1 90px' }}>
+                    <label htmlFor="charMaxHp">Max HP</label>
+                    <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
+                  </div>
+                  <div className="field" style={{ flex: '1 1 90px' }}>
+                    <label htmlFor="charAC">Armor Class</label>
+                    <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
+                    Create Character
+                  </button>
+                  <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </Panel>
+          )}
+
+          {loading && <p>Loading the party…</p>}
+          {!loading && sheets.length === 0 && !showForm && (
+            <Panel style={{ textAlign: 'center' }}>
+              <p>
+                {isPlayer
+                  ? isGuest
+                    ? 'Create your character to get started.'
+                    : 'Create your character to get started — or wait for your DM to make one for you.'
+                  : isDM
+                    ? players.length === 0 && openInvite
+                      ? 'No players yet. Invite them first — then add a character for each, and they can edit their own.'
+                      : isGuest
+                      ? 'Add a character for each member of your party.'
+                      : 'Add a character for each player — they can edit their own sheet from their device.'
+                    : ''}
+              </p>
+              {isPlayer && canCreate && (
+                <button className="btn btn-primary btn-small" type="button" onClick={startCreate} style={{ marginTop: '1rem' }}>
+                  Create My Character
+                </button>
+              )}
+              {isDM && players.length === 0 && openInvite && (
+                <button className="btn btn-primary btn-small" type="button" onClick={openInvite} style={{ marginTop: '1rem' }}>
+                  Invite Players
+                </button>
+              )}
+            </Panel>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {orderedSheets.map((sheet) => (
+              <PartyCard
+                key={sheet.id}
+                sheet={sheet}
+                conditions={conditionsByCharacterId[sheet.id] || []}
+                mine={!isDM && canEditSheet(sheet)}
+                here={live && Boolean(onlinePlayers[sheet.playerId])}
+                onOpen={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -322,7 +378,7 @@ export function CharactersScreen() {
 // One tap target per character — name, what they are, how hurt they are,
 // and what's afflicting them. Everything else (full stats, edit, export,
 // delete) lives on the sheet this opens; the roster's job is picking one.
-function PartyCard({ sheet, conditions, mine, onOpen }) {
+function PartyCard({ sheet, conditions, mine, here, onOpen }) {
   const hp = sheet.currentHp;
   const max = sheet.maxHp;
   const pct = max ? Math.max(0, Math.min(100, ((hp ?? 0) / max) * 100)) : 0;
@@ -330,7 +386,10 @@ function PartyCard({ sheet, conditions, mine, onOpen }) {
   return (
     <button type="button" className={`panel party-card${mine ? ' mine' : ''}`} onClick={onOpen}>
       <div className="party-card-top">
-        <span className="party-card-name">{sheet.name}</span>
+        <span className="party-card-name">
+          {here && <span className="presence-dot online inline" title="Their player is here now" aria-label="Player is here now" />}
+          {sheet.name}
+        </span>
         {mine && <span className="chip chip-small">You</span>}
         <span className="campaign-card-arrow" aria-hidden="true">
           →

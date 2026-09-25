@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
@@ -25,6 +25,7 @@ import {
 import { absoluteTabs } from '../lib/campaignTabs.jsx';
 import { rollD20 } from '../lib/encounters.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
+import { useCampaignPresence } from '../lib/presence.js';
 import { useCampaignAccess } from '../lib/useCampaignAccess.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -138,6 +139,15 @@ export function CharacterSheetScreen() {
   }, [status, campaignId]);
 
   const sheet = sheets.find((s) => s.id === sheetId);
+
+  // Being on a sheet still counts as being at the table — the Party
+  // page shows "on Mira's sheet" (lib/presence.js; the connection is
+  // shared with the campaign tabs, so switching here doesn't drop you).
+  const presenceMe = useMemo(
+    () => (user ? { userId: user.id, name: user.user_metadata?.display_name || 'Adventurer', role: isDM ? 'dm' : 'player' } : null),
+    [user, isDM],
+  );
+  useCampaignPresence(status === 'authenticated' && !campaignLoading, campaignId, presenceMe, `sheet:${sheet?.name || ''}`);
   const sheetConditions = conditions.filter((c) => c.characterId === sheetId);
 
   function canEdit() {

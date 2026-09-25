@@ -658,6 +658,23 @@ and the rules to keep for any new table:
 - **Sheets belong to members**: a sheet's `player_id` must be in the
   campaign when it's set or changed.
 
+**The Party page's data (`008_party.sql`)** follows the same rules.
+`messages` stamps `sender_id`/`created_at` server-side; a whisper
+(`recipient_id` set) is readable only by its sender and recipient (not
+the DM), and can only be sent to a current member. Messages can't be
+edited, only deleted by their sender, and the newest 1000 per campaign
+are kept. `party_items` is writable by any member (it's the party's
+stash, not the DM's). Coins only move through `adjust_party_coins()`,
+which is atomic and never lets the purse go negative. Presence runs on a
+*private* Realtime channel (`presence:<campaign id>`) that RLS on
+`realtime.messages` limits to the campaign's members. If a private join
+is refused (008 not run yet), the client falls back to a public channel
+with the same name so the feature still works. Its topic is the
+campaign's UUID, so only someone who already knows that could listen,
+and it carries names and "on Combat"-style status, nothing else. To
+remove the fallback's exposure entirely, turn on "Private channels only"
+in the project's Realtime settings once 008 is in.
+
 Known, accepted: `is_campaign_member()`/`is_campaign_dm()` are callable by
 any signed-in user, so someone who already knows both UUIDs can ask
 whether a user is in a campaign — low value, and restricting them would
@@ -942,6 +959,44 @@ tables only share a foreign key target (`auth.users`), not a
 relationship PostgREST can embed through — so it always failed, the
 error was swallowed, and a DM saw "no players yet" however many had
 joined. It's two plain queries now.
+
+**The live Party page (`008_party.sql`)** — Party is the page a table
+lives on, so it now shows the table itself, not just the characters:
+
+- **At the table** (`components/TablePresence.jsx`, `lib/presence.js`) —
+  everyone in the campaign, with a live dot for who's here right now and
+  what they're doing ("on Combat", "on Mira's sheet", "in their notes"),
+  or "away". Supabase Realtime Presence, one shared connection per
+  campaign held by the campaign screens *and* the character sheet
+  (ref-counted, closed a few seconds after the last screen lets go), so
+  moving between screens never makes you flicker out and back in. Arrivals
+  and departures pop a toast ("Bram sat down at the table", "…stepped
+  away"). The first sync is the existing roster, so there are no toasts
+  for people already there. Party cards show a live dot when their player
+  is here. Tapping someone opens a whisper to them.
+- **Characters · Stash · Talk** — a switcher under the strip, kept in the
+  URL (`?view=talk&thread=<user id>`) so a toast can open a conversation.
+- **Talk** (`components/TableTalk.jsx`, `lib/messages.js`) — one
+  conversation with the whole table plus a private whisper thread with
+  each other member (players passing the DM a note is the classic use).
+  Held once per campaign in `CampaignScreen` (`useTableTalk()`), so the
+  unread badge on the Party tab, the badge on Talk, and the "Wren
+  whispered to you" toasts all agree. Read state is per device
+  (`dungeonbuddy.read.<campaign id>` in localStorage). An open thread
+  marks messages read as they arrive.
+- **Stash** (`components/PartyStash.jsx`, `lib/stash.js`) — the party's
+  coin purse in the five D&D denominations (with a gp-equivalent total)
+  and shared loot: quantity, who carries it (free text, with character
+  names suggested — loot also ends up on mules and NPCs), and a note.
+  Works offline too, stored like every other guest content type.
+- Offline campaigns get Characters and Stash; presence and Talk need an
+  online campaign (there's nobody else on one device).
+
+Tested with Playwright standing in for the Realtime server itself
+(`page.routeWebSocket` speaking the Phoenix v2 JSON protocol). That
+covers presence state and diffs, the private-channel refusal and public
+fallback, and a `postgres_changes` insert delivering a whisper live,
+plus the schema's security cases against real Postgres (§5).
 
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
