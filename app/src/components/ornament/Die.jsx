@@ -63,14 +63,12 @@ export function Die({ sides, value, index = 0 }) {
   const isFumble = value === 1;
   const faceClass = isCritical ? ' die-critical' : isFumble ? ' die-fumble' : '';
   const label = `d${sides} rolled ${value}${isCritical ? ' — critical!' : isFumble ? ' — fumble' : ''}`;
-  // Text was always gold-bright regardless of roll — keep that baseline,
-  // just redirect it to oxblood on a fumble. The outline is the one that
-  // actually needs a three-way split: dim `--gold` normally (unchanged
-  // from before this flourish existed), bright gold on a critical, and
-  // oxblood on a fumble — using `textColor` for both would brighten
-  // every ordinary die's outline, not just the special ones.
-  const textColor = isFumble ? 'var(--oxblood)' : 'var(--gold-bright)';
-  const strokeColor = isCritical ? 'var(--gold-bright)' : isFumble ? 'var(--oxblood)' : 'var(--gold)';
+  // Every die is the mascot's d20: black body, red numerals/pips. A max
+  // roll turns the edge and numeral brass (the celebratory color); a
+  // natural 1 turns the edge red. The pulsing glow on top lives in
+  // index.css (.die-critical / .die-fumble).
+  const textColor = isCritical ? 'var(--gold)' : 'var(--die-numeral)';
+  const strokeColor = isCritical ? 'var(--gold)' : isFumble ? 'var(--oxblood)' : 'var(--die-edge)';
 
   return (
     <div className={`die-face${faceClass}`} style={{ animationDelay: `${delay}ms` }} title={label}>
@@ -83,28 +81,21 @@ export function Die({ sides, value, index = 0 }) {
               width="20"
               height="20"
               rx="5"
-              fill={isFumble ? 'var(--oxblood)' : 'var(--gold)'}
-              stroke={isCritical ? 'var(--gold-bright)' : isFumble ? 'var(--oxblood)' : 'var(--gold-deep)'}
-              strokeWidth={isCritical || isFumble ? 1.8 : 1.2}
+              fill="var(--die-fill)"
+              stroke={strokeColor}
+              strokeWidth={isCritical || isFumble ? 1.9 : 1.4}
             />
             {PIP_LAYOUTS[value].map(([x, y]) => (
-              // Same fix as .btn-primary (index.css): --surface flips to a
-              // pale cream in light mode, which was nearly invisible
-              // against this rect's gold fill. --on-gold is fixed
-              // near-black regardless of theme, matching how the pips
-              // already looked in dark mode. Left the fumble/oxblood rect
-              // alone — that's a separate contrast question this pass
-              // didn't set out to answer.
-              <circle key={`${x}-${y}`} cx={x} cy={y} r="1.7" fill={isFumble ? 'var(--surface)' : 'var(--on-gold)'} />
+              <circle key={`${x}-${y}`} cx={x} cy={y} r="1.8" fill={textColor} />
             ))}
           </>
         ) : shape ? (
           <>
             <polygon
               points={shape.points}
-              fill="var(--surface-raised)"
+              fill="var(--die-fill)"
               stroke={strokeColor}
-              strokeWidth={isCritical || isFumble ? 1.9 : 1.3}
+              strokeWidth={isCritical || isFumble ? 1.9 : 1.4}
               strokeLinejoin="round"
             />
             <text
@@ -112,7 +103,7 @@ export function Die({ sides, value, index = 0 }) {
               y={shape.textY}
               textAnchor="middle"
               dominantBaseline="middle"
-              fontFamily="var(--font-mono)"
+              fontFamily="var(--font-display)"
               fontSize={numeralSize}
               fontWeight="700"
               fill={textColor}
@@ -122,13 +113,13 @@ export function Die({ sides, value, index = 0 }) {
           </>
         ) : (
           <>
-            <circle cx="12" cy="12" r="10" fill="var(--surface-raised)" stroke={strokeColor} strokeWidth={isCritical || isFumble ? 1.9 : 1.3} />
+            <circle cx="12" cy="12" r="10" fill="var(--die-fill)" stroke={strokeColor} strokeWidth={isCritical || isFumble ? 1.9 : 1.3} />
             <text
               x="12"
               y="12.5"
               textAnchor="middle"
               dominantBaseline="middle"
-              fontFamily="var(--font-mono)"
+              fontFamily="var(--font-display)"
               fontSize={numeralSize}
               fontWeight="700"
               fill={textColor}

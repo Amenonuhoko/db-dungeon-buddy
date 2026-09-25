@@ -18,11 +18,13 @@ import {
   addCombatant,
   combatantHpPatch,
   createEncounter,
+  hasRolled,
   healthDescriptor,
   listCombatants,
   listEncounters,
   removeCombatant,
   rollInitiative,
+  setOwnInitiative,
   sortCombatants,
   STANDARD_CONDITIONS,
   stepTurn,
@@ -127,7 +129,12 @@ export function CombatScreen() {
       await fn();
       await refresh();
     } catch (err) {
-      setError(err.message || 'Something went wrong.');
+      const msg = err?.message || '';
+      setError(
+        err?.code === 'PGRST202' || /set_my_initiative/.test(msg) || /null value in column "initiative"/.test(msg)
+          ? 'Players rolling their own initiative needs db/migrations/006_player_initiative.sql run in Supabase first.'
+          : msg || 'Something went wrong.',
+      );
     }
   }
 
@@ -152,6 +159,15 @@ export function CombatScreen() {
   // every time a PC is up.
   const isMyCharacter = (sheet) => !isDM && ownsSheet(sheet);
   const myTurn = current?.isPc && isMyCharacter(sheetsById[current.characterId]);
+  const myUnrolled = ordered.some((c) => c.isPc && !hasRolled(c) && isMyCharacter(sheetsById[c.characterId]));
+
+  // Keep whoever's up on screen when the turn moves — a long initiative
+  // list shouldn't need scrolling to find the glowing row.
+  const currentId = current?.id;
+  useEffect(() => {
+    if (!currentId) return;
+    document.querySelector('.combat-row.current')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [currentId]);
 
   // ---- DM actions --------------------------------------------------------
 
@@ -177,19 +193,20 @@ export function CombatScreen() {
     setBusy(false);
   }
 
-  function rollNpcInitiative() {
-    act(() =>
-      Promise.all(
-        ordered
-          .filter((c) => !c.isPc)
-          .map((c) => updateCombatant(status, campaignId, c.id, { initiative: rollInitiative(c.dexModifier) })),
-      ),
-    );
-  }
-
+  // One button to start the fight: anyone who hasn't rolled initiative
+  // yet (monster or PC) gets rolled for now, then the turn goes to the
+  // top of the order. No separate "roll for the NPCs" step to remember.
   function beginCombat() {
     if (ordered.length === 0) return;
-    act(() => updateEncounter(status, campaignId, encounter.id, { currentCombatantId: ordered[0].id, round: 1 }));
+    act(async () => {
+      const settled = await Promise.all(
+        ordered.map((c) =>
+          hasRolled(c) ? c : updateCombatant(status, campaignId, c.id, { initiative: rollInitiative(c.dexModifier) }),
+        ),
+      );
+      const first = sortCombatants(settled)[0];
+      await updateEncounter(status, campaignId, encounter.id, { currentCombatantId: first.id, round: 1 });
+    });
   }
 
   function step(direction) {
@@ -238,7 +255,11 @@ export function CombatScreen() {
   }
 
   function setInitiative(combatant, value) {
-    act(() => updateCombatant(status, campaignId, combatant.id, { initiative: value }));
+    act(() =>
+      isDM
+        ? updateCombatant(status, campaignId, combatant.id, { initiative: value })
+        : setOwnInitiative(status, campaignId, combatant.id, value),
+    );
   }
 
   function addConditionTo(combatant, label) {
@@ -313,9 +334,11 @@ export function CombatScreen() {
                       Round {encounter.round} · <span style={{ color: 'var(--gold-bright)' }}>{current.name}</span>’s turn
                     </>
                   ) : isDM ? (
-                    'Setting up — set initiative, then begin.'
+                    'Add everyone, then Begin. Players can roll their own initiative — anyone who hasn’t is rolled for them when you begin.'
+                  ) : myUnrolled ? (
+                    'Roll for initiative — tap d20 on your character, or type in your own roll.'
                   ) : (
-                    'Rolling for initiative…'
+                    'Waiting for the DM to begin…'
                   )}
                 </p>
               </div>
@@ -326,14 +349,9 @@ export function CombatScreen() {
             {isDM && (
               <div className="combat-controls">
                 {!current ? (
-                  <>
-                    <button className="btn btn-ghost btn-small" type="button" onClick={rollNpcInitiative}>
-                      Roll NPC Initiative
-                    </button>
-                    <button className="btn btn-primary btn-small" type="button" onClick={beginCombat} disabled={ordered.length === 0}>
-                      Begin Combat
-                    </button>
-                  </>
+                  <button className="btn btn-primary btn-small" type="button" onClick={beginCombat} disabled={ordered.length === 0}>
+                    Begin Combat
+                  </button>
                 ) : (
                   <>
                     <button
@@ -370,6 +388,7 @@ export function CombatScreen() {
                   isCurrent={c.id === current?.id}
                   isDM={isDM}
                   isMine={c.isPc && isMyCharacter(sheet)}
+                  canEditInitiative={isDM || (c.isPc && isMyCharacter(sheet))}
                   canEditHp={isDM || (c.isPc && ownsSheet(sheet))}
                   onHp={(amount) => applyHp(c, amount)}
                   onInitiative={(value) => setInitiative(c, value)}
@@ -412,6 +431,7 @@ function CombatantRow({
   isCurrent,
   isDM,
   isMine,
+  canEditInitiative,
   canEditHp,
   onHp,
   onInitiative,
@@ -449,7 +469,7 @@ function CombatantRow({
   function commitInitiative(input) {
     const value = Math.round(Number(input.value));
     if (input.value !== '' && Number.isFinite(value) && value !== combatant.initiative) onInitiative(value);
-    else input.value = String(combatant.initiative ?? 0);
+    else input.value = hasRolled(combatant) ? String(combatant.initiative) : '';
   }
 
   const deathSaves =
@@ -469,12 +489,13 @@ function CombatantRow({
       {isDM && <DeleteButton onConfirm={onRemove} label={combatant.name} />}
 
       <div className="combat-row-main">
-        {isDM ? (
-          <div className="initiative-edit">
+        {canEditInitiative ? (
+          <div className={`initiative-edit${!hasRolled(combatant) && isMine ? ' needs-roll' : ''}`}>
             <input
-              key={combatant.initiative ?? 0}
+              key={combatant.initiative ?? 'unrolled'}
               type="number"
-              defaultValue={combatant.initiative ?? 0}
+              defaultValue={combatant.initiative ?? ''}
+              placeholder="—"
               onBlur={(e) => commitInitiative(e.currentTarget)}
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
               aria-label={`Initiative for ${combatant.name}`}
@@ -486,7 +507,7 @@ function CombatantRow({
           </div>
         ) : (
           <span className="initiative-badge" title="Initiative">
-            {combatant.initiative ?? 0}
+            {hasRolled(combatant) ? combatant.initiative : '—'}
           </span>
         )}
 

@@ -221,7 +221,7 @@ export function DiceRoller() {
 
             {latest && (
               <div key={latest.id} className="dice-result" style={{ marginTop: '1.25rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-dim)' }}>
                   {formatExpression(latest)}
                 </div>
 
@@ -253,7 +253,7 @@ export function DiceRoller() {
             {history.length > 0 && (
               <div style={{ marginTop: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+                  <label style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                     History
                   </label>
                   <button className="btn btn-ghost btn-small" type="button" onClick={() => setHistory([])}>

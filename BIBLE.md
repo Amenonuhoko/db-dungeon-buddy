@@ -1,4 +1,4 @@
-# The Codex — Project Bible
+# Dungeon Buddy — Project Bible
 
 This is the reference document for this project. Read it before making a
 product, design, or architecture decision — it exists so every future
@@ -6,9 +6,12 @@ session (human or Claude) picks up the same intent instead of re-deriving
 it. Update it whenever a decision here changes; it should always describe
 the app as it actually is/should be, not just as it started.
 
-Working name: **Codex** (a nod to Warframe's own in-game Codex — this app
-*is* the table's encyclopedia, bestiary, and character archive in one
-place). Easy to rename later; it isn't wired into anything structural.
+Name: **Dungeon Buddy** (renamed from the working name "Codex" in
+2026-09). The one place the old name survives on purpose is
+`localStorage` keys (`codex.guest`, `codex.guest.campaigns`,
+`codex.guest.content.*`, `codex.theme`) — renaming them would silently
+orphan every offline player's saved campaigns, and nobody ever sees them.
+New keys use a `dungeonbuddy.` prefix.
 
 ## 1. Vision
 
@@ -71,88 +74,122 @@ Same three-tier setup as bonfire:
 
 ## 3. Visual design system
 
-Two references, fused rather than alternated: **Warframe's Prime
-aesthetic** (gold-on-white/ivory, orbiter-console geometry, clean vector
-precision, glowing accent lines) and **Hades / Hades II** (Greek myth,
-painterly linework, laurel and meander ornament, warm marble and
-oxidized-bronze surfaces). The fusion point is *Greek gold-work* — think
-a temple relief rendered with sci-fi precision, not two clashing skins.
+The whole look comes from the **Dungeon Buddy mascot**: a red chibi
+dragon hugging a black d20 with red numerals, sitting on a brown leather
+tome with brass corner caps and blue/red/cream bookmark ribbons, next to
+parchment character sheets — all drawn in a thick-outlined *sticker*
+style. The app should feel like that picture: friendly, chunky, tactile,
+a tabletop companion rather than a fantasy-epic title screen. (This
+replaced the original "Greek gold-work" direction — Warframe Prime ×
+Hades — in the 2026-09 re-skin; some token names below are left over
+from it.)
+
+The rules, in one line each:
+
+- **Dragon red is the one accent** — primary buttons, the active tab,
+  whose turn it is in combat. Nothing else competes with it.
+- **Leather and parchment are the surfaces** — warm browns in the dark
+  theme, cream paper in the light one.
+- **Brass is trim, never a fill** — the edge of the primary panel and
+  the character sheet, a critical roll.
+- **Dice are the mascot's d20** — black body, red numerals, everywhere
+  a die is drawn (the roller, the dice button, the app icon).
+- **Sticker shapes** — rounded corners, a solid 2px outline, and a small
+  solid "lip" shadow underneath (`--lip`) that presses flat on `:active`,
+  so buttons and cards feel like things you can push.
 
 ### Palette & theming (CSS custom properties, defined once in `app/src/index.css`)
 
-Tokens are semantic, not literal, because both themes below redefine
-them: `--surface`, `--surface-raised`, `--surface-glow`, `--line`,
-`--text`, `--text-dim`, plus the accent set `--gold`, `--gold-bright`,
-`--gold-deep`, `--bronze`, `--oxblood`, `--laurel`. Screens/components
-should only ever reference the semantic name, never a literal hex.
+Tokens are semantic, not literal, because both themes redefine them.
+Screens/components should only ever reference the semantic name, never a
+literal hex:
 
-Dark (default) is the obsidian/gold combination described above. Light
-("ivory") swaps `--surface`/`--surface-raised` for warm off-white
-(`#f4ecd8` / `#fffcf3`), `--text` for a deep warm brown-black, and darkens
-the gold accents (e.g. `--gold` → `#a9812f`) so they still read against a
-light ground instead of washing out. Both are fully implemented, not just
-dark with a stub: see `lib/theme.js` + `components/ThemeToggle.jsx` (a
-fixed button, present on every screen) — same technique as a themed
-Artifact: bare `:root` holds the dark tokens, a
-`prefers-color-scheme: light` media query provides the un-set default,
-and an explicit `[data-theme]` attribute (set by the toggle, persisted to
-`localStorage`) wins in either direction.
+- Surfaces and text: `--surface`, `--surface-raised`, `--surface-glow`,
+  `--line`, `--outline` (sticker outlines), `--ink` (the lip shadow),
+  `--text`, `--text-dim`.
+- Accent: `--accent`, `--accent-bright`, `--accent-fill` (a shade deeper
+  than `--accent` so cream text on a red button clears WCAG AA),
+  `--on-accent`.
+- Trim and status: `--gold`, `--gold-bright`, `--gold-deep` (**brass** —
+  the names predate the re-skin and were kept so every rule keeps
+  working), `--oxblood` (the danger red), `--laurel` (success green),
+  `--bronze`, `--bookmark-blue`, `--on-gold`.
+- Dice: `--die-fill`, `--die-edge`, `--die-numeral`.
+- Shape: `--radius` (12px), `--radius-lg` (18px), `--lip`, `--lip-small`.
+
+Dark ("tavern night", the default) is leather brown (`#1c1411` /
+`#2a1e19`) with cream text and a `#e8492e` accent. Light ("parchment")
+swaps the surfaces for cream paper (`#f1e4c9` / `#fffaf0`), the outline
+and lip for a dark brown ink (`#3a2519`), and darkens brass and red so
+they still read on paper. Both are fully implemented: see `lib/theme.js`
++ `components/ThemeToggle.jsx` (a fixed button on every screen). Bare
+`:root` holds the dark tokens, a `prefers-color-scheme: light` media
+query provides the un-set default, and an explicit `[data-theme]`
+attribute (set by the toggle, persisted to `localStorage`) wins in
+either direction.
+
+HP bars are the one place with their own colors, because they have to
+read at a glance: green above half, amber down to a quarter, red below
+(`.hp-track-fill-ok/-warn/-danger`).
 
 ### Typography
 
-- **Display / headers**: `Cinzel` (Google Fonts) — carved-stone capitals,
-  reads as both "Greek temple" and "sci-fi codex title card."
-- **Body**: `Marcellus` or `EB Garamond` — a warm serif, legible at small
-  sizes for long notes/stat blocks.
-- **Numerals / stat blocks**: a monospace (`ui-monospace` stack) for
-  anything tabular — ability scores, HP, initiative order — so columns
-  align.
+- **Display / headers / numbers**: `Fredoka` (Google Fonts) — rounded
+  and chunky, the lettering that fits a sticker-style mascot. Numbers
+  (HP, initiative, dice, ability scores) use it too, via `--font-mono`,
+  with tabular figures so columns still line up — they're game numbers,
+  not code, so there's no monospace font any more.
+- **Body**: `Nunito` — rounded, very legible at small sizes for notes
+  and stat blocks.
+- No all-caps labels or wide letter-spacing: plain sentence/title case
+  reads friendlier and faster.
 
-Load via `fonts.googleapis.com` / `fonts.gstatic.com` exactly like
-bonfire's CSP already allowlists (see `app/vercel.json`).
+Load via `fonts.googleapis.com` / `fonts.gstatic.com`, which the CSP in
+`app/vercel.json` already allowlists.
 
 ### Ornament vocabulary
 
-Reusable pieces, not one-off decoration — live in
-`app/src/components/ornament/`. The line quality is deliberately
-lopsided: almost everything is free-flowing (Hades), with one small,
-intentional dose of angular "tech" (Warframe) as a counterpoint rather
-than an even split:
+Reusable pieces in `app/src/components/ornament/`. Kept few and small —
+they add character, never compete with content:
 
-- **Flowing vine divider** (`FlowingDivider.jsx`) — the *primary* rule
-  under headers: a single smooth bezier S-curve with a few hand-placed
-  leaf shapes and a small center reticle-dot (the one Warframe touch
-  woven into an otherwise organic line). Replaced an earlier, stiffer
-  Greek-key rule in this role.
-- **Laurel flourish** (`Laurel.jsx`) — flanks a title. Leaves are bezier
-  teardrops planted along a curved stem via its tangent angle (not fixed
-  ellipses at fixed angles), with a couple of berries near the base —
-  reads as a hand-drawn branch, not a repeating stamp.
-- **Panel crest** (`PanelCrest.jsx`) — the ornament across the top of a
-  primary panel (`Panel`'s `topRule` prop): end studs, tapering rules, a
-  pair of laurel sprigs, and a faceted gem at center. Replaced an
-  earlier flat Greek-key (meander) strip in this role — same "small,
-  sparing accent" job, just reads as a heraldic crest instead of a
-  repeating pattern. `GreekKeyRule.jsx` still exists and is available
-  for a genuinely angular accent elsewhere, but nothing currently uses
-  it.
-- **Angular corner brackets** (`.corner-frame` on `Panel`) — the other
-  deliberately blocky element, a Warframe targeting-reticle on the
-  screen's primary panel. Kept blocky on purpose, as the counterpoint the
-  free-flowing ornament plays against — don't soften these to match.
-- **Radial glow** behind primary icons/avatars — soft gold bloom, low
-  opacity, on `--surface`/`--surface-raised` only (never under body text).
-- **Engraved panel** (`Panel.jsx`): a card with a 1px `--gold-deep` inset
-  shadow (looks carved in) plus a `--gold` 1px outer edge (looks gilded)
-  — the base surface every panel/card in the app shares.
+- **Stitched seam** (`FlowingDivider.jsx`, class `.seam`) — the rule
+  under headers: two dashed "stitch" lines, like the stitching on the
+  tome's leather, with a tiny black d20 in the middle.
+- **Bookmark ribbons** (`PanelCrest.jsx`, via `Panel`'s `topRule` prop)
+  — the tome's three bookmarks (blue, red, cream) peeking over the top
+  edge of a screen's primary panel. Only on primary panels.
+- **Brass-trimmed panel** (`.corner-frame` on `Panel`'s `corners` prop)
+  — the primary panel gets a brass border and a brass lip instead of
+  the ordinary dark outline, like the tome's corner caps.
+- **Sticker panel** (`Panel.jsx`, `.panel`) — the base surface every
+  card shares: `--surface-raised`, 2px `--outline`, rounded, with the
+  lip shadow.
+- **Die faces** (`Die.jsx`) — every rolled die is drawn as the
+  mascot's d20: `--die-fill` body, `--die-numeral` numerals/pips. A
+  natural max turns the edge and numeral brass; a natural 1 turns the
+  edge red.
+- `Laurel.jsx` (`LaurelFlourish`) is now a pass-through wrapper, kept so
+  existing call sites didn't need touching; `GreekKeyRule.jsx` is unused.
 - **Grain**: a very faint SVG-turbulence texture over the whole page
-  (`body::before`, ~3% opacity, overlay blend) standing in for
-  parchment/marble — subtle enough to never compete with content.
+  (`body::before`, ~5% opacity, overlay blend) — leather in the dark
+  theme, paper in the light one.
 
-Motion should be restrained and mechanical-yet-ceremonial: screens fade/
-lift in on mount (`.screen-enter`), confirmations should eventually get a
-brief gold flourish-draw (Hades' seal-of-approval feel) rather than
-bouncy easing — not yet implemented beyond the entrance fade.
+**Mascot and icons.** The mascot art lives at `app/public/mascot.png`
+(512×512, transparent background). The Home screen shows it as its hero
+image (`HomeScreen.jsx`, `.home-hero`, with a thin cream edge so its
+dark outline doesn't vanish into the dark theme), and it doubles as the
+manifest's 512px icon. The other installed-app icons are rendered from
+the same art: `icon-192.png` (transparent), and `icon-maskable-512.png` /
+`apple-touch-icon.png` (the mascot on a parchment square, inset so
+Android's mask and iOS's rounded corners never clip it). The browser-tab
+favicon stays the simple d20 (`public/icon.svg`): at 16px the full
+illustration is unreadable. To change the art, replace `mascot.png` and
+re-render the PNG icons from it.
+
+Motion is light and tactile: screens fade/lift in on mount
+(`.screen-enter`), sticker buttons press down onto their lip when
+tapped, and dice tumble in when rolled. Nothing bouncy or slow enough to
+make someone wait.
 
 **A `.screen-enter` gotcha, worth knowing before touching it again:** its
 keyframes must end at `transform: none` (the literal keyword), and the
@@ -170,9 +207,14 @@ instant the 420ms animation ends — same visual result, no side effect.
 
 ### Navigation
 
-Inside a campaign, section navigation (Encyclopedia/Notes/Bestiary/
-Characters) is a fixed bottom tab dock (`BottomTabDock.jsx`, mobile-app
-style) rather than top text tabs — see `CampaignScreen.jsx`. A left/right
+Inside a campaign, section navigation is a fixed bottom tab dock
+(`BottomTabDock.jsx`, mobile-app style) rather than top text tabs. The
+tabs, in order: **Party, Combat, Lore, Monsters, Notes** — plain words,
+in the order a table uses them (players see Party, Combat, Notes). They
+live in `lib/campaignTabs.jsx`, shared by `CampaignScreen.jsx` and the
+character sheet. Route paths keep their original names (`characters`,
+`combat`, `encyclopedia`, `bestiary`, `notes`) so old links still work;
+only the labels changed. A left/right
 touch swipe on the content area moves between the same tabs (past a 60px,
 clearly-horizontal threshold, so a scroll or a button tap-drag can't
 misfire); the dock and the swipe are two entry points into one
@@ -196,33 +238,35 @@ Every other screen is cards in a list, built from the shared `Panel`/
 look and feel different — a player's own character is the thing they're
 meant to linger on through a whole session, not skim past like an
 encyclopedia entry. It's still built from the same tokens
-(`--gold`/`--oxblood`/`--laurel`, `Cinzel`/`Marcellus`), just at a
+(`--gold`/`--oxblood`/`--laurel`, `Fredoka`/`Nunito`), just at a
 different scale and with its own centerpiece shape:
 
 - **A whole screen, not a tab.** It's a sibling top-level route of
   `/campaigns/:campaignId`, *not* nested under `CampaignScreen`'s
-  `Outlet` — no bottom tab dock, no DM/Player chip, no "← Campaigns"
-  chrome. It resolves its own campaign/role via `useCampaignAccess()`
+  `Outlet` — no DM/Player chip, no "← Campaigns" chrome. It *does*
+  carry the bottom tab dock (added in the ease-of-use pass, §3): a
+  player's two main screens are this sheet and Combat, and switching
+  between them shouldn't mean backing out to the Party list first. It resolves its own campaign/role via `useCampaignAccess()`
   (`lib/useCampaignAccess.js`, the same guest/account branch
   `CampaignScreen` does, factored out so this screen can opt out of the
   shared chrome without duplicating that logic badly) rather than
-  reading the Outlet context. Its own `BackButton` goes to the roster
+  reading the Outlet context. Its own `BackButton` goes to the Party roster
   (`CharactersScreen.jsx`, which now only lists cards and picks — actually
   opening one is this screen's job).
 - **The hex stat plate** (`.stat-hex` / `.stat-hex-inner` in
   `index.css`) is this screen's one new shape, deliberately not reused
-  elsewhere — two nested `clip-path` hexagons (gold outer, surface-
+  elsewhere — two nested `clip-path` hexagons (brass outer, surface-
   colored inner, 2px gap faking a beveled border clip-path can't draw on
   its own) for AC/Initiative/Speed and the six ability scores. Modern
   (D&D Beyond-style hex ability scores) crossed with the classic paper
   sheet's layout, not a literal reproduction of either.
 - **A live HP tracker**, not a static number — a gradient bar
-  (`.hp-track`) that recolors as it depletes (gold → bronze → oxblood at
+  (`.hp-track`) that recolors as it depletes (green → amber → red at
   the 50%/25% thresholds) plus a delta input + Damage/Heal buttons that
   patch `currentHp` immediately. This is the thing that makes the screen
   worth returning to mid-combat, not just once at character creation.
-- **Its own background treatment** — two soft radial gradients (a gold
-  bloom behind the header, an oxblood one low behind the footer) over the
+- **Its own background treatment** — two soft radial gradients (a brass
+  bloom behind the header, a red one low behind the footer) over the
   normal `--surface`, distinct from every other screen's flat
   radial-from-`--surface-glow` body background.
 - **Edit-in-place, not a separate route.** Tapping "Edit Sheet" swaps the
@@ -233,7 +277,7 @@ different scale and with its own centerpiece shape:
 If a future screen wants its own distinct treatment too, that's fine —
 just don't reach for the hex plate or this exact background gradient for
 it. This vocabulary is reserved for the character sheet specifically, the
-same way `.corner-frame`'s angularity is reserved for "primary panel,"
+same way `.corner-frame`'s brass trim is reserved for "primary panel,"
 not sprinkled everywhere.
 
 ### UI/UX + design pass (2026-09) — floating chrome vs. real content
@@ -284,6 +328,55 @@ clears AA). The d6 pip die face (`Die.jsx`) had the exact same
 `var(--surface)`-on-gold pattern for its pip dots and got the same fix;
 its oxblood/fumble-state pip color was left alone; that's a separate,
 less clear-cut contrast question this pass didn't set out to answer.
+
+### Ease-of-use pass (2026-09) — "focus on the game"
+
+The brief: a player or DM should be able to focus on the game, not on
+working out how to do something in the app. Simplicity over options.
+The rules this pass settled on, worth keeping for anything new:
+
+- **Plain words over app vocabulary.** Tabs are Party / Combat / Lore /
+  Monsters / Notes (not Characters / Encyclopedia / Bestiary); buttons
+  say "Add Character", "New Monster", "Invite Players" (not "Hand Out a
+  Sheet"). Every Home choice carries a one-line explanation of who it's
+  for.
+- **Land where the game is.** A campaign opens on the tab you were last
+  on (per campaign, per device — `dungeonbuddy.lastTab.<id>` in
+  `localStorage`); first visit opens Party, where a player's own
+  character sits first, marked "You". Players no longer start on Notes.
+- **One obvious next step, not a menu.** The campaign hub shows your
+  campaigns as big tap targets and hides the create form behind
+  "+ New Campaign" (shown straight away only when there's nothing to
+  pick). Party cards are one tap target each — name, class, HP bar, AC,
+  conditions — with the full detail, edit, export and delete living on
+  the sheet they open. Creating a character asks only for the basics
+  (name, class, race, max HP, AC; they start at full HP); the rest goes
+  on the sheet, which opens immediately. Empty states say what to do
+  next and offer the button for it (an empty Party with no players yet
+  offers Invite Players; the example templates stay hidden until a
+  player exists to give a character to).
+- **Invite by link, not by dictation.** `InvitePanel.jsx` (the DM's
+  "Invite Players" button in the campaign header, account mode only)
+  gives a `/join?code=…` link with Copy and, where the device supports
+  it, the native Share sheet; the code is still shown as a fallback.
+  The link lands on `JoinCampaignScreen.jsx` with the code already
+  filled in ("You're Invited" — just pick a name). A visitor who's
+  already logged in joins with the account they have — that screen used
+  to bounce them to the dashboard and silently lose the code.
+  Anonymous joined-players don't get "+ New Campaign" (they can't take a
+  DM role anywhere else), and someone in offline mode can still follow
+  an invite.
+- **Nobody relays numbers.** Players roll their own initiative from
+  their own row on the Combat tab (a pulsing d20 prompts them), through
+  `set_my_initiative()` (`006_player_initiative.sql`). "Hasn't rolled"
+  is its own state (null, shown as "—"), and the DM's single **Begin
+  Combat** button rolls for anyone who still hasn't — the old separate
+  "Roll NPC Initiative" step is gone. The list scrolls the current
+  combatant into view as the turn moves.
+- **Floating controls never cover content.** Every centered screen
+  (Home, log in, join, offline setup, reset) has bottom room for the
+  dice button, and the campaign header keeps its role chip clear of the
+  theme toggle.
 
 ## 4. Identity & roles
 
@@ -479,10 +572,11 @@ unfiltered list "just for this one view."
 real player gets — no screen should grant it blanket "you're a guest,
 here's DM powers" access.** Encyclopedia and Bestiary don't just
 read-only gate on `isDM` — they don't exist for a player at all.
-`tabsForRole()` in `CampaignScreen.jsx` drops both tabs from the bottom
-dock for anyone who isn't DM, `CampaignIndexRedirect` sends a player to
-`notes` instead of `encyclopedia`, and `RequireDM` guards both routes
-directly (bounces to `notes`) in case a player lands on one anyway —
+`tabsForRole()` in `lib/campaignTabs.jsx` drops both tabs from the bottom
+dock for anyone who isn't DM, `CampaignIndexRedirect` only ever restores
+a remembered tab the role is allowed to see (falling back to Party), and
+`RequireDM` guards both routes directly (bounces to Party) in case a
+player lands on one anyway —
 stale link, browser back/forward, hand-typed URL. This is a UI-visibility
 promise, not a data-security boundary; RLS is what actually protects the
 rows if a real account calls the API directly. CharactersScreen used to
@@ -760,9 +854,21 @@ Deliberately left for later (§8 Phase 5): structured inventory/currency
 text) and an assisted level-up flow (instead of hand-editing
 `class_and_level`) — real gaps, but neither blocks running a session.
 
-**Campaign import from a JSON file** — a small, tucked-away upload icon
-next to "Your Campaigns" on `CampaignHubScreen` (no dedicated screen —
-it's a one-shot action, not a flow worth its own route). Picks a
+Built (`006_player_initiative.sql`): `encounter_combatants.initiative`
+becomes nullable, default null ("hasn't rolled"), and
+`set_my_initiative(combatant_id, initiative)` — a security-definer
+function that lets a player set initiative on a combatant row only if
+it's their own character, and touches nothing else on the row. RLS is
+row-level, not column-level, so opening an UPDATE policy to players
+would have let them edit the whole row; the narrow function is the safe
+shape. Before 006 runs, the app still works (new PCs just default to 0,
+the old way) and a player's roll attempt says the migration is needed.
+
+**Campaign import from a JSON file** — an "Import a campaign file" link
+at the bottom of `CampaignHubScreen` (it started as an upload icon beside
+the old "Your Campaigns" heading, which the ease-of-use pass removed; no
+dedicated screen — it's a one-shot action, not a flow worth its own
+route). Picks a
 `.json` file from device storage matching `campaign-template
 .example.json` at the repo root — a campaign name/description plus
 arrays of encyclopedia entries, bestiary stat blocks, and notes — and
@@ -873,7 +979,7 @@ screen is built, per the rule above:
     after a password-reset link has landed someone on `/reset-password`
     already authenticated.
   - `/campaigns/:id` (and everything nested under it — Encyclopedia,
-    Notes, Bestiary, Characters, Combat, reached via the bottom tab dock, not
+    Party, Combat, Lore, Monsters, Notes, reached via the bottom tab dock, not
     stack navigation) → back to `/dashboard`, labeled "Campaigns". One
     `BackButton` above the swipeable tab content covers every tab.
   - `/dashboard` has no back arrow — it's the authenticated root. Its

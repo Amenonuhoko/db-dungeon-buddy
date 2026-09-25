@@ -1,4 +1,4 @@
-# Codex
+# Dungeon Buddy
 
 A browser PWA companion for running and playing a full D&D campaign —
 world-building and bestiary tools for the DM, character sheets and notes
@@ -8,6 +8,19 @@ in one installable app.
 **Start here:** [`BIBLE.md`](BIBLE.md) is the project's living reference
 doc — vision, tech stack, visual design system, data model, and feature
 roadmap. Read it before making a product or architecture call.
+
+## Look & feel
+
+The design is taken from the Dungeon Buddy mascot (a red dragon hugging
+a black d20): dragon-red accent, leather/parchment surfaces, brass trim,
+rounded sticker-style buttons and cards. Details in `BIBLE.md` §3.
+
+- **Mascot art:** `app/public/mascot.png` (512×512, transparent). It's
+  the Home screen's hero image and the 512px app icon.
+- **App icons:** `icon-192.png`, `icon-maskable-512.png` and
+  `apple-touch-icon.png` are rendered from the mascot, so re-render them
+  if it changes. The browser-tab favicon is the simpler d20
+  (`icon.svg`), which stays readable at 16px.
 
 ## Stack
 
@@ -71,7 +84,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `005_live_play.sql`, and onward as new ones
+   (`001_core.sql` → `006_player_initiative.sql`, and onward as new ones
    land). Together they create `profiles`, `campaigns`,
    `campaign_members`, `encyclopedia_entries`, `bestiary_entries`,
    `notes`, `character_sheets`, `character_conditions`, `encounters`,

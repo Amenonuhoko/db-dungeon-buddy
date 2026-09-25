@@ -48,7 +48,7 @@ export function ResetPasswordScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem 1.5rem 9rem' }}>
       <div className="screen-enter" style={{ width: 'min(420px, 100%)' }}>
         <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>Set a New Password</h2>

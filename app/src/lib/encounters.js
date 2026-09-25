@@ -51,8 +51,25 @@ export function listCombatants(status, campaignId) {
   return combatantsFor(status).list(campaignId);
 }
 
+// `initiative` is deliberately left out unless the caller supplies one,
+// so the database default applies: null ("hasn't rolled yet") once
+// 006_player_initiative.sql has run, or the legacy 0 before that.
 export function addCombatant(status, campaignId, fields) {
-  return combatantsFor(status).create(campaignId, { initiative: 0, dexModifier: 0, conditions: [], ...fields });
+  return combatantsFor(status).create(campaignId, { dexModifier: 0, conditions: [], ...fields });
+}
+
+export function hasRolled(combatant) {
+  return combatant.initiative != null;
+}
+
+// A player setting their *own* character's initiative. They can't write
+// combatant rows directly (DM-only RLS), so account mode goes through
+// the narrow set_my_initiative() function from 006_player_initiative.sql.
+export async function setOwnInitiative(status, campaignId, combatantId, value) {
+  if (status === 'guest') return updateCombatant(status, campaignId, combatantId, { initiative: value });
+  const { error } = await supabase.rpc('set_my_initiative', { p_combatant_id: combatantId, p_initiative: value });
+  if (error) throw error;
+  return null;
 }
 
 export function updateCombatant(status, campaignId, id, patch) {
@@ -80,9 +97,12 @@ export function rollInitiative(dexModifier) {
 // Turn order: highest initiative first. Ties go to the higher DEX
 // modifier (the usual table rule), then alphabetically so the order is
 // at least stable instead of reshuffling on every refetch.
+// Anyone who hasn't rolled yet sorts to the bottom rather than posing as
+// a 0.
 export function sortCombatants(combatants) {
   return [...combatants].sort(
     (a, b) =>
+      Number(hasRolled(b)) - Number(hasRolled(a)) ||
       (b.initiative ?? 0) - (a.initiative ?? 0) ||
       (b.dexModifier ?? 0) - (a.dexModifier ?? 0) ||
       a.name.localeCompare(b.name),

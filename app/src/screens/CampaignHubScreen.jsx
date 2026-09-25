@@ -7,7 +7,6 @@ import { importCampaignTemplate, validateCampaignTemplate } from '../lib/campaig
 import {
   createCampaign,
   createGuestCampaign,
-  joinCampaignByCode,
   listGuestCampaigns,
   listMyCampaigns,
 } from '../lib/campaigns.js';
@@ -17,25 +16,14 @@ const ROLE_LABEL = { dm: 'Dungeon Master', player: 'Player' };
 
 function CampaignRow({ campaign, onOpen }) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(campaign.id)}
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        textAlign: 'left',
-        background: 'var(--surface)',
-        border: '1px solid var(--line)',
-        borderRadius: 'var(--radius)',
-        padding: '1rem 1.25rem',
-        color: 'var(--text)',
-        cursor: 'pointer',
-      }}
-    >
-      <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.03em' }}>{campaign.name}</span>
-      <span className="chip">{ROLE_LABEL[campaign.role]}</span>
+    <button type="button" className="campaign-card" onClick={() => onOpen(campaign.id)}>
+      <span className="campaign-card-name">{campaign.name}</span>
+      <span className="campaign-card-meta">
+        <span className="chip chip-small">{ROLE_LABEL[campaign.role]}</span>
+        <span aria-hidden="true" className="campaign-card-arrow">
+          →
+        </span>
+      </span>
     </button>
   );
 }
@@ -50,8 +38,11 @@ export function CampaignHubScreen() {
 
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [joinCode, setJoinCode] = useState('');
   const [busy, setBusy] = useState(false);
+  // The create form is tucked behind a button once there's a campaign to
+  // pick — you're here to open one. With none yet, it's shown straight
+  // away (see `showCreate` below).
+  const [createOpen, setCreateOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -103,23 +94,6 @@ export function CampaignHubScreen() {
     }
   }
 
-  async function handleJoin(event) {
-    event.preventDefault();
-    if (!joinCode.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const campaign = await joinCampaignByCode(joinCode.trim());
-      setCampaigns((prev) => [campaign, ...prev]);
-      setJoinCode('');
-      openCampaign(campaign.id);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   // Reads a campaign-template JSON file picked from device storage (see
   // campaign-template.example.json at the repo root for the shape a
   // filled-out one should have) and creates the campaign + every entry
@@ -159,6 +133,11 @@ export function CampaignHubScreen() {
   }
 
   const isAnonymous = Boolean(user?.is_anonymous);
+  // Anonymous "joined as a player" accounts can't own a campaign's DM
+  // role in any useful way (no way back in on another device) — they
+  // join, they don't create. Everyone else can create.
+  const canCreate = !isAnonymous;
+  const showCreate = canCreate && (createOpen || (!loading && campaigns.length === 0));
   const name = status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || user?.email;
 
   return (
@@ -169,7 +148,7 @@ export function CampaignHubScreen() {
       <div className="screen-enter" style={{ width: 'min(640px, 100%)' }}>
         <h2 style={{ textAlign: 'center' }}>Welcome, {name}</h2>
         <p style={{ textAlign: 'center', marginTop: '0.4rem' }}>
-          {status === 'guest' && `${ROLE_LABEL[guest.role]} · local device`}
+          {status === 'guest' && `${ROLE_LABEL[guest.role]} · offline on this device`}
           {status === 'authenticated' && isAnonymous && 'Joined as a player · no account'}
           {status === 'authenticated' && !isAnonymous && 'Your campaigns'}
         </p>
@@ -184,19 +163,93 @@ export function CampaignHubScreen() {
           </p>
         )}
 
-        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1rem' }}>Your Campaigns</h3>
+        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {loading && <p>Loading your campaigns…</p>}
+
+          {!loading && campaigns.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {campaigns.map((c) => (
+                <CampaignRow key={c.id} campaign={c} onOpen={openCampaign} />
+              ))}
+            </div>
+          )}
+
+          {!loading && campaigns.length === 0 && (
+            <p style={{ textAlign: 'center' }}>
+              {status === 'guest'
+                ? 'No campaigns on this device yet — start one below.'
+                : isAnonymous
+                  ? 'Ask your DM for an invite link to join a game.'
+                  : 'No campaigns yet — start your own, or join one with an invite.'}
+            </p>
+          )}
+
+          {showCreate ? (
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h3 style={{ fontSize: '1rem' }}>New Campaign</h3>
+              <div className="field">
+                <label htmlFor="campaignName">Name</label>
+                <input
+                  id="campaignName"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="The Sunken Citadel"
+                  maxLength={120}
+                  autoFocus={createOpen}
+                />
+              </div>
+              {status === 'authenticated' && (
+                <div className="field">
+                  <label htmlFor="campaignDescription">Description (optional)</label>
+                  <textarea
+                    id="campaignDescription"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              )}
+              <p className="hint-text" style={{ marginBottom: 0 }}>
+                You'll be the Dungeon Master{status === 'authenticated' ? ' — invite your players from inside the campaign' : ''}.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="btn btn-primary" type="submit" disabled={busy || !newName.trim()}>
+                  {busy ? 'Creating…' : 'Create Campaign'}
+                </button>
+                {campaigns.length > 0 && (
+                  <button className="btn btn-ghost" type="button" onClick={() => setCreateOpen(false)}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          ) : (
+            <div className="hub-actions">
+              {canCreate && (
+                <button className="btn btn-ghost" type="button" onClick={() => setCreateOpen(true)}>
+                  + New Campaign
+                </button>
+              )}
+              {status === 'authenticated' && (
+                <button className="btn btn-ghost" type="button" onClick={() => navigate('/join')}>
+                  Join with a Code
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* One-shot import (lib/campaignImport.js) — a quiet link rather
+              than a third big button, since most people never need it. */}
+          {canCreate && (
+            <div style={{ textAlign: 'center' }}>
               <button
-                className="btn btn-ghost btn-small btn-icon"
+                className="example-toggle"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy}
-                title="Import Campaign File"
-                aria-label="Import Campaign File"
               >
                 <UploadIcon />
+                Import a campaign file
               </button>
               <input
                 ref={fileInputRef}
@@ -206,68 +259,14 @@ export function CampaignHubScreen() {
                 style={{ display: 'none' }}
               />
             </div>
-            {loading && <p>Loading…</p>}
-            {!loading && campaigns.length === 0 && (
-              <p>{status === 'guest' ? 'No local campaigns yet — start one below.' : 'Nothing yet — create or join one below.'}</p>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {campaigns.map((c) => (
-                <CampaignRow key={c.id} campaign={c} onOpen={openCampaign} />
-              ))}
-            </div>
-          </div>
-
-          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ fontSize: '1rem' }}>
-              {status === 'guest' ? 'Start a Local Campaign' : 'Create a Campaign'}
-            </h3>
-            <div className="field">
-              <label htmlFor="campaignName">Name</label>
-              <input
-                id="campaignName"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="The Sunken Citadel"
-              />
-            </div>
-            {status === 'authenticated' && (
-              <div className="field">
-                <label htmlFor="campaignDescription">Description (optional)</label>
-                <textarea
-                  id="campaignDescription"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-            )}
-            <button className="btn btn-primary" type="submit" disabled={busy || !newName.trim()}>
-              {status === 'guest' ? 'Create Local Campaign' : 'Create Campaign'}
-            </button>
-          </form>
-
-          {status === 'authenticated' && (
-            <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ fontSize: '1rem' }}>Join a Campaign</h3>
-              <div className="field">
-                <label htmlFor="joinCode">Invite Code</label>
-                <input
-                  id="joinCode"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="from your DM"
-                />
-              </div>
-              <button className="btn btn-ghost" type="submit" disabled={busy || !joinCode.trim()}>
-                Join as Player
-              </button>
-            </form>
           )}
-
-          <button className="btn btn-ghost" onClick={handleLogOut} type="button">
-            {status === 'guest' || isAnonymous ? 'Leave Table' : 'Log Out'}
-          </button>
         </Panel>
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+          <button className="example-toggle" onClick={handleLogOut} type="button">
+            {status === 'guest' ? 'Leave Offline Mode' : isAnonymous ? 'Leave Table' : 'Log Out'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -10,6 +10,10 @@ import { authRedirect, hasBackend, supabase, supabaseConfigError } from './supab
 //     Role for an account is per-campaign (campaign_members.role), not
 //     stored here — see BIBLE.md §7 once campaigns exist.
 
+// Storage keys keep the app's original working name ("Codex") on purpose:
+// renaming them would silently orphan every guest's saved data, and no one
+// ever sees them. Same for the other codex.* keys (campaigns.js,
+// contentStore.js, theme.js).
 const GUEST_KEY = 'codex.guest';
 
 export function getGuestSession() {

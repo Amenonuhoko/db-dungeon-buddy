@@ -9,7 +9,7 @@ const ROLES = [
   {
     id: 'dm',
     title: 'Dungeon Master',
-    blurb: 'Build the world, run the bestiary, track the battle.',
+    blurb: 'Build the world, run the monsters, track the fight.',
   },
   {
     id: 'player',
@@ -34,7 +34,7 @@ export function GuestRoleScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem 1.5rem 9rem' }}>
       <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(520px, 100%)' }}>
         <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>Enter the Table</h2>
@@ -60,25 +60,17 @@ export function GuestRoleScreen() {
                 type="button"
                 key={r.id}
                 onClick={() => setRole(r.id)}
-                className={role === r.id ? 'corner-frame' : ''}
-                style={{
-                  background: role === r.id ? 'var(--surface)' : 'transparent',
-                  border: `1px solid ${role === r.id ? 'var(--gold)' : 'var(--line)'}`,
-                  borderRadius: 'var(--radius)',
-                  padding: '1.25rem 1rem',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  color: 'var(--text)',
-                }}
+                className={`role-card${role === r.id ? ' selected' : ''}`}
+                aria-pressed={role === r.id}
               >
-                <div style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.04em' }}>{r.title}</div>
+                <div className="role-card-title">{r.title}</div>
                 <p style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>{r.blurb}</p>
               </button>
             ))}
           </div>
 
           <button className="btn btn-primary" type="submit" disabled={!canEnter}>
-            Enter as Guest
+            Start Playing
           </button>
         </Panel>
       </form>

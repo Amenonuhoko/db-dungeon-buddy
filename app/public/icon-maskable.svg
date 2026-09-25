@@ -1,18 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable variant: full-bleed dragon red (the OS applies its own
+       rounding/shape), die kept inside the central safe zone. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e8c876"/>
-      <stop offset="1" stop-color="#8a6a24"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f05a3a" />
+      <stop offset="1" stop-color="#c2321b" />
     </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="#0b0a08"/>
-  <circle cx="256" cy="256" r="150" fill="none" stroke="url(#g)" stroke-width="5"/>
-  <g fill="none" stroke="url(#g)" stroke-width="8" stroke-linecap="round">
-    <path d="M256 176 v168"/>
-    <path d="M198 196 q58 -22 116 0"/>
-    <path d="M198 344 q58 22 116 0"/>
-    <path d="M198 196 v148"/>
-    <path d="M314 196 v148"/>
+  <rect width="512" height="512" fill="url(#bg)" />
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M256 82 L406 168 V344 L256 430 L106 344 V168 Z" fill="#1d1716" stroke="#2b1a12" stroke-width="24" />
+    <path d="M256 150 L350 318 H162 Z" fill="#2a2221" />
+    <g fill="none" stroke="#4a3b37" stroke-width="7">
+      <path d="M256 82 V150" />
+      <path d="M106 168 L256 150 L406 168" />
+      <path d="M106 168 L162 318 L106 344" />
+      <path d="M406 168 L350 318 L406 344" />
+      <path d="M162 318 L256 430 L350 318" />
+      <path d="M256 150 L350 318 H162 Z" />
+    </g>
+    <text x="256" y="276" text-anchor="middle" dominant-baseline="middle" font-family="'Arial Black', 'Arial', 'Helvetica', sans-serif" font-weight="900" font-size="92" fill="#ff5a3a">20</text>
   </g>
-  <circle cx="256" cy="256" r="12" fill="url(#g)"/>
 </svg>

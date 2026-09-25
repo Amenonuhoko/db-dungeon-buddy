@@ -32,25 +32,32 @@ export function HomeScreen() {
         minHeight: '100vh',
         display: 'grid',
         placeItems: 'center',
-        padding: '1.5rem',
+        // Bottom room for the floating dice button, so it never sits on
+        // top of the last choice (same reasoning as the campaign screens).
+        padding: '1.5rem 1.5rem 9rem',
       }}
     >
       <div className="screen-enter" style={{ width: 'min(480px, 100%)', textAlign: 'center' }}>
-        <div className="glow" aria-hidden="true" style={{ marginBottom: '1.25rem' }}>
-          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="88" height="88" />
+        <div className="glow" aria-hidden="true" style={{ marginBottom: '0.75rem' }}>
+          {/* The mascot (public/mascot.png) — the source of the whole
+              look, BIBLE.md §3. */}
+          <img className="home-hero" src={`${import.meta.env.BASE_URL}mascot.png`} alt="" width="512" height="512" />
         </div>
 
         <LaurelFlourish>
-          <h1 style={{ fontSize: '2.25rem' }}>CODEX</h1>
+          <h1 className="wordmark">
+            <span>Dungeon</span>
+            <span>Buddy</span>
+          </h1>
         </LaurelFlourish>
 
-        <p style={{ marginTop: '0.75rem' }}>A companion for the whole table — DM or player.</p>
+        <p style={{ marginTop: '0.75rem' }}>Your table's companion — run the game, play the game, skip the paperwork.</p>
 
         <div style={{ margin: '1.75rem 0' }}>
           <FlowingDivider />
         </div>
 
-        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
           {linkError && (
             <div className="auth-link-error" role="alert">
               <p className="error-text">{linkError}</p>
@@ -59,38 +66,53 @@ export function HomeScreen() {
               </button>
             </div>
           )}
-          <button
-            className="btn btn-primary"
+
+          {/* Every choice says, in one line, what it's for — three buttons
+              with no explanation made a newcomer guess which one they
+              wanted before they could even start. */}
+          <Choice
+            primary
+            label="Log In or Sign Up"
+            hint="Run or play campaigns, synced across all your devices."
+            disabled={!hasBackend}
             onClick={() => {
               closeLinkError();
               navigate('/login');
             }}
+          />
+          <Choice
+            label="Join a Game"
+            hint="Got an invite from your DM? Jump in — no account needed."
             disabled={!hasBackend}
-            title={hasBackend ? undefined : 'Account login needs a configured backend'}
-          >
-            Log In / Sign Up
-          </button>
-          <button
-            className="btn btn-ghost"
             onClick={() => navigate('/join')}
-            disabled={!hasBackend}
-            title={hasBackend ? undefined : 'Joining a campaign needs a configured backend'}
-          >
-            Join a Campaign
-          </button>
+          />
+          <Choice
+            label="Play Offline"
+            hint="Try everything on this device. Nothing leaves it."
+            onClick={() => navigate('/guest')}
+          />
+
           {!hasBackend && (
             // A specific, actionable reason (a malformed env var) beats the
             // generic message whenever one is available — see lib/supabase.js.
             <p style={{ fontSize: '0.8rem' }}>
               {supabaseConfigError ||
-                'Running without a backend — see BIBLE.md §2 to add one. Guest mode below still works fully.'}
+                'Online play needs a backend — see BIBLE.md §2 to add one. Offline play works fully.'}
             </p>
           )}
-          <button className="btn btn-ghost" onClick={() => navigate('/guest')}>
-            Continue as Guest
-          </button>
         </Panel>
       </div>
+    </div>
+  );
+}
+
+function Choice({ label, hint, onClick, disabled = false, primary = false }) {
+  return (
+    <div className="home-choice">
+      <button className={`btn ${primary ? 'btn-primary' : 'btn-ghost'}`} onClick={onClick} disabled={disabled}>
+        {label}
+      </button>
+      <p className="home-choice-hint">{hint}</p>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Panel } from '../components/ornament/Panel.jsx';
 import { displayNameError, RESEND_COOLDOWN_SECONDS } from '../lib/session.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-const TITLES = { login: 'Welcome Back', signup: 'Join the Codex', forgot: 'Reset Password' };
+const TITLES = { login: 'Welcome Back', signup: 'Join Dungeon Buddy', forgot: 'Reset Password' };
 const SUBMIT_LABELS = { login: 'Log In', signup: 'Sign Up', forgot: 'Send Reset Link' };
 
 export function AuthScreen() {
@@ -123,7 +123,7 @@ export function AuthScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem 1.5rem 9rem' }}>
       <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(420px, 100%)' }}>
         <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>{TITLES[mode]}</h2>
@@ -235,7 +235,7 @@ export function AuthScreen() {
           )}
 
           {error && <p className="error-text">{error}</p>}
-          {notice && <p className="error-text">{notice}</p>}
+          {notice && <p className="notice-text">{notice}</p>}
 
           {needsConfirmation && mode === 'login' && (
             <button
