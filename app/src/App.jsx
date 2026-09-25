@@ -9,6 +9,7 @@ import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/Camp
 import { CharacterSheetScreen } from './screens/CharacterSheetScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
+import { GenerateCampaignScreen } from './screens/GenerateCampaignScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { JoinCampaignScreen } from './screens/JoinCampaignScreen.jsx';
@@ -51,6 +52,14 @@ function Routed() {
         element={
           <RequireSession>
             <CampaignHubScreen />
+          </RequireSession>
+        }
+      />
+      <Route
+        path="/generate"
+        element={
+          <RequireSession>
+            <GenerateCampaignScreen />
           </RequireSession>
         }
       />
