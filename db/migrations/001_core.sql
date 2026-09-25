@@ -172,9 +172,20 @@ create policy "users update own profile" on profiles
 -- only ever created by handle_new_user() (security definer) and removed
 -- via the auth.users cascade.
 
+-- The dm_id = auth.uid() clause isn't redundant with the DM's own
+-- campaign_members row below — it's what makes INSERT ... RETURNING
+-- (i.e. supabase-js's .insert().select()) work at all. Postgres re-checks
+-- the SELECT policy against the just-inserted row to decide whether it
+-- can be handed back via RETURNING, and it does this *before* the
+-- create_dm_membership() AFTER INSERT trigger below has run — so
+-- is_campaign_member() alone would still say "not a member yet" and the
+-- insert would fail with the same generic "violates row-level security
+-- policy" error, even though the INSERT policy itself passed. The DM
+-- should always be able to see their own campaign regardless of trigger
+-- timing anyway, so this is the correct fix, not just a workaround.
 drop policy if exists "campaigns viewable by members" on campaigns;
 create policy "campaigns viewable by members" on campaigns
-  for select using (is_campaign_member(id, auth.uid()));
+  for select using (dm_id = auth.uid() or is_campaign_member(id, auth.uid()));
 
 drop policy if exists "dm creates own campaign" on campaigns;
 create policy "dm creates own campaign" on campaigns
