@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dungeon Buddy app icon: the mascot's black d20 (red numeral) on a
+       dragon-red sticker tile with a dark ink outline. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e8c876"/>
-      <stop offset="1" stop-color="#8a6a24"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f05a3a" />
+      <stop offset="1" stop-color="#c2321b" />
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="96" fill="#0b0a08"/>
-  <circle cx="256" cy="256" r="192" fill="none" stroke="url(#g)" stroke-width="6"/>
-  <g fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round">
-    <path d="M256 140 v232"/>
-    <path d="M172 168 q84 -32 168 0"/>
-    <path d="M172 372 q84 32 168 0"/>
-    <path d="M172 168 v204"/>
-    <path d="M340 168 v204"/>
+  <rect x="14" y="14" width="484" height="484" rx="116" fill="url(#bg)" stroke="#2b1a12" stroke-width="22" />
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M256 82 L406 168 V344 L256 430 L106 344 V168 Z" fill="#1d1716" stroke="#2b1a12" stroke-width="24" />
+    <path d="M256 150 L350 318 H162 Z" fill="#2a2221" />
+    <g fill="none" stroke="#4a3b37" stroke-width="7">
+      <path d="M256 82 V150" />
+      <path d="M106 168 L256 150 L406 168" />
+      <path d="M106 168 L162 318 L106 344" />
+      <path d="M406 168 L350 318 L406 344" />
+      <path d="M162 318 L256 430 L350 318" />
+      <path d="M256 150 L350 318 H162 Z" />
+    </g>
+    <text x="256" y="276" text-anchor="middle" dominant-baseline="middle" font-family="'Arial Black', 'Arial', 'Helvetica', sans-serif" font-weight="900" font-size="92" fill="#ff5a3a">20</text>
   </g>
-  <g fill="url(#g)">
-    <path d="M140 210 c-16 10 -26 30 -22 52 c14 -6 30 -4 40 6 c-2 -22 -8 -42 -18 -58z"/>
-    <path d="M372 210 c16 10 26 30 22 52 c-14 -6 -30 -4 -40 6 c2 -22 8 -42 18 -58z"/>
-    <path d="M116 274 c-14 14 -18 36 -8 56 c12 -8 28 -10 40 -2 c-6 -22 -16 -40 -32 -54z"/>
-    <path d="M396 274 c14 14 18 36 8 56 c-12 -8 -28 -10 -40 -2 c6 -22 16 -40 32 -54z"/>
-  </g>
-  <circle cx="256" cy="256" r="16" fill="url(#g)"/>
 </svg>

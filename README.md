@@ -9,6 +9,19 @@ in one installable app.
 doc — vision, tech stack, visual design system, data model, and feature
 roadmap. Read it before making a product or architecture call.
 
+## Look & feel
+
+The design is taken from the Dungeon Buddy mascot (a red dragon hugging
+a black d20): dragon-red accent, leather/parchment surfaces, brass trim,
+rounded sticker-style buttons and cards. Details in `BIBLE.md` §3.
+
+- **Mascot art:** put it at `app/public/mascot.png` (a square-ish PNG
+  with a transparent background works best). The Home screen shows it
+  as the hero image; until the file exists it shows the d20 app icon.
+- **App icons:** `app/public/icon.svg` and `icon-maskable.svg` are the
+  sources; the PNGs next to them are rendered from those and need
+  re-rendering if the SVGs change.
+
 ## Stack
 
 React + Vite, installable as a PWA. Persistence is Supabase (Postgres +

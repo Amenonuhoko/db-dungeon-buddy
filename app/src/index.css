@@ -1,85 +1,129 @@
 /*
- * Design tokens and shared primitives — see BIBLE.md §3 for the design
- * rationale (Warframe Prime gold/white x Hades Greek ornament). Every
- * screen should build on these rather than inventing new colors/shadows.
+ * Design tokens and shared primitives — see BIBLE.md §3. The look comes
+ * straight from the Dungeon Buddy mascot (a red chibi dragon hugging a
+ * black d20, a leather tome with brass corners, parchment character
+ * sheets, all in a thick-outlined sticker style):
+ *   - dragon red is the one accent — primary buttons, the active tab,
+ *     whose turn it is;
+ *   - leather browns (dark) / parchment cream (light) are the surfaces;
+ *   - brass (the tome's corner caps) is trim, never a fill;
+ *   - dice are the mascot's d20: black body, red numerals;
+ *   - "sticker" shapes: rounded, a solid outline, and a small solid lip
+ *     shadow underneath that presses flat when tapped.
+ * Every screen should build on these rather than inventing new colors.
  *
- * Theming: dark (obsidian/gold) is the default. Light ("marble", ivory)
- * is opt-in via the ThemeToggle (lib/theme.js sets
- * documentElement[data-theme]). Same technique as a themed Artifact:
- * define dark tokens on bare :root, follow system preference when no
- * explicit choice has been made, then let an explicit [data-theme]
- * attribute win in either direction.
+ * Theming: dark ("tavern night") is the default; light ("parchment") is
+ * opt-in via the ThemeToggle (lib/theme.js sets documentElement
+ * [data-theme]). Dark tokens on bare :root, follow system preference when
+ * no explicit choice has been made, then an explicit [data-theme] wins.
+ *
+ * Token names --gold* and --oxblood predate this palette and are kept so
+ * every existing rule keeps working: --gold* is now brass, --oxblood is
+ * the danger red.
  */
 
 :root {
-  --surface: #0b0a08;
-  --surface-raised: #14120e;
-  --surface-glow: #1c1811;
-  --line: #2a2620;
-  --text: #f3ecda;
-  --text-dim: #c9c0a8;
+  --surface: #1c1411;
+  --surface-raised: #2a1e19;
+  --surface-glow: #3d2619;
+  --line: #4d372b;
+  --outline: #5e4334;
+  --ink: #0c0806;
+  --text: #f7ecd6;
+  --text-dim: #cdb99b;
 
-  --gold: #caa24b;
-  --gold-bright: #e8c876;
-  --gold-deep: #8a6a24;
-  --bronze: #7d6a4a;
-  --oxblood: #7a2222;
-  --laurel: #4a5c3a;
+  --accent: #e8492e;
+  --accent-bright: #ff6b47;
+  /* Button fill: a shade deeper than --accent so cream text on it clears
+     WCAG AA 4.5:1 (--accent itself only manages ~3.6:1). */
+  --accent-fill: #c2321b;
+  --on-accent: #fff5e3;
 
-  --font-display: 'Cinzel', 'Times New Roman', serif;
-  --font-body: 'Marcellus', 'Iowan Old Style', 'Palatino Linotype', serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  --gold: #d9a441;
+  --gold-bright: #f2c461;
+  --gold-deep: #8e621f;
+  --bronze: #a07a55;
+  --oxblood: #ea5a44;
+  --laurel: #7fae55;
+  --bookmark-blue: #3f73a8;
 
-  --radius: 6px;
-  --shadow-glow: 0 0 24px rgba(202, 162, 75, 0.25);
+  --die-fill: #1d1716;
+  --die-edge: #6b4c3b;
+  --die-numeral: #ff5a3a;
 
-  /* Text laid directly on a gold surface (.btn-primary and friends).
-     Deliberately not tied to --surface: that flips to a pale cream in
-     light mode (see the light-theme blocks below), which measures
-     ~3:1 against --gold there — under WCAG AA's 4.5:1 for normal text.
-     A fixed near-black clears 4.5:1 against gold in both themes (dark
-     mode's --surface was already effectively this color, so this is a
-     no-op there), so one token covers both instead of two divergent
-     ones that can drift out of contrast with a future palette tweak. */
-  --on-gold: #171310;
+  --font-display: 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Numbers (HP, initiative, dice, stats) use the rounded display face
+     with tabular figures rather than a code font — they're game
+     numbers, not code. */
+  --font-mono: 'Fredoka', ui-rounded, system-ui, sans-serif;
+
+  --radius: 12px;
+  --radius-lg: 18px;
+  --lip: 0 4px 0 var(--ink);
+  --lip-small: 0 3px 0 var(--ink);
+  --shadow-glow: 0 0 22px rgba(232, 73, 46, 0.4);
+
+  /* Text on a brass surface. */
+  --on-gold: #1c1411;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --surface: #f4ecd8;
-    --surface-raised: #fffcf3;
-    --surface-glow: #fffdf6;
-    --line: #ddd0ad;
-    --text: #2a2115;
-    --text-dim: #6f6045;
+    --surface: #f1e4c9;
+    --surface-raised: #fffaf0;
+    --surface-glow: #fff5de;
+    --line: #d6c19b;
+    --outline: #3a2519;
+    --ink: #3a2519;
+    --text: #2b1a12;
+    --text-dim: #6c5240;
 
-    --gold: #a9812f;
-    --gold-bright: #c99a3d;
-    --gold-deep: #6b5019;
-    --bronze: #8a7350;
-    --oxblood: #8a2a2a;
-    --laurel: #3f5230;
+    --accent: #d63b22;
+    --accent-bright: #c2321b;
+    --accent-fill: #c2321b;
+    --on-accent: #fff5e3;
 
-    --shadow-glow: 0 0 24px rgba(107, 80, 25, 0.2);
+    --gold: #b8842a;
+    /* Darker than a "bright" brass would be — it's used as a text color
+       for highlighted values, and needs to read on cream. */
+    --gold-bright: #9a6614;
+    --gold-deep: #7a5214;
+    --bronze: #8f6a45;
+    --oxblood: #b52d1c;
+    --laurel: #4c7a2c;
+
+    --die-edge: #3a2519;
+
+    --shadow-glow: 0 0 20px rgba(214, 59, 34, 0.28);
   }
 }
 
 :root[data-theme='light'] {
-  --surface: #f4ecd8;
-  --surface-raised: #fffcf3;
-  --surface-glow: #fffdf6;
-  --line: #ddd0ad;
-  --text: #2a2115;
-  --text-dim: #6f6045;
+  --surface: #f1e4c9;
+  --surface-raised: #fffaf0;
+  --surface-glow: #fff5de;
+  --line: #d6c19b;
+  --outline: #3a2519;
+  --ink: #3a2519;
+  --text: #2b1a12;
+  --text-dim: #6c5240;
 
-  --gold: #a9812f;
-  --gold-bright: #c99a3d;
-  --gold-deep: #6b5019;
-  --bronze: #8a7350;
-  --oxblood: #8a2a2a;
-  --laurel: #3f5230;
+  --accent: #d63b22;
+  --accent-bright: #c2321b;
+  --accent-fill: #c2321b;
+  --on-accent: #fff5e3;
 
-  --shadow-glow: 0 0 24px rgba(107, 80, 25, 0.2);
+  --gold: #b8842a;
+  --gold-bright: #9a6614;
+  --gold-deep: #7a5214;
+  --bronze: #8f6a45;
+  --oxblood: #b52d1c;
+  --laurel: #4c7a2c;
+
+  --die-edge: #3a2519;
+
+  --shadow-glow: 0 0 20px rgba(214, 59, 34, 0.28);
 }
 
 * {
@@ -95,24 +139,26 @@ body,
 body {
   margin: 0;
   position: relative;
-  background: radial-gradient(ellipse at 50% -10%, var(--surface-glow) 0%, var(--surface) 55%);
+  background: radial-gradient(ellipse at 50% -10%, var(--surface-glow) 0%, var(--surface) 60%);
   color: var(--text);
   font-family: var(--font-body);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   transition:
     background-color 200ms ease,
     color 200ms ease;
 }
 
-/* A very faint grain, the one bit of texture standing in for parchment/
-   marble — kept subtle enough to never compete with content. */
+/* A very faint grain — leather in the dark theme, paper in the light
+   one — kept subtle enough to never compete with content. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.03;
+  opacity: 0.05;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -123,7 +169,8 @@ h3,
 h4 {
   font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.005em;
+  line-height: 1.2;
   margin: 0;
   color: var(--text);
 }
@@ -131,11 +178,11 @@ h4 {
 p {
   margin: 0;
   color: var(--text-dim);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 a {
-  color: var(--gold-bright);
+  color: var(--accent);
 }
 
 button {
@@ -143,13 +190,15 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--gold);
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------
- * Screen entrance — a small ceremonial fade rather than an instant cut.
+ * Screen entrance — a small fade-and-rise rather than an instant cut.
  * ------------------------------------------------------------------- */
 @keyframes fadeInUp {
   from {
@@ -180,21 +229,26 @@ input:focus-visible {
 }
 
 /* ---------------------------------------------------------------------
- * Engraved panel — the base surface every card/panel in the app shares.
- * Reads as "carved in" (inset gold-deep shadow) with a gilded outer edge.
+ * Panel — the sticker card every surface in the app shares: rounded, a
+ * solid outline, a solid lip underneath.
  * ------------------------------------------------------------------- */
 .panel {
   position: relative;
   background: var(--surface-raised);
-  border: 1px solid var(--gold);
-  border-radius: var(--radius);
-  box-shadow:
-    inset 0 0 0 1px var(--gold-deep),
-    inset 0 1px 18px rgba(0, 0, 0, 0.35);
-  padding: 2rem;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lip);
+  padding: 1.75rem;
   transition:
     background-color 200ms ease,
-    border-color 200ms ease;
+    border-color 200ms ease,
+    box-shadow 150ms ease;
+}
+
+@media (max-width: 420px) {
+  .panel {
+    padding: 1.35rem;
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -288,54 +342,54 @@ input:focus-visible {
 }
 
 /* ---------------------------------------------------------------------
- * Corner-frame — Warframe-style targeting-reticle corner brackets,
- * layered as four independent backgrounds so it works at any size. Left
- * deliberately angular — the one place the design stays "blocky", as a
- * counterpoint to the free-flowing vine/laurel ornament everywhere else.
+ * Brass trim — the primary/selected panel on a screen, echoing the
+ * mascot tome's brass corner caps: brass outline, brass lip. Class name
+ * kept from the older corner-bracket version so existing usages
+ * (Panel `corners`, the character sheet plate, a selected choice card)
+ * pick it up unchanged.
  * ------------------------------------------------------------------- */
 .corner-frame {
-  position: relative;
-  background-image:
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold)),
-    linear-gradient(var(--gold), var(--gold));
-  background-repeat: no-repeat;
-  background-size:
-    22px 2px,
-    2px 22px,
-    22px 2px,
-    2px 22px,
-    22px 2px,
-    2px 22px,
-    22px 2px,
-    2px 22px;
-  background-position:
-    top -1px left -1px,
-    top -1px left -1px,
-    top -1px right -1px,
-    top -1px right -1px,
-    bottom -1px left -1px,
-    bottom -1px left -1px,
-    bottom -1px right -1px,
-    bottom -1px right -1px;
+  border-color: var(--gold) !important;
+  box-shadow: 0 4px 0 var(--gold-deep);
 }
 
+/* Bookmark ribbons — the three coloured bookmarks sticking out of the
+ * mascot's tome, peeking over the top edge of a primary panel (Panel
+ * `topRule`; see PanelCrest.jsx). Decorative only, out of the flow. */
 .panel-top-rule {
-  margin: -2rem -2rem 1.5rem;
-  padding: 0 1.5rem;
+  position: absolute;
+  top: -15px;
+  right: 1.4rem;
+  display: flex;
+  gap: 5px;
+  pointer-events: none;
 }
 
-/* ---------------------------------------------------------------------
- * Gold glow — soft radial bloom behind a primary icon/avatar. Only ever
- * on dark surfaces (--surface / --surface-raised), never behind body text.
- * ------------------------------------------------------------------- */
+.bookmark {
+  width: 14px;
+  height: 22px;
+  border: 2px solid var(--ink);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+}
+
+.bookmark-blue {
+  background: var(--bookmark-blue);
+}
+
+.bookmark-red {
+  background: var(--accent);
+  height: 26px;
+  margin-top: -4px;
+}
+
+.bookmark-cream {
+  background: #efdcb4;
+}
+
+/* Soft glow behind a hero image/avatar. */
 .glow {
-  filter: drop-shadow(0 0 18px rgba(232, 200, 118, 0.45));
+  filter: drop-shadow(0 6px 18px rgba(232, 73, 46, 0.25));
 }
 
 /* ---------------------------------------------------------------------
@@ -353,8 +407,8 @@ input:focus-visible {
   height: 44px;
   border-radius: 50%;
   background: var(--surface-raised);
-  border: 1px solid var(--gold);
-  box-shadow: inset 0 0 0 1px var(--gold-deep);
+  border: 2px solid var(--outline);
+  box-shadow: var(--lip-small);
   color: var(--gold);
   display: grid;
   place-items: center;
@@ -367,86 +421,93 @@ input:focus-visible {
 }
 
 .theme-toggle:hover {
-  box-shadow: var(--shadow-glow), inset 0 0 0 1px var(--gold-deep);
-  color: var(--gold-bright);
+  color: var(--accent);
 }
 
 /* ---------------------------------------------------------------------
- * Buttons
+ * Buttons — sticker style: outline + a solid lip that presses flat on
+ * tap, so every press visibly lands.
  * ------------------------------------------------------------------- */
 .btn {
   font-family: var(--font-display);
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.85rem 1.75rem;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  padding: 0.8rem 1.5rem;
   border-radius: var(--radius);
+  border: 2px solid var(--ink);
+  box-shadow: var(--lip-small);
   cursor: pointer;
   transition:
     background-color 150ms ease,
     color 150ms ease,
-    box-shadow 150ms ease,
+    box-shadow 100ms ease,
+    transform 100ms ease,
     border-color 150ms ease;
 }
 
+.btn:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  border: 1px solid var(--gold-bright);
-  color: var(--on-gold);
+  background: var(--accent-fill);
+  color: var(--on-accent);
 }
 
 .btn-primary:not(:disabled):hover {
-  box-shadow: var(--shadow-glow);
+  background: var(--accent);
 }
 
 .btn-ghost {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--text-dim);
-}
-
-.btn-ghost:not(:disabled):hover {
-  border-color: var(--gold);
+  background: var(--surface-raised);
+  border-color: var(--outline);
   color: var(--text);
 }
 
+.btn-ghost:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
 .btn-danger {
-  background: transparent;
-  border: 1px solid var(--oxblood);
+  background: var(--surface-raised);
+  border-color: var(--oxblood);
   color: var(--oxblood);
 }
 
 .btn-danger:not(:disabled):hover {
   background: var(--oxblood);
-  color: var(--text);
+  color: var(--on-accent);
 }
 
 .btn-small {
-  padding: 0.5rem 1rem;
-  font-size: 0.7rem;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.88rem;
 }
 
 /* Icon-only variant for secondary toolbar actions (Export, etc.) — keeps
- * the visual weight low so the primary action (New Entry/Creature/…)
+ * the visual weight low so the primary action (New Entry/Monster/…)
  * stays the one thing that pulls the eye. Pair with .btn-ghost.btn-small. */
 .btn-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.5rem;
+  height: 2.5rem;
   flex-shrink: 0;
 }
 
-/* Subtle disclosure link for ExampleGallery's toggle — deliberately not a
- * bordered button, so the sample gallery reads as "tap to reveal
- * reference material" rather than competing with real actions. */
+/* Quiet text-link action (examples toggle, show password, forgot
+ * password, import…) — deliberately not a bordered button, so it never
+ * competes with a real action. */
 .example-toggle {
   display: inline-flex;
   align-items: center;
@@ -454,17 +515,16 @@ input:focus-visible {
   background: none;
   border: none;
   padding: 0.3rem 0;
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.85rem;
   color: var(--text-dim);
   cursor: pointer;
   transition: color 150ms ease;
 }
 
 .example-toggle:hover {
-  color: var(--gold);
+  color: var(--accent);
 }
 
 .example-toggle svg {
@@ -494,10 +554,9 @@ input:focus-visible {
 }
 
 .field label {
-  font-family: var(--font-display);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.85rem;
   color: var(--text-dim);
 }
 
@@ -505,7 +564,7 @@ input:focus-visible {
 .field textarea,
 .field select {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
   font-family: var(--font-body);
@@ -521,82 +580,91 @@ input:focus-visible {
   resize: vertical;
   min-height: 6rem;
   font-family: var(--font-body);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
   outline: none;
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px var(--gold);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232, 73, 46, 0.2);
 }
 
 .error-text {
-  color: var(--gold-bright);
-  font-size: 0.85rem;
+  color: var(--oxblood);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Good news / next-step messages (account created, link sent) — not an
+ * error, so not red. */
+.notice-text {
+  color: var(--laurel);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------------
- * Tag chips — used by the encyclopedia/bestiary lists.
+ * Chips — tags, roles, AC, CR.
  * ------------------------------------------------------------------- */
 .chip {
   display: inline-block;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   color: var(--text-dim);
+  background: var(--surface);
+  white-space: nowrap;
 }
 
 /* A smidge smaller — for a chip sharing a row with other chrome (e.g.
  * the role badge up next to the back button) rather than sitting beside
  * page content at full size. */
 .chip-small {
-  font-size: 0.6rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.68rem;
+  padding: 0.12rem 0.55rem;
 }
 
 /* ---------------------------------------------------------------------
  * Sample/example content — never real campaign data, so it must never
- * look like it. Dashed border + a distinct chip, no gilded edge, no
- * shadow depth. Same visual family everywhere it appears.
+ * look like it. Dashed border + a distinct chip, no lip, no fill. Same
+ * visual family everywhere it appears.
  * ------------------------------------------------------------------- */
 .panel-sample {
   background: transparent;
-  border: 1px dashed var(--bronze);
+  border: 2px dashed var(--bronze);
   box-shadow: none;
 }
 
 .chip-sample {
   display: inline-block;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   font-style: italic;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.55rem;
+  padding: 0.12rem 0.55rem;
   border-radius: 999px;
-  border: 1px dashed var(--bronze);
+  border: 2px dashed var(--bronze);
   color: var(--bronze);
 }
 
 .hint-text {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-style: italic;
   color: var(--text-dim);
   /* Opacity rather than a dimmer hardcoded color — blends toward
      whatever surface it sits on (raised panel, form, …) automatically in
      both themes instead of needing separate light/dark tuning. */
-  opacity: 0.6;
+  opacity: 0.75;
   margin-bottom: 0.25rem;
 }
 
 /* ---------------------------------------------------------------------
- * Bottom tab dock — campaign section nav (Encyclopedia/Notes/Bestiary/
- * Characters). Fixed, floating, pill-shaped; content above it swipes
- * between the same tabs (wired in CampaignScreen.jsx).
+ * Bottom tab dock — campaign section nav (Party/Combat/Lore/Monsters/
+ * Notes). Fixed, floating, pill-shaped; content above it swipes between
+ * the same tabs (wired in CampaignScreen.jsx).
  * ------------------------------------------------------------------- */
 .tab-dock {
   position: fixed;
@@ -614,14 +682,12 @@ input:focus-visible {
   gap: 0.15rem;
   /* Tight on purpose: the active tab's own pill highlight should read
      as flush with the capsule's edge, not floating inset inside it. */
-  padding: 0.25rem;
-  padding-bottom: calc(0.25rem + env(safe-area-inset-bottom));
+  padding: 0.3rem;
+  padding-bottom: calc(0.3rem + env(safe-area-inset-bottom));
   background: var(--surface-raised);
-  border: 1px solid var(--gold);
+  border: 2px solid var(--outline);
   border-radius: 999px;
-  box-shadow:
-    inset 0 0 0 1px var(--gold-deep),
-    0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--lip);
   max-width: calc(100vw - 1.5rem);
   overflow-x: auto;
 }
@@ -630,14 +696,13 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.5rem 1rem;
+  gap: 0.1rem;
+  padding: 0.45rem 1rem;
   border-radius: 999px;
   color: var(--text-dim);
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.72rem;
   text-decoration: none;
   white-space: nowrap;
   transition:
@@ -650,24 +715,22 @@ input:focus-visible {
 }
 
 .tab-dock-item.active {
-  color: var(--gold-bright);
-  background: rgba(202, 162, 75, 0.14);
+  color: var(--on-accent);
+  background: var(--accent-fill);
 }
 
-/* Five tabs (with Combat) have to fit a ~360-390px phone without the
-   dock scrolling sideways and clipping the last label — tighter padding
-   and tracking here rather than shortening any label. Covers every
-   phone width: the roomier default padding only fits five tabs from
-   ~520px up. */
+/* Five tabs have to fit a ~360-390px phone without the dock scrolling
+   sideways and clipping the last label — tighter padding here rather
+   than shortening any label. Covers every phone width: the roomier
+   default padding only fits five tabs from ~520px up. */
 @media (max-width: 520px) {
   .tab-dock {
     gap: 0;
   }
 
   .tab-dock-item {
-    padding: 0.5rem 0.42rem;
-    font-size: 0.54rem;
-    letter-spacing: 0.02em;
+    padding: 0.42rem 0.5rem;
+    font-size: 0.66rem;
   }
 }
 
@@ -675,7 +738,8 @@ input:focus-visible {
  * Dice roller — global, reachable from every screen (App.jsx renders it
  * outside the router). Bottom-left, deliberately parked well above the
  * campaign bottom tab dock (bottom-center) so the two never collide,
- * even on a narrow phone — see DiceRoller.jsx.
+ * even on a narrow phone — see DiceRoller.jsx. The button *is* the
+ * mascot's die: black body, red face.
  * ------------------------------------------------------------------- */
 .dice-fab {
   position: fixed;
@@ -685,13 +749,13 @@ input:focus-visible {
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   z-index: 20;
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
-  background: var(--surface-raised);
-  border: 1px solid var(--gold);
-  box-shadow: inset 0 0 0 1px var(--gold-deep);
-  color: var(--gold);
+  background: var(--die-fill);
+  border: 2px solid var(--die-edge);
+  box-shadow: var(--lip-small);
+  color: var(--die-numeral);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -704,8 +768,7 @@ input:focus-visible {
 }
 
 .dice-fab:hover {
-  box-shadow: var(--shadow-glow), inset 0 0 0 1px var(--gold-deep);
-  color: var(--gold-bright);
+  box-shadow: var(--lip-small), var(--shadow-glow);
 }
 
 /* Tap-down feedback — a quick press, not just a hover change. */
@@ -715,9 +778,8 @@ input:focus-visible {
 
 /* Persistent "this is pressed/open" indicator, distinct from :hover. */
 .dice-fab.active {
-  color: var(--gold-bright);
-  border-color: var(--gold-bright);
-  box-shadow: var(--shadow-glow), inset 0 0 0 1px var(--gold-deep);
+  border-color: var(--accent);
+  box-shadow: var(--lip-small), var(--shadow-glow);
 }
 
 @keyframes dice-fab-spin {
@@ -734,6 +796,9 @@ input:focus-visible {
 }
 
 .dice-panel {
+  /* Room above the panel inside this scroll box, so the Panel's bookmark
+     ribbons (which stick up past its top edge) aren't clipped. */
+  padding-top: 16px;
   position: fixed;
   left: 1.1rem;
   bottom: 9.5rem;
@@ -760,7 +825,7 @@ input:focus-visible {
 .dice-input {
   width: 3.2rem;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: var(--radius);
   color: var(--text);
   font-family: var(--font-mono);
@@ -780,8 +845,7 @@ input:focus-visible {
 
 .dice-input:focus {
   outline: none;
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px var(--gold);
+  border-color: var(--accent);
 }
 
 .dice-input-mod {
@@ -833,10 +897,11 @@ input:focus-visible {
 
 .dice-result-total {
   font-family: var(--font-display);
-  font-size: 2.25rem;
+  font-weight: 700;
+  font-size: 2.4rem;
   line-height: 1.2;
-  color: var(--gold-bright);
-  filter: drop-shadow(0 0 10px rgba(232, 200, 118, 0.4));
+  color: var(--accent);
+  filter: drop-shadow(0 0 10px rgba(232, 73, 46, 0.35));
   /* `both`: holds the 0% (invisible) keyframe state through its
      animation-delay too, so it doesn't flash at full size/opacity
      before the delayed pop actually starts. Safe here — unlike
@@ -941,12 +1006,9 @@ input:focus-visible {
   position: relative;
   margin-top: 1.25rem;
   background: var(--surface-raised);
-  border: 1px solid var(--gold);
-  border-radius: 14px;
-  box-shadow:
-    inset 0 0 0 1px var(--gold-deep),
-    inset 0 1px 28px rgba(0, 0, 0, 0.4),
-    0 24px 60px rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--gold);
+  border-radius: 22px;
+  box-shadow: 0 5px 0 var(--gold-deep);
   padding: 2.5rem clamp(1.25rem, 4vw, 3rem);
 }
 
@@ -965,8 +1027,7 @@ input:focus-visible {
 .character-sheet-subtitle {
   margin-top: 0.6rem;
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   font-size: 0.8rem;
   color: var(--gold-bright);
 }
@@ -1022,8 +1083,7 @@ input:focus-visible {
 .stat-hex-label {
   font-family: var(--font-display);
   font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-dim);
 }
 
@@ -1056,8 +1116,7 @@ input:focus-visible {
   align-items: baseline;
   font-family: var(--font-display);
   font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-dim);
   margin-bottom: 0.45rem;
 }
@@ -1079,7 +1138,7 @@ input:focus-visible {
   height: 26px;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 2px solid var(--outline);
   overflow: hidden;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -1092,15 +1151,15 @@ input:focus-visible {
 }
 
 .hp-track-fill-ok {
-  background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
+  background: linear-gradient(90deg, #4c8a2c, #7cc257);
 }
 
 .hp-track-fill-warn {
-  background: linear-gradient(90deg, var(--bronze), var(--gold));
+  background: linear-gradient(90deg, #c27a1a, #f0b43c);
 }
 
 .hp-track-fill-danger {
-  background: linear-gradient(90deg, var(--oxblood), #b23a3a);
+  background: linear-gradient(90deg, #9c2614, #e8492e);
 }
 
 .hp-adjust-row {
@@ -1134,8 +1193,7 @@ input:focus-visible {
   display: block;
   font-family: var(--font-display);
   font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-dim);
   margin-bottom: 0.6rem;
 }
@@ -1150,12 +1208,11 @@ input:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid var(--oxblood);
+  border: 2px solid var(--oxblood);
   color: var(--oxblood);
 }
 
@@ -1191,8 +1248,7 @@ input:focus-visible {
 
 .character-sheet-scroll h3 {
   font-size: 0.85rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--gold-bright);
   margin-bottom: 0.6rem;
 }
@@ -1251,15 +1307,15 @@ input:focus-visible {
 
 .combat-your-turn {
   margin-top: 0.9rem;
-  padding: 0.55rem 0.8rem;
+  padding: 0.6rem 0.8rem;
   border-radius: var(--radius);
-  background: rgba(202, 162, 75, 0.14);
-  border: 1px solid var(--gold);
-  color: var(--gold-bright);
+  background: var(--accent-fill);
+  border: 2px solid var(--ink);
+  box-shadow: var(--lip-small);
+  color: var(--on-accent);
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.8rem;
+  font-weight: 600;
+  font-size: 1.05rem;
   text-align: center;
 }
 
@@ -1272,10 +1328,8 @@ input:focus-visible {
 }
 
 .combat-row.current {
-  border-color: var(--gold-bright);
-  box-shadow:
-    inset 0 0 0 1px var(--gold-deep),
-    var(--shadow-glow);
+  border-color: var(--accent);
+  box-shadow: 0 4px 0 var(--accent-fill), var(--shadow-glow);
 }
 
 .combat-row.down {
@@ -1295,7 +1349,8 @@ input:focus-visible {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid var(--gold);
+  border: 2px solid var(--gold);
+  background: var(--surface);
   font-family: var(--font-mono);
   font-weight: 700;
   color: var(--gold-bright);
@@ -1312,7 +1367,7 @@ input:focus-visible {
 .initiative-input {
   width: 3rem;
   background: var(--surface);
-  border: 1px solid var(--gold);
+  border: 2px solid var(--gold);
   border-radius: var(--radius);
   color: var(--gold-bright);
   font-family: var(--font-mono);
@@ -1331,20 +1386,19 @@ input:focus-visible {
 }
 
 .initiative-roll {
-  background: none;
-  border: 1px solid var(--line);
+  background: var(--die-fill);
+  border: 2px solid var(--die-edge);
   border-radius: 999px;
-  color: var(--text-dim);
+  color: var(--die-numeral);
   font-family: var(--font-display);
-  font-size: 0.6rem;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.72rem;
   padding: 0.15rem 0.45rem;
   cursor: pointer;
 }
 
 .initiative-roll:hover {
-  border-color: var(--gold);
-  color: var(--gold-bright);
+  border-color: var(--accent);
 }
 
 .combat-row-title {
@@ -1357,13 +1411,14 @@ input:focus-visible {
 }
 
 .combat-now {
-  color: var(--gold-bright);
+  color: var(--accent);
   font-size: 0.75rem;
 }
 
 .combat-name {
   font-family: var(--font-display);
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  font-size: 1.05rem;
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -1425,8 +1480,7 @@ input:focus-visible {
   color: var(--text-dim);
   font-family: var(--font-display);
   font-size: 0.65rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   padding: 0.25rem 0.55rem;
   cursor: pointer;
 }
@@ -1577,8 +1631,7 @@ button.pip {
   gap: 0.35rem;
   font-family: var(--font-display);
   font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-dim);
 }
 
@@ -1608,7 +1661,7 @@ button.pip {
   min-width: 0;
   font-family: var(--font-display);
   font-size: 0.8rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   color: var(--text);
 }
 
@@ -1675,26 +1728,43 @@ button.pip {
 }
 
 /* ---------------------------------------------------------------------
- * Dungeon Buddy wordmark — two stacked lines so the name fits between
- * the laurels on a phone instead of shrinking to unreadable.
+ * Dungeon Buddy wordmark — sticker lettering to match the mascot: chunky
+ * rounded type with a dark outline and a solid lip, "Buddy" in dragon
+ * red. Two stacked lines so it fits a phone without shrinking.
  * ------------------------------------------------------------------- */
 .wordmark {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: clamp(1.9rem, 8vw, 2.4rem);
-  line-height: 1.02;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.3rem, 11vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  color: #fff5e3;
+  /* An outline built from offset shadows (works everywhere, unlike
+     -webkit-text-stroke's inward stroke), then the sticker lip. */
+  text-shadow:
+    -2px -2px 0 var(--ink),
+    2px -2px 0 var(--ink),
+    -2px 2px 0 var(--ink),
+    2px 2px 0 var(--ink),
+    0 -2px 0 var(--ink),
+    0 2px 0 var(--ink),
+    -2px 0 0 var(--ink),
+    2px 0 0 var(--ink),
+    0 5px 0 var(--ink);
 }
 
 .wordmark span:last-child {
-  font-size: 0.72em;
-  letter-spacing: 0.32em;
-  /* letter-spacing adds trailing space after the last letter; pull it
-     back so the line still centers optically. */
-  margin-right: -0.32em;
-  color: var(--gold-bright);
+  color: var(--accent);
+}
+
+.home-hero {
+  width: min(160px, 42vw);
+  height: auto;
+  display: block;
+  margin: 0 auto;
 }
 
 .home-choice {
@@ -1749,7 +1819,7 @@ button.pip {
 .invite-code {
   font-family: var(--font-mono);
   font-style: normal;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
   color: var(--gold-bright);
 }
 
@@ -1878,4 +1948,55 @@ button.pip {
   border-color: var(--gold);
   color: var(--gold-bright);
   animation: needs-roll-pulse 1.6s ease-in-out infinite;
+}
+
+/* Stitched-leather seam divider (FlowingDivider.jsx). */
+.seam {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.seam-line {
+  flex: 1;
+  height: 0;
+  border-top: 3px dashed var(--line);
+}
+
+.seam-die {
+  flex-shrink: 0;
+}
+
+/* Offline setup's Dungeon Master / Player choice — sticker cards; the
+   picked one gets the dragon-red outline and lip. */
+.role-card {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 3px 0 var(--line);
+  padding: 1.1rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 100ms ease;
+}
+
+.role-card:active {
+  transform: translateY(2px);
+}
+
+.role-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 3px 0 var(--accent-fill);
+}
+
+.role-card-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
 }

@@ -50,8 +50,8 @@ function RecoveryRedirect() {
 function Splash() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-      <span style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-        GATHERING THE PARTY…
+      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--text-dim)' }}>
+        Gathering the party…
       </span>
     </div>
   );

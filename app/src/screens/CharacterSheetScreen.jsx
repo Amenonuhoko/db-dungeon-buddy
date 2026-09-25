@@ -294,8 +294,8 @@ export function CharacterSheetScreen() {
     return (
       <div className="character-sheet-screen">
         <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-          <p style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-            UNROLLING THE SHEET…
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--text-dim)' }}>
+            Unrolling the sheet…
           </p>
         </div>
       </div>
@@ -404,7 +404,7 @@ export function CharacterSheetScreen() {
               </div>
 
               <div>
-                <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+                <label style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                   Ability Scores
                 </label>
                 <div className="ability-edit-grid">

@@ -109,8 +109,8 @@ export function CampaignScreen() {
   if (!campaign) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <p style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-          OPENING THE CAMPAIGN…
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--text-dim)' }}>
+          Opening the campaign…
         </p>
       </div>
     );

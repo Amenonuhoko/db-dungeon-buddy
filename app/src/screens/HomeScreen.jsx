@@ -14,6 +14,7 @@ export function HomeScreen() {
   // leaving the visitor staring at the normal Home screen (see
   // authRedirect in lib/supabase.js).
   const [linkError, setLinkError] = useState(getAuthRedirectError);
+  const [heroSrc, setHeroSrc] = useState(`${import.meta.env.BASE_URL}mascot.png`);
 
   function closeLinkError() {
     dismissAuthRedirectError();
@@ -38,8 +39,15 @@ export function HomeScreen() {
       }}
     >
       <div className="screen-enter" style={{ width: 'min(480px, 100%)', textAlign: 'center' }}>
-        <div className="glow" aria-hidden="true" style={{ marginBottom: '1.25rem' }}>
-          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="88" height="88" />
+        <div className="glow" aria-hidden="true" style={{ marginBottom: '0.75rem' }}>
+          {/* The mascot (public/mascot.png). Falls back to the d20 app
+              icon if the art hasn't been added to the build. */}
+          <img
+            className="home-hero"
+            src={heroSrc}
+            alt=""
+            onError={() => setHeroSrc(`${import.meta.env.BASE_URL}icon.svg`)}
+          />
         </div>
 
         <LaurelFlourish>

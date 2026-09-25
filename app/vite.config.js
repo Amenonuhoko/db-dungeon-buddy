@@ -18,20 +18,22 @@ export default defineConfig({
       // Campaign data always goes through the network — see BIBLE.md §6,
       // caching that would risk serving stale campaign content.
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg}'],
+        globPatterns: ['**/*.{js,css,html,svg,png}'],
       },
       manifest: {
         name: 'Dungeon Buddy — D&D Campaign Companion',
         short_name: 'Dungeon Buddy',
         description: 'A companion app for running and playing a full D&D campaign.',
-        theme_color: '#0b0a08',
-        background_color: '#0b0a08',
+        theme_color: '#1c1411',
+        background_color: '#1c1411',
         display: 'standalone',
         start_url: base,
         scope: base,
         icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
       },
     }),

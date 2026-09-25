@@ -218,7 +218,7 @@ export function BestiaryScreen() {
             </div>
 
             <div>
-              <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+              <label style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                 Ability Scores
               </label>
               <div className="ability-edit-grid">

@@ -235,7 +235,7 @@ export function AuthScreen() {
           )}
 
           {error && <p className="error-text">{error}</p>}
-          {notice && <p className="error-text">{notice}</p>}
+          {notice && <p className="notice-text">{notice}</p>}
 
           {needsConfirmation && mode === 'login' && (
             <button
