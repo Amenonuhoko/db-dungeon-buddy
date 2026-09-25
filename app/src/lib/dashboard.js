@@ -32,7 +32,8 @@ export async function loadDashboard(campaigns, myId) {
       q(
         supabase
           .from('character_sheets')
-          .select('id, campaign_id, name, class_and_level, race, current_hp, max_hp, armor_class')
+          // Every column, so a backend with or without 014's portrait works.
+          .select('*')
           .eq('player_id', myId)
           .in('campaign_id', ids),
       ),
@@ -104,6 +105,7 @@ export async function loadDashboard(campaigns, myId) {
         currentHp: character.current_hp,
         maxHp: character.max_hp,
         armorClass: character.armor_class,
+        portraitPath: character.portrait_path ?? null,
       },
       fight: encounter && {
         name: encounter.name,

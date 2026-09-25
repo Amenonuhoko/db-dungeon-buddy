@@ -5,6 +5,7 @@ import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuild
 import { useCreateMode } from '../lib/createMode.js';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
+import { Portrait } from '../components/Portrait.jsx';
 import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
 import {
   BLANK_ABILITIES,
@@ -283,16 +284,18 @@ export function ChooseCharacterScreen() {
 function CharacterSummary({ character, showHp }) {
   const sub = [character.classAndLevel, character.race].filter(Boolean).join(' · ');
   return (
-    <div className="choose-card-text">
-      <span className="choose-card-name">{character.name}</span>
-      {sub && <span className="choose-card-sub">{sub}</span>}
-      {showHp && character.maxHp != null && (
-        <span className="choose-card-sub">
-          HP {character.currentHp ?? character.maxHp}/{character.maxHp}
-          {character.armorClass != null ? ` · AC ${character.armorClass}` : ''}
-        </span>
-      )}
-    </div>
+    <>
+      <Portrait path={character.portraitPath} name={character.name} size="sm" />
+      <div className="choose-card-text">
+        <span className="choose-card-name">{character.name}</span>
+        {sub && <span className="choose-card-sub">{sub}</span>}
+        {showHp && character.maxHp != null && (
+          <span className="choose-card-sub">
+            HP {character.currentHp ?? character.maxHp}/{character.maxHp}
+            {character.armorClass != null ? ` · AC ${character.armorClass}` : ''}
+          </span>
+        )}
+      </div>
+    </>
   );
 }
-

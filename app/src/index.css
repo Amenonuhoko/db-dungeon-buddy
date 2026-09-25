@@ -1901,7 +1901,9 @@ button.pip {
 
 /* Party roster card — the whole card is the button. */
 .party-card {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
   width: 100%;
   text-align: left;
   padding: 1rem 1.1rem;
@@ -1922,6 +1924,11 @@ button.pip {
 
 .party-card.mine {
   border-color: var(--gold-bright);
+}
+
+.party-card-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .party-card-top {
@@ -2837,6 +2844,7 @@ button.presence-card:active {
 
 .choose-card-text {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
 }
@@ -3870,4 +3878,166 @@ button.presence-card:active {
   .builder-ability-short {
     display: inline;
   }
+}
+
+/* ---------------------------------------------------------------------
+ * Portraits (components/Portrait.jsx, 014) — a round picture in a brass
+ * rim, or the character's initials on a colour of their own.
+ * ------------------------------------------------------------------- */
+.portrait {
+  --portrait-size: 3.25rem;
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--portrait-size);
+  height: var(--portrait-size);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 3px solid var(--gold);
+  box-shadow:
+    0 0 0 2px var(--ink),
+    var(--lip-small);
+  background: var(--surface);
+}
+
+.portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.portrait-empty {
+  background:
+    radial-gradient(circle at 35% 30%, hsl(var(--portrait-hue, 20) 55% 55% / 0.95), hsl(var(--portrait-hue, 20) 50% 28%));
+  color: #fff5e3;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.portrait-empty span {
+  font-size: calc(var(--portrait-size) * 0.36);
+  line-height: 1;
+}
+
+.portrait-sm {
+  --portrait-size: 2.6rem;
+  border-width: 2px;
+}
+
+.portrait-md {
+  --portrait-size: 3.4rem;
+}
+
+.portrait-lg {
+  --portrait-size: 7.5rem;
+  border-width: 4px;
+  box-shadow:
+    0 0 0 3px var(--ink),
+    0 0 0 6px var(--gold-deep),
+    0 6px 0 3px var(--ink),
+    var(--shadow-glow);
+}
+
+.character-sheet-header > .portrait,
+.character-sheet-header > .portrait-picker {
+  margin: 0 auto 0.9rem;
+}
+
+.portrait-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.portrait-button {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.portrait-button:disabled {
+  cursor: wait;
+}
+
+.portrait-button-label {
+  position: absolute;
+  left: 50%;
+  bottom: -0.35rem;
+  transform: translateX(-50%);
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--gold);
+  color: var(--on-gold);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--lip-small);
+}
+
+.portrait-remove {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.portrait-cropper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.portrait-crop-canvas {
+  max-width: 100%;
+  border-radius: 999px;
+  border: 4px solid var(--gold);
+  box-shadow:
+    0 0 0 3px var(--ink),
+    var(--lip);
+  touch-action: none;
+  cursor: grab;
+  background: var(--surface);
+}
+
+.portrait-crop-canvas:active {
+  cursor: grabbing;
+}
+
+.portrait-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(100%, 240px);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.portrait-zoom input {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.portrait-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.portrait-error {
+  text-align: center;
+  max-width: 22rem;
+}
+
+.my-characters .portrait-picker {
+  margin-bottom: 1rem;
 }

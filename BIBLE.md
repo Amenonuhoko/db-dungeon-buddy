@@ -1248,6 +1248,49 @@ Storage details:
   campaign clears it.
 - Images on the board wait for Supabase Storage (with portraits).
 
+**Portraits (`014_portraits.sql`).** Every character can have a picture:
+on the sheet (large, in a brass ring), on Party cards, in the chooser, in
+My Characters and on the dashboard. Without one, the character's
+initials show on a colour of their own (`components/Portrait.jsx`).
+- **Who can change it:** tapping the portrait on the sheet opens a
+  picker for whoever can edit the sheet (the DM, or the player wearing
+  it). Choose a picture, drag it into place and zoom, then Save. My
+  Characters entries get the same picker in their edit form.
+- **On the device first** (`lib/portraits.js`): the crop is drawn to a
+  512 × 512 WebP (JPEG where the browser can't make WebP), about 15–40
+  KB, before anything is uploaded.
+- **Storage:** a private `portraits` bucket, one folder per character:
+  `campaigns/<campaign>/sheets/<sheet>/…` or
+  `users/<owner>/roster/<roster id>/…`. The row's `portrait_path`
+  points at the file, and a check constraint keeps it inside that
+  character's own folder.
+- **Storage policies** read the path. Campaign members can view a
+  campaign's portraits. The DM or the current wearer can add, replace
+  and delete them, the same people who can edit the sheet. My
+  Characters pictures are their owner's alone, and anonymous accounts
+  can't have them. Only a real image under 1 MB is accepted, and a
+  folder holds at most three files. Replacing a portrait deletes the
+  old file, and deleting a character deletes its picture first, because
+  afterwards nobody would be allowed to.
+- **Showing them:** because the bucket is private, pictures load through
+  one-hour signed links. Every portrait on screen is signed in one
+  batched request, and links are cached until shortly before they
+  expire.
+- **Copying:** bringing a My Characters entry into a campaign copies its
+  picture into the new sheet's folder, and Save to My Characters copies
+  it back. Both are best effort: the character still moves if the copy
+  fails.
+- **Offline**, a 256px picture is kept on the sheet itself as a
+  `data:` URL, and no storage is involved.
+- **Before 014:** the upload error explains that the migration is
+  needed, and My Characters falls back to its older columns.
+  `app/vercel.json`'s CSP allows images from `https://*.supabase.co`
+  (and `blob:`).
+- **What isn't cleaned up:** a deleted campaign's pictures stay in the
+  bucket, unreadable because nobody is a member any more. Supabase
+  doesn't let SQL delete storage files, so clear them from the Storage
+  dashboard if it matters.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

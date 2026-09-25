@@ -4,6 +4,7 @@ import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuild
 import { useCreateMode } from '../lib/createMode.js';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { PartyStash } from '../components/PartyStash.jsx';
+import { Portrait } from '../components/Portrait.jsx';
 import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
 import { TablePresence } from '../components/TablePresence.jsx';
 import { TableTalk } from '../components/TableTalk.jsx';
@@ -444,43 +445,46 @@ function PartyCard({ sheet, conditions, mine, here, playedBy, onOpen }) {
   const band = pct > 50 ? 'ok' : pct > 25 ? 'warn' : 'danger';
   return (
     <button type="button" className={`panel party-card${mine ? ' mine' : ''}`} onClick={onOpen}>
-      <div className="party-card-top">
-        <span className="party-card-name">
-          {here && <span className="presence-dot online inline" title="Their player is here now" aria-label="Player is here now" />}
-          {sheet.name}
-        </span>
-        {mine && <span className="chip chip-small">You</span>}
-        {!mine && playedBy && <span className="chip chip-small">{playedBy}</span>}
-        {playedBy === null && <span className="chip chip-small chip-available">Available</span>}
-        <span className="campaign-card-arrow" aria-hidden="true">
-          →
-        </span>
-      </div>
-      {(sheet.classAndLevel || sheet.race) && (
-        <p className="party-card-sub">{[sheet.classAndLevel, sheet.race].filter(Boolean).join(' · ')}</p>
-      )}
-      <div className="party-card-stats">
-        {max != null && (
-          <div className="combat-hp" style={{ marginTop: 0, flex: 1 }}>
-            <div className="hp-track hp-track-slim">
-              <div className={`hp-track-fill hp-track-fill-${band}`} style={{ width: `${pct}%` }} />
+      <Portrait path={sheet.portraitPath} name={sheet.name} size="md" className="party-card-portrait" />
+      <div className="party-card-body">
+        <div className="party-card-top">
+          <span className="party-card-name">
+            {here && <span className="presence-dot online inline" title="Their player is here now" aria-label="Player is here now" />}
+            {sheet.name}
+          </span>
+          {mine && <span className="chip chip-small">You</span>}
+          {!mine && playedBy && <span className="chip chip-small">{playedBy}</span>}
+          {playedBy === null && <span className="chip chip-small chip-available">Available</span>}
+          <span className="campaign-card-arrow" aria-hidden="true">
+            →
+          </span>
+        </div>
+        {(sheet.classAndLevel || sheet.race) && (
+          <p className="party-card-sub">{[sheet.classAndLevel, sheet.race].filter(Boolean).join(' · ')}</p>
+        )}
+        <div className="party-card-stats">
+          {max != null && (
+            <div className="combat-hp" style={{ marginTop: 0, flex: 1 }}>
+              <div className="hp-track hp-track-slim">
+                <div className={`hp-track-fill hp-track-fill-${band}`} style={{ width: `${pct}%` }} />
+              </div>
+              <span className="combat-hp-numbers">
+                {hp ?? '—'}/{max}
+              </span>
             </div>
-            <span className="combat-hp-numbers">
-              {hp ?? '—'}/{max}
-            </span>
+          )}
+          {sheet.armorClass != null && <span className="chip chip-small">AC {sheet.armorClass}</span>}
+        </div>
+        {conditions.length > 0 && (
+          <div className="combat-conditions">
+            {conditions.map((c) => (
+              <span key={c.id} className="condition-chip">
+                {c.label}
+              </span>
+            ))}
           </div>
         )}
-        {sheet.armorClass != null && <span className="chip chip-small">AC {sheet.armorClass}</span>}
       </div>
-      {conditions.length > 0 && (
-        <div className="combat-conditions">
-          {conditions.map((c) => (
-            <span key={c.id} className="condition-chip">
-              {c.label}
-            </span>
-          ))}
-        </div>
-      )}
     </button>
   );
 }

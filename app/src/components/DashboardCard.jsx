@@ -1,4 +1,4 @@
-import { hueFor, initials } from '../lib/avatar.js';
+import { Portrait } from './Portrait.jsx';
 import { timeAgo } from '../lib/dashboard.js';
 
 // One campaign on the hub, with what matters at a glance (lib/dashboard.js):
@@ -50,9 +50,7 @@ export function DashboardCard({ campaign, info, onOpen }) {
       {!isDM &&
         (character ? (
           <button type="button" className="dash-character" onClick={() => onOpen(`${base}/characters/${character.id}`)}>
-            <span className="presence-avatar" style={{ '--hue': hueFor(character.id) }} aria-hidden="true">
-              {initials(character.name)}
-            </span>
+            <Portrait path={character.portraitPath} name={character.name} size="sm" />
             <span className="dash-character-text">
               <span className="dash-character-name">{character.name}</span>
               <span className="dash-character-sub">{[character.classAndLevel, character.race].filter(Boolean).join(' · ') || 'Open the sheet'}</span>

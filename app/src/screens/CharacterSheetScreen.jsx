@@ -4,6 +4,7 @@ import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { DeleteButton } from '../components/DeleteButton.jsx';
+import { Portrait, PortraitPicker } from '../components/Portrait.jsx';
 import { SheetInventory } from '../components/SheetInventory.jsx';
 import { SheetStory } from '../components/SheetStory.jsx';
 import { SheetWearerBar } from '../components/SheetWearerBar.jsx';
@@ -21,7 +22,9 @@ import {
   modifier,
   removeCondition,
   removeSheet,
+  removeSheetPortrait,
   resourcesOf,
+  saveSheetPortrait,
   sheetToMarkdown,
   shortRestPatch,
   updateSheet,
@@ -29,6 +32,7 @@ import {
 import { absoluteTabs } from '../lib/campaignTabs.jsx';
 import { rollD20 } from '../lib/encounters.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
+import { deletePortraitFile, explainPortraitError } from '../lib/portraits.js';
 import { useCampaignPresence } from '../lib/presence.js';
 import { useCampaignAccess } from '../lib/useCampaignAccess.js';
 import { useSession } from '../lib/SessionContext.jsx';
@@ -275,11 +279,23 @@ export function CharacterSheetScreen() {
           await removeCondition(status, campaignId, c.id);
         }
       }
+      // The picture first: once the sheet is gone, nobody may delete it.
+      await deletePortraitFile(sheet.portraitPath);
       await removeSheet(status, campaignId, sheet.id);
       navigate(`/campaigns/${campaignId}/characters`);
     } catch (err) {
       setActionError(describeWriteError(err));
     }
+  }
+
+  async function savePortrait(img, crop) {
+    const updated = await saveSheetPortrait(status, campaignId, sheet, img, crop);
+    setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
+  }
+
+  async function removePortrait() {
+    const updated = await removeSheetPortrait(status, campaignId, sheet);
+    setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
   }
 
   async function handleAddCondition(event) {
@@ -537,6 +553,17 @@ export function CharacterSheetScreen() {
           ) : (
             <>
               <div className="character-sheet-header">
+                {editable ? (
+                  <PortraitPicker
+                    path={sheet.portraitPath}
+                    name={sheet.name}
+                    onSave={savePortrait}
+                    onRemove={removePortrait}
+                    describeError={explainPortraitError}
+                  />
+                ) : (
+                  <Portrait path={sheet.portraitPath} name={sheet.name} size="lg" />
+                )}
                 <LaurelFlourish>
                   <h1 className="character-sheet-name">{sheet.name}</h1>
                 </LaurelFlourish>

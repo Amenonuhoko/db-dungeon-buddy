@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { BLANK_ABILITIES, BLANK_PICKS, customOptions, finalizeQuickFields, parseClassAndLevel, parseRace } from '../lib/characters.js';
+import { explainPortraitError } from '../lib/portraits.js';
 import {
   createRosterCharacter,
   deleteRosterCharacter,
   isMissingRoster,
   listRoster,
+  removeRosterPortrait,
+  saveRosterPortrait,
   updateRosterCharacter,
 } from '../lib/roster.js';
 import { CharacterBuilder, CreateModeSwitch } from './CharacterBuilder.jsx';
 import { useCreateMode } from '../lib/createMode.js';
 import { DeleteButton } from './DeleteButton.jsx';
 import { Panel } from './ornament/Panel.jsx';
+import { Portrait, PortraitPicker } from './Portrait.jsx';
 import { QuickCharacterFields } from './QuickCharacterFields.jsx';
 
 // My Characters — an account holder's own characters, kept outside any
@@ -91,10 +95,12 @@ export function MyCharacters() {
     }
   }
 
+  const replace = (updated) => setCharacters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+
   async function remove(character) {
     setError(null);
     try {
-      await deleteRosterCharacter(character.id);
+      await deleteRosterCharacter(character.id, character.portraitPath);
       setCharacters((prev) => prev.filter((c) => c.id !== character.id));
     } catch (err) {
       setError(err.message);
@@ -161,11 +167,22 @@ export function MyCharacters() {
         {characters?.map((c) =>
           editingId === c.id ? (
             <li key={c.id}>
-              <Panel>{form$}</Panel>
+              <Panel>
+                <PortraitPicker
+                  path={c.portraitPath}
+                  name={c.name}
+                  size="md"
+                  onSave={async (img, crop) => replace(await saveRosterPortrait(c, img, crop))}
+                  onRemove={async () => replace(await removeRosterPortrait(c))}
+                  describeError={explainPortraitError}
+                />
+                {form$}
+              </Panel>
             </li>
           ) : (
             <li key={c.id} className="choose-card panel">
               <DeleteButton onConfirm={() => remove(c)} label={c.name} />
+              <Portrait path={c.portraitPath} name={c.name} size="sm" />
               <div className="choose-card-text">
                 <span className="choose-card-name">{c.name}</span>
                 <span className="choose-card-sub">{[c.classAndLevel, c.race].filter(Boolean).join(' · ') || 'No class yet'}</span>

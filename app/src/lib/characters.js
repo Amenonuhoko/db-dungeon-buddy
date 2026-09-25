@@ -1,5 +1,13 @@
 import { ABILITY_KEYS, BLANK_ABILITIES, modifier } from './bestiary.js';
 import { createLocalStore, createSupabaseStore } from './contentStore';
+import {
+  blobToDataUrl,
+  deletePortraitFile,
+  OFFLINE_PORTRAIT_SIZE,
+  renderPortrait,
+  sheetPortraitFolder,
+  uploadPortrait,
+} from './portraits.js';
 import { supabase } from './supabase';
 
 export { ABILITY_KEYS, BLANK_ABILITIES, modifier };
@@ -280,6 +288,32 @@ export async function updateSheet(status, campaignId, id, patch) {
 
 export function removeSheet(status, campaignId, id) {
   return sheetsFor(status).remove(campaignId, id);
+}
+
+// A new portrait (014) from a loaded image and a crop (PortraitPicker).
+// Online: upload, point the sheet at it, then drop the old file. Offline:
+// a smaller picture kept on the sheet itself.
+export async function saveSheetPortrait(status, campaignId, sheet, img, crop) {
+  if (status === 'guest') {
+    const dataUrl = await blobToDataUrl(await renderPortrait(img, crop, OFFLINE_PORTRAIT_SIZE));
+    return updateSheet(status, campaignId, sheet.id, { portraitPath: dataUrl });
+  }
+  const path = await uploadPortrait(sheetPortraitFolder(campaignId, sheet.id), await renderPortrait(img, crop));
+  let updated;
+  try {
+    updated = await updateSheet(status, campaignId, sheet.id, { portraitPath: path });
+  } catch (err) {
+    await deletePortraitFile(path);
+    throw err;
+  }
+  await deletePortraitFile(sheet.portraitPath);
+  return updated;
+}
+
+export async function removeSheetPortrait(status, campaignId, sheet) {
+  const updated = await updateSheet(status, campaignId, sheet.id, { portraitPath: null });
+  await deletePortraitFile(sheet.portraitPath);
+  return updated;
 }
 
 // Every condition in the campaign, not filtered to one sheet — RLS (for
