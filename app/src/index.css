@@ -2997,3 +2997,158 @@ button.presence-card:active {
   font-size: 0.9rem;
   color: var(--text-dim);
 }
+
+/* =====================================================================
+ * Campaign hub dashboard (DashboardCard.jsx) — Playing / Running, your
+ * character front and centre, and what's going on at a glance.
+ * ===================================================================== */
+.hub-views {
+  margin-bottom: 1.1rem;
+}
+
+.dash-card.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+}
+
+.dash-card.my-turn {
+  border-color: var(--accent);
+  box-shadow: 0 4px 0 var(--accent-fill), var(--shadow-glow);
+}
+
+.dash-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dash-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dash-status:empty {
+  display: none;
+}
+
+.dash-status button.chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dash-chip-hot {
+  background: var(--accent-fill) !important;
+  border-color: var(--accent-fill) !important;
+  color: var(--on-accent) !important;
+  animation: presence-pulse 2.4s ease-out infinite;
+}
+
+.dash-chip-fight {
+  border-color: var(--oxblood) !important;
+  color: var(--oxblood) !important;
+}
+
+.dash-chip-unread {
+  background: var(--gold) !important;
+  border-color: var(--gold) !important;
+  color: var(--on-gold) !important;
+}
+
+.dash-character {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dash-character:hover {
+  border-color: var(--accent);
+}
+
+.dash-character-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.dash-character-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.dash-character-sub {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.dash-character-hp {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.dash-character-hp .hp-track {
+  flex: 1;
+}
+
+.dash-no-character {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-lg);
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.dash-note {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-note:hover {
+  color: var(--text);
+}
+
+.dash-status .chip {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}

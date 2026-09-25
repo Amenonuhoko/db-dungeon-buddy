@@ -1107,6 +1107,32 @@ conditions, on Party cards and in Combat.
 - **Deploy order:** after running 010, deploy this app version. Older
   builds still try to write the moved columns to `character_sheets`.
 
+**The dashboard (campaign hub).** Account holders get two tabs:
+- **Playing**: games you're a player in.
+- **Running**: games you DM.
+
+The tab is remembered per device. It defaults to Playing if you're in
+anyone's game, otherwise Running. Anonymous players see only Playing,
+with no tabs; offline mode is unchanged.
+
+Every online campaign is a `DashboardCard`, fed by `lib/dashboard.js`.
+That's one query per kind of data across all your campaigns, and each
+piece is simply left out if it fails (e.g. no Talk before 008). A card
+shows:
+- **For players:** the character you're wearing, front and centre
+  (initials, name, class · race, HP bar, AC), one tap to its sheet. With
+  no character, "Choose a Character" goes to the chooser.
+- **Fight status:** "Your turn!" (the whole card is highlighted), or
+  "In combat · Round 3 · Goblin Boss's turn". Tapping it opens Combat.
+- **Unread Talk:** the same per-device read state as the Party page.
+  Tapping it opens Talk.
+- **For DMs:** how many players are at the table.
+- **Latest note** you can see, with its age.
+
+The data refreshes whenever you come back to the tab. "Join with a
+Code" and My Characters live under Playing; "+ New Campaign" and
+import live under Running.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

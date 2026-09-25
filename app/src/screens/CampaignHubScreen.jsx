@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
+import { DashboardCard } from '../components/DashboardCard.jsx';
 import { MyCharacters } from '../components/MyCharacters.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
@@ -12,7 +13,19 @@ import {
   listGuestCampaigns,
   listMyCampaigns,
 } from '../lib/campaigns.js';
+import { loadDashboard } from '../lib/dashboard.js';
 import { useSession } from '../lib/SessionContext.jsx';
+
+// The hub splits into what you're playing and what you're running
+// (remembered per device); anonymous players only ever play.
+const HUB_VIEW_KEY = 'dungeonbuddy.hubView';
+function readHubView() {
+  try {
+    return localStorage.getItem(HUB_VIEW_KEY);
+  } catch {
+    return null;
+  }
+}
 
 const ROLE_LABEL = { dm: 'Dungeon Master', player: 'Player' };
 
@@ -46,6 +59,8 @@ export function CampaignHubScreen() {
   // away (see `showCreate` below).
   const [createOpen, setCreateOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const [dash, setDash] = useState({});
+  const [savedView, setSavedView] = useState(readHubView);
   const [nameDraft, setNameDraft] = useState(null); // null = not editing
   const [nameError, setNameError] = useState(null);
 
@@ -68,6 +83,25 @@ export function CampaignHubScreen() {
         .finally(() => setLoading(false));
     }
   }, [status, guest?.role]);
+
+  // At-a-glance status for every campaign (lib/dashboard.js), refreshed
+  // when you come back to the tab — a fight may have started meanwhile.
+  const userId = user?.id;
+  useEffect(() => {
+    if (status !== 'authenticated' || campaigns.length === 0) return undefined;
+    let cancelled = false;
+    const refresh = () =>
+      loadDashboard(campaigns, userId)
+        .then((next) => !cancelled && setDash(next))
+        .catch(() => {});
+    refresh();
+    const onVisible = () => document.visibilityState === 'visible' && refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [status, campaigns, userId]);
 
   function openCampaign(id) {
     navigate(`/campaigns/${id}`);
@@ -152,7 +186,26 @@ export function CampaignHubScreen() {
   // role in any useful way (no way back in on another device) — they
   // join, they don't create. Everyone else can create.
   const canCreate = !isAnonymous;
-  const showCreate = canCreate && (createOpen || (!loading && campaigns.length === 0));
+
+  // Playing / Running (account holders). Default: whatever you picked
+  // last; otherwise Playing if you're in anyone's game, else Running
+  // (a brand-new account lands where it can start a campaign).
+  const split = status === 'authenticated' && !isAnonymous;
+  const playing = campaigns.filter((c) => c.role !== 'dm');
+  const running = campaigns.filter((c) => c.role === 'dm');
+  const view = !split ? 'playing' : savedView === 'playing' || savedView === 'running' ? savedView : playing.length ? 'playing' : 'running';
+  function chooseView(next) {
+    setSavedView(next);
+    setCreateOpen(false);
+    try {
+      localStorage.setItem(HUB_VIEW_KEY, next);
+    } catch {
+      // Storage blocked — the choice just won't be remembered.
+    }
+  }
+  const shown = split ? (view === 'running' ? running : playing) : campaigns;
+  const creating = status === 'guest' || (split && view === 'running');
+  const showCreate = canCreate && creating && (createOpen || (!loading && shown.length === 0));
   const name = status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || user?.email;
 
   return (
@@ -207,24 +260,41 @@ export function CampaignHubScreen() {
           </p>
         )}
 
+        {split && (
+          <div className="party-views hub-views" role="tablist" aria-label="Your campaigns">
+            <button type="button" role="tab" aria-selected={view === 'playing'} className={view === 'playing' ? 'active' : ''} onClick={() => chooseView('playing')}>
+              Playing{playing.length ? ` · ${playing.length}` : ''}
+            </button>
+            <button type="button" role="tab" aria-selected={view === 'running'} className={view === 'running' ? 'active' : ''} onClick={() => chooseView('running')}>
+              Running{running.length ? ` · ${running.length}` : ''}
+            </button>
+          </div>
+        )}
+
         <Panel corners topRule style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {loading && <p>Loading your campaigns…</p>}
 
-          {!loading && campaigns.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {campaigns.map((c) => (
-                <CampaignRow key={c.id} campaign={c} onOpen={openCampaign} />
-              ))}
+          {!loading && shown.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              {shown.map((c) =>
+                status === 'authenticated' ? (
+                  <DashboardCard key={c.id} campaign={c} info={dash[c.id]} onOpen={(path) => navigate(path)} />
+                ) : (
+                  <CampaignRow key={c.id} campaign={c} onOpen={openCampaign} />
+                ),
+              )}
             </div>
           )}
 
-          {!loading && campaigns.length === 0 && (
+          {!loading && shown.length === 0 && (
             <p style={{ textAlign: 'center' }}>
               {status === 'guest'
                 ? 'No campaigns on this device yet — start one below.'
                 : isAnonymous
                   ? 'Ask your DM for an invite link to join a game.'
-                  : 'No campaigns yet — start your own, or join one with an invite.'}
+                  : view === 'playing'
+                    ? "You're not playing in anyone's campaign yet — ask your DM for an invite link, or join with a code."
+                    : "You're not running a campaign yet — start one below."}
             </p>
           )}
 
@@ -260,7 +330,7 @@ export function CampaignHubScreen() {
                 <button className="btn btn-primary" type="submit" disabled={busy || !newName.trim()}>
                   {busy ? 'Creating…' : 'Create Campaign'}
                 </button>
-                {campaigns.length > 0 && (
+                {shown.length > 0 && (
                   <button className="btn btn-ghost" type="button" onClick={() => setCreateOpen(false)}>
                     Cancel
                   </button>
@@ -269,12 +339,12 @@ export function CampaignHubScreen() {
             </form>
           ) : (
             <div className="hub-actions">
-              {canCreate && (
+              {canCreate && creating && (
                 <button className="btn btn-ghost" type="button" onClick={() => setCreateOpen(true)}>
                   + New Campaign
                 </button>
               )}
-              {status === 'authenticated' && (
+              {status === 'authenticated' && view === 'playing' && (
                 <button className="btn btn-ghost" type="button" onClick={() => navigate('/join')}>
                   Join with a Code
                 </button>
@@ -284,7 +354,7 @@ export function CampaignHubScreen() {
 
           {/* One-shot import (lib/campaignImport.js) — a quiet link rather
               than a third big button, since most people never need it. */}
-          {canCreate && (
+          {canCreate && creating && (
             <div style={{ textAlign: 'center' }}>
               <button
                 className="example-toggle"
@@ -306,7 +376,7 @@ export function CampaignHubScreen() {
           )}
         </Panel>
 
-        {status === 'authenticated' && !isAnonymous && <MyCharacters />}
+        {split && view === 'playing' && <MyCharacters />}
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
           {isAnonymous ? (

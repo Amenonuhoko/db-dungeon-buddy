@@ -62,7 +62,7 @@ export async function deleteMessage(id) {
 
 const readKey = (campaignId) => `dungeonbuddy.read.${campaignId}`;
 
-function loadRead(campaignId) {
+export function loadRead(campaignId) {
   try {
     return JSON.parse(localStorage.getItem(readKey(campaignId)) || '{}');
   } catch {
