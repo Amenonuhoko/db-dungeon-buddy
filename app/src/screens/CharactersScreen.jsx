@@ -5,11 +5,13 @@ import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
   BLANK_ABILITIES,
+  CLASSES,
   createSheet,
   EXAMPLES,
   listConditions,
   listSheets,
   LOCAL_PLAYER_ID,
+  RACES,
   sheetsToMarkdown,
 } from '../lib/characters.js';
 import { listCampaignMembers } from '../lib/campaigns.js';
@@ -36,6 +38,56 @@ const BLANK_FORM = {
   playerId: '',
 };
 
+// class_and_level/race stay plain text columns in the database (a
+// homebrew class or a third-party species is still just a string), so
+// the dropdowns below are a UI convenience layered on top, not a schema
+// change — this is what turns a stored "Rogue 3" back into a dropdown
+// selection (or "Other" + the raw text) when starting from a template.
+function parseClassAndLevel(value) {
+  const match = /^(.*?)\s+(\d+)\s*$/.exec((value || '').trim());
+  const [name, level] = match ? [match[1], match[2]] : [(value || '').trim(), ''];
+  if (!name) return { classChoice: '', customClass: '', level: '' };
+  return CLASSES.includes(name)
+    ? { classChoice: name, customClass: '', level }
+    : { classChoice: 'Other', customClass: name, level };
+}
+
+function parseRace(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return { raceChoice: '', customRace: '' };
+  return RACES.includes(trimmed) ? { raceChoice: trimmed, customRace: '' } : { raceChoice: 'Other', customRace: trimmed };
+}
+
+const BLANK_PICKS = { classChoice: '', customClass: '', level: '', raceChoice: '', customRace: '' };
+
+// Turns a raw Supabase/Postgres error into something the person looking
+// at the screen can actually act on — same "don't show a raw error"
+// doctrine as lib/session.js's friendlyAuthError(). Branches on the
+// Postgres SQLSTATE (err.code) rather than pattern-matching the message
+// text, except for the one case (a bare RLS violation with no custom
+// message) that needs its own explanation because it's specifically
+// "the database hasn't been migrated yet," not "you're not allowed to
+// do this" — every other 42501 already carries a specific, readable
+// message from a database trigger (see check_sheet_player() in
+// db/migrations/007_hardening.sql) and is shown as-is.
+function explainCreateError(err, isPlayer) {
+  const message = err?.message || '';
+  if (err?.code === '42501') {
+    if (/row-level security policy/i.test(message)) {
+      return isPlayer
+        ? "This campaign's database hasn't been updated to let players create their own characters yet — ask your DM to run database update 007 (see the project README), or to add your character for you in the meantime."
+        : "The database doesn't yet allow this — it may need database update 007 run (see the project README).";
+    }
+    return message; // a specific, already-readable message from a trigger
+  }
+  if (err?.code === '23503') return "That player or campaign couldn't be found — try refreshing the page and creating the character again.";
+  if (err?.code === '23514' || err?.code === '23502') return message || "That character is missing something required — check every field and try again.";
+  if (/fetch|network|NetworkError/i.test(message) || err?.name === 'TypeError') {
+    return "Couldn't reach the server — check your connection and try again.";
+  }
+  return message || 'Something went wrong creating that character — try again in a moment.';
+}
+
 export function CharactersScreen() {
   const { campaignId, isDM, isGuest, openInvite } = useOutletContext();
   const { status, user } = useSession();
@@ -49,6 +101,7 @@ export function CharactersScreen() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
+  const [picks, setPicks] = useState(BLANK_PICKS);
 
   // Players — guest or account — make their own character (one each; the
   // DM can add more for them) instead of waiting for the DM to hand one
@@ -94,6 +147,7 @@ export function CharactersScreen() {
 
   function startCreate() {
     setForm({ ...BLANK_FORM, playerId: ownPlayerId });
+    setPicks(BLANK_PICKS);
     setShowForm(true);
   }
 
@@ -104,15 +158,20 @@ export function CharactersScreen() {
       abilities: { ...BLANK_ABILITIES, ...example.abilities },
       playerId: ownPlayerId,
     });
+    setPicks({ ...parseClassAndLevel(example.classAndLevel), ...parseRace(example.race) });
     setShowForm(true);
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     if (!form.name.trim() || !form.playerId) return;
+    const finalClass = picks.classChoice === 'Other' ? picks.customClass.trim() : picks.classChoice;
+    const finalRace = picks.raceChoice === 'Other' ? picks.customRace.trim() : picks.raceChoice;
     const fields = {
       ...form,
       name: form.name.trim(),
+      classAndLevel: [finalClass, picks.level.trim()].filter(Boolean).join(' '),
+      race: finalRace,
       armorClass: form.armorClass === '' ? null : Number(form.armorClass),
       maxHp: form.maxHp === '' ? null : Number(form.maxHp),
       // New characters start at full health — one less number to enter.
@@ -123,13 +182,10 @@ export function CharactersScreen() {
       setSheets((prev) => [created, ...prev]);
       setShowForm(false);
       setForm(BLANK_FORM);
+      setPicks(BLANK_PICKS);
       navigate(`/campaigns/${campaignId}/characters/${created.id}`);
     } catch (err) {
-      setError(
-        isPlayer && /row-level security/i.test(err.message || '')
-          ? "Your DM's server doesn't let players create characters yet — they need to run database update 007 (see README). Until then, ask your DM to add yours."
-          : err.message,
-      );
+      setError(explainCreateError(err, isPlayer));
     }
   }
 
@@ -232,26 +288,65 @@ export function CharactersScreen() {
                   autoFocus
                 />
               </div>
-              <div className="field" style={{ flex: '1 1 140px' }}>
-                <label htmlFor="charClass">Class &amp; Level</label>
-                <input
+              <div className="field" style={{ flex: '2 1 160px' }}>
+                <label htmlFor="charClass">Class</label>
+                <select
                   id="charClass"
-                  value={form.classAndLevel}
-                  onChange={(e) => setForm({ ...form, classAndLevel: e.target.value })}
-                  placeholder="Rogue 3"
+                  value={picks.classChoice}
+                  onChange={(e) => setPicks({ ...picks, classChoice: e.target.value })}
+                >
+                  <option value="">Choose a class…</option>
+                  {CLASSES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                  <option value="Other">Other…</option>
+                </select>
+              </div>
+              <div className="field" style={{ flex: '1 1 90px' }}>
+                <label htmlFor="charLevel">Level</label>
+                <input
+                  id="charLevel"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={picks.level}
+                  onChange={(e) => setPicks({ ...picks, level: e.target.value })}
+                  placeholder="1"
                 />
               </div>
             </div>
 
+            {picks.classChoice === 'Other' && (
+              <div className="field">
+                <label htmlFor="charClassCustom">Custom class</label>
+                <input
+                  id="charClassCustom"
+                  value={picks.customClass}
+                  onChange={(e) => setPicks({ ...picks, customClass: e.target.value })}
+                  placeholder="Artificer"
+                  autoFocus
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '2 1 160px' }}>
                 <label htmlFor="charRace">Race / Species</label>
-                <input
+                <select
                   id="charRace"
-                  value={form.race}
-                  onChange={(e) => setForm({ ...form, race: e.target.value })}
-                  placeholder="Half-Elf"
-                />
+                  value={picks.raceChoice}
+                  onChange={(e) => setPicks({ ...picks, raceChoice: e.target.value })}
+                >
+                  <option value="">Choose a race…</option>
+                  {RACES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                  <option value="Other">Other…</option>
+                </select>
               </div>
               <div className="field" style={{ flex: '1 1 90px' }}>
                 <label htmlFor="charMaxHp">Max HP</label>
@@ -262,6 +357,18 @@ export function CharactersScreen() {
                 <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
               </div>
             </div>
+
+            {picks.raceChoice === 'Other' && (
+              <div className="field">
+                <label htmlFor="charRaceCustom">Custom race / species</label>
+                <input
+                  id="charRaceCustom"
+                  value={picks.customRace}
+                  onChange={(e) => setPicks({ ...picks, customRace: e.target.value })}
+                  placeholder="Tabaxi"
+                />
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
