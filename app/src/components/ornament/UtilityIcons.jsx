@@ -13,6 +13,16 @@ export function DownloadIcon(props) {
   );
 }
 
+export function UploadIcon(props) {
+  return (
+    <svg {...common} width={16} height={16} aria-hidden="true" {...props}>
+      <path d="M12 16 V5" />
+      <path d="M7 9 L12 4 L17 9" />
+      <path d="M5 19 H19" />
+    </svg>
+  );
+}
+
 export function ChevronIcon(props) {
   return (
     <svg {...common} width={12} height={12} aria-hidden="true" {...props}>
