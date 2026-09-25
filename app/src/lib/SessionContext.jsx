@@ -10,7 +10,9 @@ import {
   signOut as accountSignOut,
   signUp,
   startGuestSession,
+  updateDisplayName,
   updatePassword,
+  renameGuestSession,
 } from './session';
 
 const SessionContext = createContext(null);
@@ -82,6 +84,13 @@ export function SessionProvider({ children }) {
         await signInAnonymously(displayName);
         // onAuthChange fires and updates status/user — same real account
         // path as logIn, just with no email/password (BIBLE.md §4).
+      },
+      async changeDisplayName(displayName) {
+        if (status === 'guest') {
+          setGuest(renameGuestSession(displayName));
+          return;
+        }
+        setUser(await updateDisplayName(displayName));
       },
       async logOut() {
         clearGuestSession();

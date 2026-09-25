@@ -615,6 +615,55 @@ Same doctrine as bonfire, extended for real user data:
   handling (localStorage-backed, short-lived access token + refresh) —
   don't hand-rolled cookie/token logic.
 
+### Hardening pass (2026-09, `007_hardening.sql`)
+
+Anonymous sign-in means anyone holding an invite link becomes a real,
+authenticated member in one click, so every policy has to hold against
+a member calling the Supabase API directly, not just against what the
+app's screens send. The review behind 007 was run against a real
+Postgres 16 with a Supabase shim (`auth.uid()`/`auth.jwt()`, the
+`anon`/`authenticated` roles): 16 attack cases and 22 normal-play cases,
+the attacks confirmed open before 007 and closed after it. What it fixed,
+and the rules to keep for any new table:
+
+- **Rows never change campaign.** `keep_row_identity()` (a `zz_…` BEFORE
+  UPDATE trigger, so it runs last) rejects a changed `campaign_id` and
+  pins `id`/`created_at`; `keep_created_by()`/`keep_author_id()` pin
+  authorship. Before 007 a player could move their note into another
+  campaign.
+- **Child rows take `campaign_id` from their parent**, never the client
+  (`character_conditions` ← its sheet, `encounter_combatants` ← its
+  encounter, and a combatant's character must be in the same campaign).
+  Before 007, the DM of *any* campaign could put a condition on a sheet
+  in someone else's campaign by claiming their own `campaign_id`. Any new
+  table with a denormalized `campaign_id` needs the same trigger.
+- **Rights end at the door.** A player's owner rights (edit their sheet,
+  set initiative, edit notes, see hidden conditions on their sheet) now
+  also require current membership — removing a player actually removes
+  their access. They can still read and delete their own notes.
+- **The DM's membership row can't be deleted** (they'd own a campaign
+  they can't open); deleting the campaign cascades it instead.
+- **Anonymous users can't create campaigns** — a restrictive policy on
+  `auth.jwt() ->> 'is_anonymous'`, not just a hidden button.
+- **Nothing a member writes is unbounded**: size checks on every text,
+  array and jsonb column (added `NOT VALID`, so they bind new writes
+  without failing the migration over old rows); dice rolls cap at 100
+  dice and the log keeps the newest 200 per campaign.
+- **Names aren't trusted**: the roll log stamps `display_name` from the
+  roller's profile, and sign-up display names are trimmed, capped, and
+  given a fallback in `handle_new_user()`.
+- **Invites**: codes match case- and space-insensitively, a campaign caps
+  at 50 members, and `regenerate_invite_code()` lets the DM retire a
+  leaked link (the DM-only "Reset link" in the invite panel).
+- **Sheets belong to members**: a sheet's `player_id` must be in the
+  campaign when it's set or changed.
+
+Known, accepted: `is_campaign_member()`/`is_campaign_dm()` are callable by
+any signed-in user, so someone who already knows both UUIDs can ask
+whether a user is in a campaign — low value, and restricting them would
+break the policies that call them. The app doesn't support Supabase's
+CAPTCHA for anonymous sign-ins yet, so rely on its per-IP rate limit.
+
 ## 6. Offline & export
 
 Two distinct things, don't conflate them:
@@ -863,6 +912,36 @@ row-level, not column-level, so opening an UPDATE policy to players
 would have let them edit the whole row; the narrow function is the safe
 shape. Before 006 runs, the app still works (new PCs just default to 0,
 the old way) and a player's roll attempt says the migration is needed.
+
+Built (`007_hardening.sql` — see §5 for the security side): players can
+create their own character (the insert policy allows `player_id =
+auth.uid()` for a member; the Party tab offers "Create My Character" to
+a player who doesn't have one yet), `regenerate_invite_code()`, and
+`campaign_members` joins the Realtime publication so the DM's Party tab
+and Campaign Settings update the moment someone joins. Party
+(`CharactersScreen`) and settings use `useCampaignLive()` (`lib/live.js`):
+Realtime, plus a refetch when the tab becomes visible again and a slow
+30s poll while it's visible, as a net for a backend where a table isn't
+published yet.
+
+**Campaign settings** (`components/CampaignSettings.jsx`, the gear in
+the campaign title bar): the DM renames the campaign and edits its
+description, sees everyone at the table and removes players (two-tap
+`ConfirmButton`), and deletes the campaign by typing its name — the
+delete cascades to everything in it. Players see who's at the table and
+can leave (their character stays; rejoining gives it back). Offline,
+the DM renames and either role deletes from the device, which also clears
+that campaign's stored content. Also: "Change name" on the campaign hub
+(updates both `profiles.display_name` and the auth metadata, anonymous
+players included), and "Leave Table" for an anonymous player asks first —
+with no email or password, signing out is permanent.
+
+A fix worth remembering: `listCampaignMembers()` used to embed
+`profiles(display_name)` in its `campaign_members` query, but the two
+tables only share a foreign key target (`auth.users`), not a
+relationship PostgREST can embed through — so it always failed, the
+error was swallowed, and a DM saw "no players yet" however many had
+joined. It's two plain queries now.
 
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside

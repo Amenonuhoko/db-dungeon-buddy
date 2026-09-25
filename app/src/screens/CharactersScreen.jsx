@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
@@ -13,6 +13,7 @@ import {
   sheetsToMarkdown,
 } from '../lib/characters.js';
 import { listCampaignMembers } from '../lib/campaigns.js';
+import { useCampaignLive } from '../lib/live.js';
 import { downloadTextFile } from '../lib/markdownExport.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -49,31 +50,41 @@ export function CharactersScreen() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
 
-  // A guest who chose "Player" at the door already gets that choice
-  // respected everywhere else (Encyclopedia/Bestiary lock to read-only
-  // for them) — this screen used to ignore it and grant blanket DM
-  // powers to any guest. Now a guest-player gets exactly what a real
-  // player gets: their own single sheet, not "hand out a sheet to
-  // someone else" DM tooling.
-  const isGuestPlayer = isGuest && !isDM;
-  const canCreate = isDM || (isGuestPlayer && sheets.length === 0);
+  // Players — guest or account — make their own character (one each; the
+  // DM can add more for them) instead of waiting for the DM to hand one
+  // out, and never get the DM's "whose character is this" tooling. In
+  // account mode that needs migration 007's insert policy.
+  const isPlayer = !isDM;
+  const ownsACharacter = sheets.some((sheet) => canEditSheet(sheet));
+  const canCreate = isDM || (isPlayer && !loading && !ownsACharacter);
+  const ownPlayerId = isGuest ? LOCAL_PLAYER_ID : isDM ? '' : user?.id || '';
+
+  // Everything this screen shows, fetched together. Used for the first
+  // load and again whenever something changes at the table — a player
+  // joins, creates their character, takes damage — so the DM never has
+  // to reload to see who's here (useCampaignLive below).
+  const load = useCallback(async () => {
+    const [s, c] = await Promise.all([listSheets(status, campaignId), listConditions(status, campaignId)]);
+    setSheets(s);
+    setConditions(c);
+    if (status === 'authenticated' && isDM) {
+      try {
+        const members = await listCampaignMembers(campaignId);
+        setPlayers(members.filter((m) => m.role === 'player'));
+      } catch (err) {
+        setError(`Couldn't load the player list — ${err.message}`);
+      }
+    }
+  }, [status, campaignId, isDM]);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([listSheets(status, campaignId), listConditions(status, campaignId)])
-      .then(([s, c]) => {
-        setSheets(s);
-        setConditions(c);
-      })
+    load()
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, [load]);
 
-    if (status === 'authenticated' && isDM) {
-      listCampaignMembers(campaignId)
-        .then((members) => setPlayers(members.filter((m) => m.role === 'player')))
-        .catch(() => {});
-    }
-  }, [status, campaignId, isDM]);
+  useCampaignLive(status === 'authenticated', campaignId, ['campaign_members', 'character_sheets', 'character_conditions'], load);
 
   function canEditSheet(sheet) {
     if (isDM) return true;
@@ -82,7 +93,7 @@ export function CharactersScreen() {
   }
 
   function startCreate() {
-    setForm({ ...BLANK_FORM, playerId: isGuest ? LOCAL_PLAYER_ID : '' });
+    setForm({ ...BLANK_FORM, playerId: ownPlayerId });
     setShowForm(true);
   }
 
@@ -91,7 +102,7 @@ export function CharactersScreen() {
       ...BLANK_FORM,
       ...example,
       abilities: { ...BLANK_ABILITIES, ...example.abilities },
-      playerId: isGuest ? LOCAL_PLAYER_ID : '',
+      playerId: ownPlayerId,
     });
     setShowForm(true);
   }
@@ -114,7 +125,11 @@ export function CharactersScreen() {
       setForm(BLANK_FORM);
       navigate(`/campaigns/${campaignId}/characters/${created.id}`);
     } catch (err) {
-      setError(err.message);
+      setError(
+        isPlayer && /row-level security/i.test(err.message || '')
+          ? "Your DM's server doesn't let players create characters yet — they need to run database update 007 (see README). Until then, ask your DM to add yours."
+          : err.message,
+      );
     }
   }
 
@@ -141,9 +156,11 @@ export function CharactersScreen() {
         >
           <DownloadIcon />
         </button>
-        {canCreate && (
+        {/* A player with an empty party gets the button in the empty state
+            below instead — one call to action, not two. */}
+        {canCreate && !(isPlayer && sheets.length === 0) && (
           <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            {isGuestPlayer ? 'Create My Character' : 'Add Character'}
+            {isPlayer ? 'Create My Character' : 'Add Character'}
           </button>
         )}
       </div>
@@ -151,7 +168,7 @@ export function CharactersScreen() {
       {/* No examples until there's a player to give a character to — in
           account mode every character belongs to a player, so a template
           can't be used yet, and "invite your players" is the next step. */}
-      {canCreate && !showForm && (isGuest || players.length > 0) && (
+      {canCreate && !showForm && (isGuest || isPlayer || players.length > 0) && (
         <ExampleGallery
           items={EXAMPLES}
           isEmpty={sheets.length === 0}
@@ -177,7 +194,7 @@ export function CharactersScreen() {
               this is saved.
             </p>
 
-            {!isGuest && (
+            {!isGuest && isDM && (
               <div className="field">
                 <label htmlFor="sheetPlayer">Player</label>
                 {players.length === 0 ? (
@@ -262,16 +279,23 @@ export function CharactersScreen() {
       {!loading && sheets.length === 0 && !showForm && (
         <Panel style={{ textAlign: 'center' }}>
           <p>
-            {isGuestPlayer
-              ? 'Create your character to get started.'
+            {isPlayer
+              ? isGuest
+                ? 'Create your character to get started.'
+                : 'Create your character to get started — or wait for your DM to make one for you.'
               : isDM
                 ? players.length === 0 && openInvite
                   ? 'No players yet. Invite them first — then add a character for each, and they can edit their own.'
                   : isGuest
                   ? 'Add a character for each member of your party.'
                   : 'Add a character for each player — they can edit their own sheet from their device.'
-                : "Your DM hasn't made your character yet — it'll show up here as soon as they do."}
+                : ''}
           </p>
+          {isPlayer && canCreate && (
+            <button className="btn btn-primary btn-small" type="button" onClick={startCreate} style={{ marginTop: '1rem' }}>
+              Create My Character
+            </button>
+          )}
           {isDM && players.length === 0 && openInvite && (
             <button className="btn btn-primary btn-small" type="button" onClick={openInvite} style={{ marginTop: '1rem' }}>
               Invite Players

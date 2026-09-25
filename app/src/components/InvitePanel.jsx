@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ConfirmButton } from './ConfirmButton.jsx';
 import { Panel } from './ornament/Panel.jsx';
 
 // A link a player can just tap, instead of a code the DM reads aloud and
@@ -10,8 +11,24 @@ function inviteLink(code) {
   return `${window.location.origin}${base}/join?code=${encodeURIComponent(code)}`;
 }
 
-export function InvitePanel({ code, campaignName, onClose }) {
+export function InvitePanel({ code, campaignName, onClose, onReset }) {
   const [copied, setCopied] = useState(false);
+  const [resetError, setResetError] = useState(null);
+  const [resetting, setResetting] = useState(false);
+
+  // A link that's been posted somewhere public, or a player the DM has
+  // removed, shouldn't keep working — a fresh code retires the old one.
+  async function reset() {
+    setResetting(true);
+    setResetError(null);
+    try {
+      await onReset();
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setResetting(false);
+    }
+  }
   const link = inviteLink(code);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
@@ -65,6 +82,14 @@ export function InvitePanel({ code, campaignName, onClose }) {
       <p className="hint-text" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
         Or they can enter the code <strong className="invite-code">{code}</strong> under “Join a Game”.
       </p>
+      {onReset && (
+        <div className="invite-reset">
+          <ConfirmButton onConfirm={reset} className="example-toggle" confirmLabel="Tap again — the old link will stop working" disabled={resetting}>
+            {resetting ? 'Resetting…' : 'Reset link'}
+          </ConfirmButton>
+          {resetError && <p className="error-text" style={{ marginTop: '0.4rem' }}>{resetError}</p>}
+        </div>
+      )}
     </Panel>
   );
 }

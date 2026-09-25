@@ -47,8 +47,30 @@ export function createGuestCampaign(name, role) {
   return campaign;
 }
 
+export function renameGuestCampaign(id, name) {
+  const list = readGuestCampaigns().map((c) => (c.id === id ? { ...c, name } : c));
+  writeGuestCampaigns(list);
+  return list.find((c) => c.id === id) ?? null;
+}
+
+// Removes the campaign *and* everything stored under it on this device
+// (contentStore keeps one localStorage key per kind per campaign —
+// "codex.guest.content.<kind>.<campaignId>"), so deleting doesn't leave
+// orphaned sheets and notes behind taking up storage.
 export function deleteGuestCampaign(id) {
   writeGuestCampaigns(readGuestCampaigns().filter((c) => c.id !== id));
+  try {
+    const doomed = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && (key.endsWith(`.${id}`) && (key.startsWith('codex.guest.content.') || key.startsWith('dungeonbuddy.')))) {
+        doomed.push(key);
+      }
+    }
+    doomed.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Storage blocked — the campaign itself is already gone from the list.
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -146,24 +168,94 @@ export async function getMyCampaign(id) {
   return { ...data.campaigns, role: data.role };
 }
 
-// Used by the DM's "hand out a character sheet" picker (CharactersScreen)
-// — needs a friendly name per member, hence the join to profiles.
+// Everyone at the table, with a friendly name each — the DM's "whose
+// character is this" picker and the campaign's member list. Two queries,
+// not one embedded select: campaign_members.user_id and profiles.id both
+// point at auth.users, but not at each other, so PostgREST has no
+// relationship to embed through. (It used to try, fail, and the error was
+// swallowed — the DM just saw "no players yet" however many had joined.)
 export async function listCampaignMembers(campaignId) {
+  const { data: members, error } = await supabase
+    .from('campaign_members')
+    .select('user_id, role, joined_at')
+    .eq('campaign_id', campaignId)
+    .order('joined_at', { ascending: true });
+  if (error) throw error;
+  const ids = members.map((m) => m.user_id);
+  const { data: profiles, error: profileError } = ids.length
+    ? await supabase.from('profiles').select('id, display_name').in('id', ids)
+    : { data: [], error: null };
+  if (profileError) throw profileError;
+  const names = Object.fromEntries(profiles.map((p) => [p.id, p.display_name]));
+  return members.map((m) => ({
+    userId: m.user_id,
+    role: m.role,
+    joinedAt: m.joined_at,
+    displayName: names[m.user_id] || 'Adventurer',
+  }));
+}
+
+// RLS turns a write you're not allowed to make into "0 rows affected",
+// not an error — so every destructive call below asks for the affected
+// rows back and treats none as a refusal, instead of reporting success.
+function expectRows(data, message) {
+  if (!data || data.length === 0) throw new Error(message);
+  return data;
+}
+
+// 007_hardening.sql adds these server functions/policies; say so plainly
+// when the backend hasn't been updated yet rather than surfacing a raw
+// "function not found".
+function needsMigration(error) {
+  if (error?.code === 'PGRST202' || /could not find the function/i.test(error?.message || '')) {
+    return new Error("This needs the latest database update — whoever runs the backend should run db/migrations/007_hardening.sql (see README).");
+  }
+  return error;
+}
+
+export async function updateCampaign(id, { name, description }) {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .update({ name, description })
+    .eq('id', id)
+    .select();
+  if (error) throw error;
+  return expectRows(data, 'Only the DM can change this campaign.')[0];
+}
+
+// Cascades to everything in the campaign — members, characters, notes,
+// lore, monsters, fights, rolls (every table's campaign_id is
+// "on delete cascade").
+export async function deleteCampaign(id) {
+  const { data, error } = await supabase.from('campaigns').delete().eq('id', id).select('id');
+  if (error) throw error;
+  expectRows(data, 'Only the DM can delete this campaign.');
+}
+
+export async function removeMember(campaignId, userId) {
   const { data, error } = await supabase
     .from('campaign_members')
-    .select('user_id, role, profiles(display_name)')
-    .eq('campaign_id', campaignId);
+    .delete()
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId)
+    .select('user_id');
   if (error) throw error;
-  return data.map((m) => ({ userId: m.user_id, role: m.role, displayName: m.profiles?.display_name || 'Unknown' }));
+  expectRows(data, "Couldn't remove that player.");
+}
+
+export async function regenerateInviteCode(campaignId) {
+  const { data, error } = await supabase.rpc('regenerate_invite_code', { p_campaign_id: campaignId });
+  if (error) throw needsMigration(error);
+  return data;
 }
 
 export async function leaveCampaign(id) {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('campaign_members')
     .delete()
     .eq('campaign_id', id)
-    .eq('user_id', userData.user.id);
+    .eq('user_id', await myUserId())
+    .select('user_id');
   if (error) throw error;
+  expectRows(data, "The DM can't leave their own campaign — delete it instead.");
 }

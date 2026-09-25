@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { UploadIcon } from '../components/ornament/UtilityIcons.jsx';
@@ -29,7 +30,7 @@ function CampaignRow({ campaign, onOpen }) {
 }
 
 export function CampaignHubScreen() {
-  const { status, guest, user, logOut } = useSession();
+  const { status, guest, user, logOut, changeDisplayName } = useSession();
   const navigate = useNavigate();
 
   const [campaigns, setCampaigns] = useState([]);
@@ -44,6 +45,8 @@ export function CampaignHubScreen() {
   // away (see `showCreate` below).
   const [createOpen, setCreateOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const [nameDraft, setNameDraft] = useState(null); // null = not editing
+  const [nameError, setNameError] = useState(null);
 
   useEffect(() => {
     if (status === 'guest') {
@@ -127,6 +130,17 @@ export function CampaignHubScreen() {
     }
   }
 
+  async function saveName(event) {
+    event.preventDefault();
+    setNameError(null);
+    try {
+      await changeDisplayName(nameDraft);
+      setNameDraft(null);
+    } catch (err) {
+      setNameError(err.message);
+    }
+  }
+
   async function handleLogOut() {
     await logOut();
     navigate('/');
@@ -146,7 +160,36 @@ export function CampaignHubScreen() {
     // viewport bottom), not just look roomy.
     <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: '3rem 1.5rem 10rem' }}>
       <div className="screen-enter" style={{ width: 'min(640px, 100%)' }}>
-        <h2 style={{ textAlign: 'center' }}>Welcome, {name}</h2>
+        {nameDraft === null ? (
+          <h2 style={{ textAlign: 'center' }}>
+            Welcome, {name}
+            {status !== 'signed-out' && (
+              <button
+                type="button"
+                className="example-toggle name-edit"
+                onClick={() => setNameDraft(status === 'guest' ? guest.displayName : user?.user_metadata?.display_name || '')}
+              >
+                Change name
+              </button>
+            )}
+          </h2>
+        ) : (
+          <form onSubmit={saveName} className="name-edit-form">
+            <div className="field">
+              <label htmlFor="displayNameEdit">Your name at the table</label>
+              <input id="displayNameEdit" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} maxLength={60} autoFocus />
+            </div>
+            {nameError && <p className="error-text">{nameError}</p>}
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              <button className="btn btn-primary btn-small" type="submit" disabled={!nameDraft.trim()}>
+                Save
+              </button>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setNameDraft(null)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
         <p style={{ textAlign: 'center', marginTop: '0.4rem' }}>
           {status === 'guest' && `${ROLE_LABEL[guest.role]} · offline on this device`}
           {status === 'authenticated' && isAnonymous && 'Joined as a player · no account'}
@@ -263,9 +306,22 @@ export function CampaignHubScreen() {
         </Panel>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <button className="example-toggle" onClick={handleLogOut} type="button">
-            {status === 'guest' ? 'Leave Offline Mode' : isAnonymous ? 'Leave Table' : 'Log Out'}
-          </button>
+          {isAnonymous ? (
+            // An anonymous player has no email or password to come back
+            // with — signing out is permanent. Say so before it happens.
+            <>
+              <ConfirmButton onConfirm={handleLogOut} className="example-toggle" confirmLabel="Tap again — you won't be able to get back in">
+                Leave Table
+              </ConfirmButton>
+              <p className="hint-text" style={{ marginTop: '0.4rem' }}>
+                You joined without an account, so leaving signs you out for good on this device.
+              </p>
+            </>
+          ) : (
+            <button className="example-toggle" onClick={handleLogOut} type="button">
+              {status === 'guest' ? 'Leave Offline Mode' : 'Log Out'}
+            </button>
+          )}
         </div>
       </div>
     </div>

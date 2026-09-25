@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
+import { CampaignSettings } from '../components/CampaignSettings.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
+import { GearIcon } from '../components/ornament/UtilityIcons.jsx';
 import { ALL_TABS, tabsForRole } from '../lib/campaignTabs.jsx';
-import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
+import { getGuestCampaign, getMyCampaign, regenerateInviteCode } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // Reopening a campaign lands on whichever tab you were last on (per
@@ -66,6 +68,7 @@ export function CampaignScreen() {
   const swipeHandlers = useSwipeTabs(campaignId, tabs);
   const location = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     const tab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`));
@@ -139,16 +142,60 @@ export function CampaignScreen() {
 
         <div className="campaign-titlebar">
           <h2>{campaign.name}</h2>
-          {canInvite && (
-            <button type="button" className="btn btn-ghost btn-small" onClick={() => setInviteOpen((o) => !o)} aria-expanded={inviteOpen}>
-              Invite Players
+          <div className="campaign-titlebar-actions">
+            {canInvite && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-small"
+                onClick={() => {
+                  setInviteOpen((o) => !o);
+                  setSettingsOpen(false);
+                }}
+                aria-expanded={inviteOpen}
+              >
+                Invite Players
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-ghost btn-small btn-icon"
+              onClick={() => {
+                setSettingsOpen((o) => !o);
+                setInviteOpen(false);
+              }}
+              aria-expanded={settingsOpen}
+              aria-label="Campaign settings"
+              title="Campaign settings"
+            >
+              <GearIcon />
             </button>
-          )}
+          </div>
         </div>
+        {campaign.description && <p className="campaign-description">{campaign.description}</p>}
 
         {canInvite && inviteOpen && (
           <div style={{ marginTop: '1rem' }}>
-            <InvitePanel code={campaign.invite_code} campaignName={campaign.name} onClose={() => setInviteOpen(false)} />
+            <InvitePanel
+              code={campaign.invite_code}
+              campaignName={campaign.name}
+              onClose={() => setInviteOpen(false)}
+              onReset={async () => {
+                const code = await regenerateInviteCode(campaign.id);
+                setCampaign((prev) => ({ ...prev, invite_code: code }));
+              }}
+            />
+          </div>
+        )}
+
+        {settingsOpen && (
+          <div style={{ marginTop: '1rem' }}>
+            <CampaignSettings
+              campaign={campaign}
+              isDM={isDM}
+              isGuest={status === 'guest'}
+              onUpdated={setCampaign}
+              onClose={() => setSettingsOpen(false)}
+            />
           </div>
         )}
 

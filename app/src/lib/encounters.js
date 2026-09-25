@@ -1,5 +1,6 @@
 import { createLocalStore, createSupabaseStore } from './contentStore';
-import { hasBackend, supabase } from './supabase';
+import { subscribeToCampaignTables } from './live';
+import { supabase } from './supabase';
 
 // The initiative tracker's data (BIBLE.md §7, Phase 4). Same guest/account
 // split as every other content type: guest mode keeps encounters in
@@ -152,36 +153,9 @@ export function healthDescriptor(current, max) {
   return 'Near death';
 }
 
-// Live updates for one campaign (account mode only — guest mode has no
-// shared backend to hear from). Any insert/update/delete on the tables
-// the combat view reads calls `onChange` (debounced — a "Next Turn" plus
-// an HP change arriving together triggers one refetch, not two). The
-// caller just refetches; deltas aren't worth merging by hand at this
-// scale. Returns an unsubscribe function.
-//
-// DELETE events can't be filtered by column in Supabase Realtime, so
-// those are subscribed to unfiltered — they carry only the deleted row's
-// primary key under RLS, so nothing leaks; a delete in some other
-// campaign just costs this one a harmless refetch.
+// Live updates for the combat view — see lib/live.js.
 const LIVE_TABLES = ['encounters', 'encounter_combatants', 'character_sheets', 'character_conditions', 'dice_rolls'];
 
 export function subscribeToCampaignLive(campaignId, onChange) {
-  if (!hasBackend) return () => {};
-  let timer = null;
-  const fire = () => {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(onChange, 150);
-  };
-  let channel = supabase.channel(`campaign-live:${campaignId}`);
-  for (const table of LIVE_TABLES) {
-    channel = channel
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `campaign_id=eq.${campaignId}` }, fire)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `campaign_id=eq.${campaignId}` }, fire)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, fire);
-  }
-  channel.subscribe();
-  return () => {
-    window.clearTimeout(timer);
-    supabase.removeChannel(channel);
-  };
+  return subscribeToCampaignTables(campaignId, LIVE_TABLES, onChange);
 }

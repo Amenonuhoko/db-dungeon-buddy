@@ -298,6 +298,30 @@ function friendlyAnonymousError(error) {
   return friendlyAuthError(error, "Couldn't get you to the table");
 }
 
+// The name the table sees — profiles.display_name (member lists, the
+// roll log) and the auth user's metadata (this device's own greeting)
+// are both updated so they never disagree. Works for anonymous players
+// too: fixing a typo in the name you joined with shouldn't need an
+// account.
+export async function updateDisplayName(displayName) {
+  requireBackend();
+  const problem = displayNameError(displayName);
+  if (problem) throw new Error(problem);
+  const name = displayName.trim();
+  const { data, error } = await supabase.auth.updateUser({ data: { display_name: name } });
+  if (error) throw friendlyAuthError(error, "Couldn't change your name — try again in a moment.");
+  const { error: profileError } = await supabase.from('profiles').update({ display_name: name }).eq('id', data.user.id);
+  if (profileError) throw profileError;
+  return data.user;
+}
+
+export function renameGuestSession(displayName) {
+  const problem = displayNameError(displayName);
+  if (problem) throw new Error(problem);
+  const current = getGuestSession();
+  return startGuestSession(displayName.trim(), current?.role);
+}
+
 export async function signOut() {
   if (!hasBackend) return;
   const { error } = await supabase.auth.signOut();
