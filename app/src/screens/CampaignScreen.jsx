@@ -8,6 +8,8 @@ import { TableToasts } from '../components/TableToasts.jsx';
 import { GearIcon } from '../components/ornament/UtilityIcons.jsx';
 import { ALL_TABS, tabsForRole } from '../lib/campaignTabs.jsx';
 import { getGuestCampaign, getMyCampaign, regenerateInviteCode } from '../lib/campaigns.js';
+import { listSheets, tableName } from '../lib/characters.js';
+import { useWornCharacters } from '../lib/live.js';
 import { TABLE_THREAD, useTableTalk } from '../lib/messages.js';
 import { useCampaignPresence, usePresenceEvents } from '../lib/presence.js';
 import { useSession } from '../lib/SessionContext.jsx';
@@ -84,6 +86,7 @@ export function CampaignScreen() {
     [user, campaign?.role],
   );
   const presence = useCampaignPresence(live, campaignId, me, `tab:${currentTab}`);
+  const worn = useWornCharacters(live, campaignId, listSheets);
 
   const [toasts, setToasts] = useState([]);
   const dismissToast = useCallback((id) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
@@ -96,15 +99,16 @@ export function CampaignScreen() {
     [dismissToast],
   );
 
-  usePresenceEvents(live, campaignId, (event) =>
+  usePresenceEvents(live, campaignId, (event) => {
+    const who = tableName(event.who.name, worn[event.who.userId]);
     pushToast({
       kind: event.type,
-      title: event.type === 'join' ? `${event.who.name} sat down at the table` : `${event.who.name} stepped away`,
-    }),
-  );
+      title: event.type === 'join' ? `${who} sat down at the table` : `${who} stepped away`,
+    });
+  });
 
   const talk = useTableTalk(live, campaignId, user?.id, (message, thread) => {
-    const from = presence.online[message.senderId]?.name || 'Someone';
+    const from = tableName(presence.online[message.senderId]?.name || 'Someone', worn[message.senderId]);
     pushToast({
       kind: 'message',
       title: thread === TABLE_THREAD ? `${from} to the table` : `${from} whispered to you`,
@@ -256,6 +260,7 @@ export function CampaignScreen() {
               isGuest: status === 'guest',
               presence,
               talk,
+              worn,
               openInvite: canInvite
                 ? () => {
                     setInviteOpen(true);

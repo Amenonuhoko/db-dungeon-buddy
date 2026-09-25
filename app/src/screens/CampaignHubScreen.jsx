@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
+import { MyCharacters } from '../components/MyCharacters.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { UploadIcon } from '../components/ornament/UtilityIcons.jsx';
@@ -304,6 +305,8 @@ export function CampaignHubScreen() {
             </div>
           )}
         </Panel>
+
+        {status === 'authenticated' && !isAnonymous && <MyCharacters />}
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
           {isAnonymous ? (

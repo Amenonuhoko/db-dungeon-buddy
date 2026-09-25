@@ -1,5 +1,6 @@
 import { ABILITY_KEYS, BLANK_ABILITIES, modifier } from './bestiary.js';
 import { createLocalStore, createSupabaseStore } from './contentStore';
+import { supabase } from './supabase';
 
 export { ABILITY_KEYS, BLANK_ABILITIES, modifier };
 
@@ -49,6 +50,72 @@ export const EXAMPLES = [
     features: 'Sneak Attack (2d6). Cunning Action. Expertise: Stealth, Deception.',
   },
 ];
+
+// class_and_level/race stay plain text columns in the database (a
+// homebrew class or a third-party species is still just a string), so
+// the dropdowns below are a UI convenience layered on top, not a schema
+// change — this is what turns a stored "Rogue 3" back into a dropdown
+// selection (or "Other" + the raw text) when starting from a template.
+export function parseClassAndLevel(value) {
+  const match = /^(.*?)\s+(\d+)\s*$/.exec((value || '').trim());
+  const [name, level] = match ? [match[1], match[2]] : [(value || '').trim(), ''];
+  if (!name) return { classChoice: '', customClass: '', level: '' };
+  return CLASSES.includes(name)
+    ? { classChoice: name, customClass: '', level }
+    : { classChoice: 'Other', customClass: name, level };
+}
+
+export function parseRace(value) {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return { raceChoice: '', customRace: '' };
+  return RACES.includes(trimmed) ? { raceChoice: trimmed, customRace: '' } : { raceChoice: 'Other', customRace: trimmed };
+}
+
+export const BLANK_PICKS = { classChoice: '', customClass: '', level: '', raceChoice: '', customRace: '' };
+
+// Turns a raw Supabase/Postgres error into something the person looking
+// at the screen can actually act on — same "don't show a raw error"
+// doctrine as lib/session.js's friendlyAuthError(). Branches on the
+// Postgres SQLSTATE (err.code) rather than pattern-matching the message
+// text, except for the one case (a bare RLS violation with no custom
+// message) that needs its own explanation because it's specifically
+// "the database hasn't been migrated yet," not "you're not allowed to
+// do this" — every other 42501 already carries a specific, readable
+// message from a database trigger (see check_sheet_player() in
+// db/migrations/007_hardening.sql) and is shown as-is.
+export function explainCreateError(err, isPlayer) {
+  const message = err?.message || '';
+  if (err?.code === '42501') {
+    if (/row-level security policy/i.test(message)) {
+      return isPlayer
+        ? "This campaign's database hasn't been updated to let players create their own characters yet — ask your DM to run database update 007 (see the project README), or to add your character for you in the meantime."
+        : "The database doesn't yet allow this — it may need database update 007 run (see the project README).";
+    }
+    return message; // a specific, already-readable message from a trigger
+  }
+  if (err?.code === '23503') return "That player or campaign couldn't be found — try refreshing the page and creating the character again.";
+  if (err?.code === '23514' || err?.code === '23502') return message || "That character is missing something required — check every field and try again.";
+  if (/fetch|network|NetworkError/i.test(message) || err?.name === 'TypeError') {
+    return "Couldn't reach the server — check your connection and try again.";
+  }
+  return message || 'Something went wrong creating that character — try again in a moment.';
+}
+
+// Turns the quick form's `form` + dropdown `picks` into stored fields.
+// New characters start at full health — one less number to enter.
+export function finalizeQuickFields(form, picks) {
+  const finalClass = picks.classChoice === 'Other' ? picks.customClass.trim() : picks.classChoice;
+  const finalRace = picks.raceChoice === 'Other' ? picks.customRace.trim() : picks.raceChoice;
+  const maxHp = form.maxHp === '' || form.maxHp == null ? null : Number(form.maxHp);
+  return {
+    name: form.name.trim(),
+    classAndLevel: [finalClass, String(picks.level ?? '').trim()].filter(Boolean).join(' '),
+    race: finalRace,
+    armorClass: form.armorClass === '' || form.armorClass == null ? null : Number(form.armorClass),
+    maxHp,
+    currentHp: form.currentHp === '' || form.currentHp == null ? maxHp : Number(form.currentHp),
+  };
+}
 
 export function listSheets(status, campaignId) {
   return sheetsFor(status).list(campaignId);
@@ -177,4 +244,44 @@ export function sheetToMarkdown(sheet, conditions = []) {
 export function sheetsToMarkdown(sheets, conditionsByCharacterId, campaignName) {
   const header = `# ${campaignName} — Characters\n\n`;
   return header + sheets.map((s) => sheetToMarkdown(s, conditionsByCharacterId[s.id] || [])).join('\n---\n\n');
+}
+
+// ---------------------------------------------------------------------
+// Donning (db/migrations/009_characters.sql) — a player wears at most one
+// character per campaign. A sheet with no playerId is in the campaign's
+// open pool (a DM pre-made, or one somebody slipped out of); anyone at
+// the table can slip into it, first come, first served. Account mode
+// only — an offline campaign has one person on one device.
+// ---------------------------------------------------------------------
+function needs009(error) {
+  if (error?.code === 'PGRST202' || /could not find the function/i.test(error?.message || '')) {
+    return new Error("Slipping in and out of characters needs the latest database update — whoever runs the backend should run db/migrations/009_characters.sql (see README).");
+  }
+  return error;
+}
+
+export async function donCharacter(sheetId) {
+  const { error } = await supabase.rpc('don_character', { p_sheet_id: sheetId });
+  if (error) throw needs009(error);
+}
+
+export async function doffCharacter(campaignId) {
+  const { error } = await supabase.rpc('doff_character', { p_campaign_id: campaignId });
+  if (error) throw needs009(error);
+}
+
+// The DM helping someone in or out: hand a sheet to a member, or back to
+// the pool with null. The database slips that member out of whatever
+// they had on.
+export function setWearer(status, campaignId, sheetId, userId) {
+  return updateSheet(status, campaignId, sheetId, { playerId: userId || null });
+}
+
+export const isAvailable = (sheet) => !sheet.playerId;
+export const wornByUser = (sheets, userId) => sheets.find((s) => s.playerId && s.playerId === userId) || null;
+
+// "Mira Duskwalker (Wren)" — how someone reads at the table while wearing
+// a character; just their name when they aren't.
+export function tableName(playerName, characterName) {
+  return characterName ? `${characterName} (${playerName})` : playerName;
 }

@@ -1,11 +1,12 @@
 import { hueFor, initials } from '../lib/avatar.js';
+import { tableName } from '../lib/characters.js';
 import { describeWhere } from '../lib/presence.js';
 
 // "At the table" — everyone in the campaign, with who's here right now
 // (a live dot and what they're doing: "on Combat", "on Mira's sheet")
 // and who's away. The top of the Party page, so the first thing anyone
 // sees is who else is playing. Tapping someone opens a whisper to them.
-export function TablePresence({ members, online, ready, myId, onWhisper }) {
+export function TablePresence({ members, online, ready, myId, onWhisper, worn = {} }) {
   // Merge the member list with presence: someone who joined a second ago
   // can be online before the member list has refetched.
   const byId = new Map((members || []).map((m) => [m.userId, { ...m }]));
@@ -30,11 +31,16 @@ export function TablePresence({ members, online, ready, myId, onWhisper }) {
         {people.map((p) => {
           const meta = online[p.userId];
           const isMe = p.userId === myId;
-          const name = meta?.name || p.displayName;
+          const playerName = meta?.name || p.displayName;
+          const character = worn[p.userId];
+          // "Mira Duskwalker (Wren)" while wearing a character; the
+          // avatar keeps the player's own initials either way.
+          const name = tableName(playerName, character);
+          const status = meta ? describeWhere(meta.where) : 'away';
           const content = (
             <>
               <span className="presence-avatar" style={{ '--hue': hueFor(p.userId) }} aria-hidden="true">
-                {initials(name)}
+                {initials(playerName)}
                 <span className={`presence-dot${meta ? ' online' : ''}`} />
               </span>
               <span className="presence-text">
@@ -43,7 +49,9 @@ export function TablePresence({ members, online, ready, myId, onWhisper }) {
                   {isMe && <span className="presence-tag">You</span>}
                   {p.role === 'dm' && <span className="presence-tag">DM</span>}
                 </span>
-                <span className="presence-where">{meta ? describeWhere(meta.where) : 'away'}</span>
+                <span className="presence-where">
+                  {!character && p.role !== 'dm' ? `no character yet · ${status}` : status}
+                </span>
               </span>
             </>
           );

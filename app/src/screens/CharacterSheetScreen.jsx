@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { DeleteButton } from '../components/DeleteButton.jsx';
+import { SheetWearerBar } from '../components/SheetWearerBar.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
 import {
   ABILITY_KEYS,
@@ -340,6 +341,17 @@ export function CharacterSheetScreen() {
     <div className="character-sheet-screen screen-enter">
       <div className="character-sheet-shell">
         <BackButton to={rosterPath} label="Party" />
+
+        {status === 'authenticated' && !editing && (
+          <SheetWearerBar
+            campaignId={campaignId}
+            sheet={sheet}
+            isDM={isDM}
+            user={user}
+            onChanged={() => listSheets(status, campaignId).then(setSheets).catch(() => {})}
+            onSlippedOut={() => navigate(rosterPath)}
+          />
+        )}
 
         <div className="character-sheet-plate corner-frame">
           {editable && !editing && <DeleteButton onConfirm={handleDelete} label={sheet.name} />}

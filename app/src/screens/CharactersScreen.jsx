@@ -2,20 +2,25 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { PartyStash } from '../components/PartyStash.jsx';
+import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
 import { TablePresence } from '../components/TablePresence.jsx';
 import { TableTalk } from '../components/TableTalk.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
   BLANK_ABILITIES,
-  CLASSES,
+  BLANK_PICKS,
   createSheet,
   EXAMPLES,
+  explainCreateError,
+  finalizeQuickFields,
   listConditions,
   listSheets,
   LOCAL_PLAYER_ID,
-  RACES,
+  parseClassAndLevel,
+  parseRace,
   sheetsToMarkdown,
+  wornByUser,
 } from '../lib/characters.js';
 import { listCampaignMembers } from '../lib/campaigns.js';
 import { useCampaignLive } from '../lib/live.js';
@@ -41,58 +46,11 @@ const BLANK_FORM = {
   playerId: '',
 };
 
-// class_and_level/race stay plain text columns in the database (a
-// homebrew class or a third-party species is still just a string), so
-// the dropdowns below are a UI convenience layered on top, not a schema
-// change — this is what turns a stored "Rogue 3" back into a dropdown
-// selection (or "Other" + the raw text) when starting from a template.
-function parseClassAndLevel(value) {
-  const match = /^(.*?)\s+(\d+)\s*$/.exec((value || '').trim());
-  const [name, level] = match ? [match[1], match[2]] : [(value || '').trim(), ''];
-  if (!name) return { classChoice: '', customClass: '', level: '' };
-  return CLASSES.includes(name)
-    ? { classChoice: name, customClass: '', level }
-    : { classChoice: 'Other', customClass: name, level };
-}
-
-function parseRace(value) {
-  const trimmed = (value || '').trim();
-  if (!trimmed) return { raceChoice: '', customRace: '' };
-  return RACES.includes(trimmed) ? { raceChoice: trimmed, customRace: '' } : { raceChoice: 'Other', customRace: trimmed };
-}
-
-const BLANK_PICKS = { classChoice: '', customClass: '', level: '', raceChoice: '', customRace: '' };
-
-// Turns a raw Supabase/Postgres error into something the person looking
-// at the screen can actually act on — same "don't show a raw error"
-// doctrine as lib/session.js's friendlyAuthError(). Branches on the
-// Postgres SQLSTATE (err.code) rather than pattern-matching the message
-// text, except for the one case (a bare RLS violation with no custom
-// message) that needs its own explanation because it's specifically
-// "the database hasn't been migrated yet," not "you're not allowed to
-// do this" — every other 42501 already carries a specific, readable
-// message from a database trigger (see check_sheet_player() in
-// db/migrations/007_hardening.sql) and is shown as-is.
-function explainCreateError(err, isPlayer) {
-  const message = err?.message || '';
-  if (err?.code === '42501') {
-    if (/row-level security policy/i.test(message)) {
-      return isPlayer
-        ? "This campaign's database hasn't been updated to let players create their own characters yet — ask your DM to run database update 007 (see the project README), or to add your character for you in the meantime."
-        : "The database doesn't yet allow this — it may need database update 007 run (see the project README).";
-    }
-    return message; // a specific, already-readable message from a trigger
-  }
-  if (err?.code === '23503') return "That player or campaign couldn't be found — try refreshing the page and creating the character again.";
-  if (err?.code === '23514' || err?.code === '23502') return message || "That character is missing something required — check every field and try again.";
-  if (/fetch|network|NetworkError/i.test(message) || err?.name === 'TypeError') {
-    return "Couldn't reach the server — check your connection and try again.";
-  }
-  return message || 'Something went wrong creating that character — try again in a moment.';
-}
+// The DM's "who plays this?" choice for a pre-made nobody wears yet.
+const POOL = 'pool';
 
 export function CharactersScreen() {
-  const { campaignId, isDM, isGuest, openInvite, presence, talk } = useOutletContext();
+  const { campaignId, isDM, isGuest, openInvite, presence, talk, worn } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
 
@@ -125,7 +83,15 @@ export function CharactersScreen() {
   // account mode that needs migration 007's insert policy.
   const isPlayer = !isDM;
   const ownsACharacter = sheets.some((sheet) => canEditSheet(sheet));
-  const canCreate = isDM || (isPlayer && !loading && !ownsACharacter);
+  // Online, a player picks, creates or swaps their character on the
+  // "Choose your character" screen (slip into one from the pool, bring
+  // one from My Characters, or make a new one) — BIBLE.md §7, 009.
+  // Offline there's one person on one device, so they create here.
+  const accountPlayer = live && isPlayer;
+  const myCharacter = accountPlayer ? wornByUser(sheets, user?.id) : null;
+  const choosePath = `/campaigns/${campaignId}/choose`;
+  const canCreate = isDM || (isGuest && isPlayer && !loading && !ownsACharacter);
+  const memberName = (userId) => members.find((m) => m.userId === userId)?.displayName || 'a player';
   const ownPlayerId = isGuest ? LOCAL_PLAYER_ID : isDM ? '' : user?.id || '';
 
   // Everything this screen shows, fetched together. Used for the first
@@ -180,17 +146,11 @@ export function CharactersScreen() {
   async function handleSubmit(event) {
     event.preventDefault();
     if (!form.name.trim() || !form.playerId) return;
-    const finalClass = picks.classChoice === 'Other' ? picks.customClass.trim() : picks.classChoice;
-    const finalRace = picks.raceChoice === 'Other' ? picks.customRace.trim() : picks.raceChoice;
     const fields = {
       ...form,
-      name: form.name.trim(),
-      classAndLevel: [finalClass, picks.level.trim()].filter(Boolean).join(' '),
-      race: finalRace,
-      armorClass: form.armorClass === '' ? null : Number(form.armorClass),
-      maxHp: form.maxHp === '' ? null : Number(form.maxHp),
-      // New characters start at full health — one less number to enter.
-      currentHp: form.currentHp === '' ? (form.maxHp === '' ? null : Number(form.maxHp)) : Number(form.currentHp),
+      ...finalizeQuickFields(form, picks),
+      // A DM pre-made worn by nobody yet — anyone can slip into it.
+      playerId: form.playerId === POOL ? null : form.playerId,
     };
     try {
       const created = await createSheet(status, campaignId, fields);
@@ -223,6 +183,7 @@ export function CharactersScreen() {
           online={onlinePlayers}
           ready={presence.ready}
           myId={user?.id}
+          worn={worn}
           onWhisper={talk?.status === 'unavailable' ? null : (userId) => showView('talk', userId)}
         />
       )}
@@ -247,7 +208,7 @@ export function CharactersScreen() {
       )}
 
       {view === 'talk' && talk && (
-        <TableTalk talk={talk} members={members} online={onlinePlayers} thread={thread} onThread={(t) => showView('talk', t)} />
+        <TableTalk talk={talk} members={members} online={onlinePlayers} worn={worn} thread={thread} onThread={(t) => showView('talk', t)} />
       )}
 
       {view === 'characters' && (
@@ -274,10 +235,43 @@ export function CharactersScreen() {
             )}
           </div>
 
+          {accountPlayer && !loading && (
+            <Panel className="playing-banner">
+              {myCharacter ? (
+                <>
+                  <p>
+                    You're playing <strong>{myCharacter.name}</strong>.
+                  </p>
+                  <div className="playing-banner-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-small"
+                      onClick={() => navigate(`/campaigns/${campaignId}/characters/${myCharacter.id}`)}
+                    >
+                      Open Sheet
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-small" onClick={() => navigate(choosePath)}>
+                      Change Character
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>You're at the table without a character.</p>
+                  <div className="playing-banner-actions">
+                    <button type="button" className="btn btn-primary btn-small" onClick={() => navigate(choosePath)}>
+                      Choose a Character
+                    </button>
+                  </div>
+                </>
+              )}
+            </Panel>
+          )}
+
           {/* No examples until there's a player to give a character to — in
               account mode every character belongs to a player, so a template
               can't be used yet, and "invite your players" is the next step. */}
-          {canCreate && !showForm && (isGuest || isPlayer || players.length > 0) && (
+          {canCreate && !showForm && (
             <ExampleGallery
               items={EXAMPLES}
               isEmpty={sheets.length === 0}
@@ -305,123 +299,30 @@ export function CharactersScreen() {
 
                 {!isGuest && isDM && (
                   <div className="field">
-                    <label htmlFor="sheetPlayer">Player</label>
-                    {players.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem' }}>
-                        No players have joined yet — each character belongs to a player, so invite them first.
-                      </p>
-                    ) : (
-                      <select
-                        id="sheetPlayer"
-                        value={form.playerId}
-                        onChange={(e) => setForm({ ...form, playerId: e.target.value })}
-                      >
-                        <option value="" disabled>
-                          Choose a player…
-                        </option>
-                        {players.map((p) => (
-                          <option key={p.userId} value={p.userId}>
-                            {p.displayName}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div className="field" style={{ flex: '2 1 200px' }}>
-                    <label htmlFor="charName">Character name</label>
-                    <input
-                      id="charName"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="Mira Duskwalker"
-                      maxLength={120}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="field" style={{ flex: '2 1 160px' }}>
-                    <label htmlFor="charClass">Class</label>
+                    <label htmlFor="sheetPlayer">Played by</label>
                     <select
-                      id="charClass"
-                      value={picks.classChoice}
-                      onChange={(e) => setPicks({ ...picks, classChoice: e.target.value })}
+                      id="sheetPlayer"
+                      value={form.playerId}
+                      onChange={(e) => setForm({ ...form, playerId: e.target.value })}
                     >
-                      <option value="">Choose a class…</option>
-                      {CLASSES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
+                      <option value="" disabled>
+                        Choose…
+                      </option>
+                      <option value={POOL}>Nobody yet — a pre-made anyone can slip into</option>
+                      {players.map((p) => (
+                        <option key={p.userId} value={p.userId}>
+                          {p.displayName}
+                          {worn?.[p.userId] ? ` (now playing ${worn[p.userId]})` : ''}
                         </option>
                       ))}
-                      <option value="Other">Other…</option>
                     </select>
-                  </div>
-                  <div className="field" style={{ flex: '1 1 90px' }}>
-                    <label htmlFor="charLevel">Level</label>
-                    <input
-                      id="charLevel"
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={picks.level}
-                      onChange={(e) => setPicks({ ...picks, level: e.target.value })}
-                      placeholder="1"
-                    />
-                  </div>
-                </div>
-
-                {picks.classChoice === 'Other' && (
-                  <div className="field">
-                    <label htmlFor="charClassCustom">Custom class</label>
-                    <input
-                      id="charClassCustom"
-                      value={picks.customClass}
-                      onChange={(e) => setPicks({ ...picks, customClass: e.target.value })}
-                      placeholder="Artificer"
-                      autoFocus
-                    />
+                    <span className="hint-text" style={{ margin: 0 }}>
+                      Players wear one character at a time — giving someone this one slips them out of their current one.
+                    </span>
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div className="field" style={{ flex: '2 1 160px' }}>
-                    <label htmlFor="charRace">Race / Species</label>
-                    <select
-                      id="charRace"
-                      value={picks.raceChoice}
-                      onChange={(e) => setPicks({ ...picks, raceChoice: e.target.value })}
-                    >
-                      <option value="">Choose a race…</option>
-                      {RACES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                      <option value="Other">Other…</option>
-                    </select>
-                  </div>
-                  <div className="field" style={{ flex: '1 1 90px' }}>
-                    <label htmlFor="charMaxHp">Max HP</label>
-                    <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
-                  </div>
-                  <div className="field" style={{ flex: '1 1 90px' }}>
-                    <label htmlFor="charAC">Armor Class</label>
-                    <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
-                  </div>
-                </div>
-
-                {picks.raceChoice === 'Other' && (
-                  <div className="field">
-                    <label htmlFor="charRaceCustom">Custom race / species</label>
-                    <input
-                      id="charRaceCustom"
-                      value={picks.customRace}
-                      onChange={(e) => setPicks({ ...picks, customRace: e.target.value })}
-                      placeholder="Tabaxi"
-                    />
-                  </div>
-                )}
+                <QuickCharacterFields form={form} setForm={setForm} picks={picks} setPicks={setPicks} />
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
@@ -442,10 +343,10 @@ export function CharactersScreen() {
                 {isPlayer
                   ? isGuest
                     ? 'Create your character to get started.'
-                    : 'Create your character to get started — or wait for your DM to make one for you.'
+                    : 'No characters in this campaign yet — choose or create yours above.'
                   : isDM
                     ? players.length === 0 && openInvite
-                      ? 'No players yet. Invite them first — then add a character for each, and they can edit their own.'
+                      ? 'No players yet. Invite them — or add a few pre-made characters now for them to slip into.'
                       : isGuest
                       ? 'Add a character for each member of your party.'
                       : 'Add a character for each player — they can edit their own sheet from their device.'
@@ -472,6 +373,7 @@ export function CharactersScreen() {
                 conditions={conditionsByCharacterId[sheet.id] || []}
                 mine={!isDM && canEditSheet(sheet)}
                 here={live && Boolean(onlinePlayers[sheet.playerId])}
+                playedBy={live ? (sheet.playerId ? memberName(sheet.playerId) : null) : undefined}
                 onOpen={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
               />
             ))}
@@ -485,7 +387,9 @@ export function CharactersScreen() {
 // One tap target per character — name, what they are, how hurt they are,
 // and what's afflicting them. Everything else (full stats, edit, export,
 // delete) lives on the sheet this opens; the roster's job is picking one.
-function PartyCard({ sheet, conditions, mine, here, onOpen }) {
+// playedBy: the player's name, null for a character nobody wears (the
+// open pool), undefined offline (one person plays everything).
+function PartyCard({ sheet, conditions, mine, here, playedBy, onOpen }) {
   const hp = sheet.currentHp;
   const max = sheet.maxHp;
   const pct = max ? Math.max(0, Math.min(100, ((hp ?? 0) / max) * 100)) : 0;
@@ -498,6 +402,8 @@ function PartyCard({ sheet, conditions, mine, here, onOpen }) {
           {sheet.name}
         </span>
         {mine && <span className="chip chip-small">You</span>}
+        {!mine && playedBy && <span className="chip chip-small">{playedBy}</span>}
+        {playedBy === null && <span className="chip chip-small chip-available">Available</span>}
         <span className="campaign-card-arrow" aria-hidden="true">
           →
         </span>

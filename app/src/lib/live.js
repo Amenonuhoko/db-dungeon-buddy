@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { hasBackend, supabase } from './supabase';
 
 // Live updates for one campaign (account mode only — guest mode has no
@@ -70,4 +70,21 @@ export function useCampaignLive(enabled, campaignId, tables, refresh) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [enabled, campaignId, tableKey]);
+}
+
+// Who's wearing which character in this campaign: { [userId]: character
+// name }. Held once by CampaignScreen so every "Mira (Wren)" label — At
+// the table, Talk, toasts — agrees, and kept live as people slip in and
+// out (character_sheets is on Realtime since 005).
+export function useWornCharacters(enabled, campaignId, listSheets) {
+  const [worn, setWorn] = useState({});
+  const load = useCallback(async () => {
+    const sheets = await listSheets('authenticated', campaignId);
+    setWorn(Object.fromEntries(sheets.filter((s) => s.playerId).map((s) => [s.playerId, s.name])));
+  }, [campaignId, listSheets]);
+  useEffect(() => {
+    if (enabled) load().catch(() => {});
+  }, [enabled, load]);
+  useCampaignLive(enabled, campaignId, ['character_sheets'], load);
+  return worn;
 }

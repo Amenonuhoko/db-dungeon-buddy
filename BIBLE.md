@@ -998,6 +998,67 @@ covers presence state and diffs, the private-channel refusal and public
 fallback, and a `postgres_changes` insert delivering a whisper live,
 plus the schema's security cases against real Postgres (§5).
 
+**Donning characters (`009_characters.sql`)** — a player *wears* one
+character per campaign at a time and can slip in and out:
+
+- **The open pool.** `character_sheets.player_id` is nullable: NULL means
+  nobody is wearing the character. That's either a DM pre-made (the Add
+  Character "Played by" picker has "Nobody yet — a pre-made anyone can
+  slip into") or one somebody slipped out of. It keeps its HP, gear and
+  conditions. Party cards show an "Available" chip.
+- **One at a time.** A trigger (`release_previous_character`) slips a
+  player out of whatever they wore whenever they get a character by any
+  route: slipping into one, creating one, bringing one from the roster,
+  or the DM handing one over. A partial unique index backs it up.
+  Campaigns that predate 009 keep each player's most recently updated
+  character on them and move any extras to the pool (nothing deleted).
+- **Slipping in/out** goes through `don_character()` and
+  `doff_character()`. RLS can't safely express "claim a row nobody
+  owns", and `player_id is null` in the update is the first-come,
+  first-served guard. The DM helps anyone in or out (accidents, or a
+  guest who lost their login and came back as someone new) with the
+  "Played by" picker on the sheet (`SheetWearerBar.jsx`), which is a
+  plain `player_id` update their policy already allows.
+- **Choose your character** (`screens/ChooseCharacterScreen.jsx`,
+  `/campaigns/:id/choose`) — where a new player lands after joining
+  (unless they're still wearing a character from before), and where
+  anyone comes back to swap. Its options:
+  - slip into a character from the pool;
+  - bring one from My Characters (accounts only);
+  - create a new one, quick fields only (the guided builder comes
+    later), optionally also kept in My Characters;
+  - "Join the table without a character for now".
+
+  The Party tab shows "You're playing X · Open Sheet · Change Character",
+  or "You're at the table without a character · Choose a Character".
+  Presence shows "choosing a character" while someone is on this screen.
+- **My Characters** (`roster_characters`, `lib/roster.js`,
+  `components/MyCharacters.jsx` on the campaign hub): an account
+  holder's own characters, outside any campaign. Anonymous players have
+  none (a restrictive policy); they create or slip into characters in
+  the campaign instead.
+  - Bringing one into a campaign makes a *copy* at full HP with
+    resources refilled. HP, death saves and conditions stay with that
+    campaign.
+  - `character_sheets.roster_id` remembers the source, so **Save to My
+    Characters** on the sheet copies progress (level, gear, features,
+    abilities) back. It adds a new roster entry if the original was
+    deleted.
+  - Up to 100 characters per account.
+- **Names read "Character (Player)"** — "Mira Duskwalker (Wren)" in At
+  the table, Talk, toasts, and the roll log. The log's name is stamped
+  server-side, so `dice_rolls.display_name` now allows 200 characters.
+  CampaignScreen keeps a live `{ userId: character name }` map
+  (`useWornCharacters`) so every label agrees.
+- `QuickCharacterFields.jsx` is the one set of quick fields (name,
+  class + level and race dropdowns with "Other…", max HP, AC), shared by
+  the Party tab, the chooser and My Characters.
+  `finalizeQuickFields()`, `explainCreateError()` and the dropdown
+  helpers live in `lib/characters.js`.
+
+Offline campaigns are unchanged: one person on one device, no pool,
+roster or chooser.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

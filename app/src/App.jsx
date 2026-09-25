@@ -10,6 +10,7 @@ import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
 import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/CampaignScreen.jsx';
 import { CharacterSheetScreen } from './screens/CharacterSheetScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
+import { ChooseCharacterScreen } from './screens/ChooseCharacterScreen.jsx';
 import { CombatScreen } from './screens/CombatScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
@@ -114,6 +115,17 @@ function Routed() {
           chip, or "← Campaigns" chrome borrowed from the tab screens. It
           resolves its own campaign/role via useCampaignAccess() instead
           of the shared Outlet context. */}
+      {/* "Choose your character" — the step after joining, and where a
+          player comes back to slip into a different one. Same standalone
+          treatment as the sheet below. */}
+      <Route
+        path="/campaigns/:campaignId/choose"
+        element={
+          <RequireSession>
+            <ChooseCharacterScreen />
+          </RequireSession>
+        }
+      />
       <Route
         path="/campaigns/:campaignId/characters/:sheetId"
         element={

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { hueFor, initials } from '../lib/avatar.js';
+import { tableName } from '../lib/characters.js';
 import { TABLE_THREAD, threadOf } from '../lib/messages.js';
 
 // Table Talk — the whole table's conversation plus a private whisper
@@ -17,8 +18,10 @@ function timeLabel(iso) {
     : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export function TableTalk({ talk, members, online, thread, onThread }) {
-  const nameOf = (userId) => members.find((m) => m.userId === userId)?.displayName || online[userId]?.name || 'Someone';
+export function TableTalk({ talk, members, online, thread, onThread, worn = {} }) {
+  // "Mira (Wren)" while they're wearing a character.
+  const nameOf = (userId) =>
+    tableName(members.find((m) => m.userId === userId)?.displayName || online[userId]?.name || 'Someone', worn[userId]);
 
   if (talk.status === 'unavailable') {
     return (
@@ -52,7 +55,7 @@ export function TableTalk({ talk, members, online, thread, onThread }) {
                 style={isTable ? undefined : { '--hue': hueFor(key) }}
                 aria-hidden="true"
               >
-                {isTable ? '✦' : initials(nameOf(key))}
+                {isTable ? '✦' : initials(members.find((m) => m.userId === key)?.displayName || nameOf(key))}
                 {!isTable && <span className={`presence-dot${online[key] ? ' online' : ''}`} />}
               </span>
               <span className="talk-thread-text">

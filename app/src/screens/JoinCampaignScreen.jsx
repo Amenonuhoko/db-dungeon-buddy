@@ -4,7 +4,9 @@ import { BackButton } from '../components/BackButton.jsx';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { joinCampaignByCode } from '../lib/campaigns.js';
+import { listSheets, wornByUser } from '../lib/characters.js';
 import { useSession } from '../lib/SessionContext.jsx';
+import { supabase } from '../lib/supabase.js';
 
 // The landing page for a DM's invite link (/join?code=…, built by
 // InvitePanel.jsx), and the "Join a Game" button on Home. Three cases:
@@ -39,7 +41,17 @@ export function JoinCampaignScreen() {
     try {
       if (!signedIn) await joinAsPlayer(displayName.trim());
       const campaign = await joinCampaignByCode(code.trim());
-      navigate(`/campaigns/${campaign.id}`);
+      // A new player picks (or skips) a character before sitting down; a
+      // DM opening their own link, or someone rejoining who's still
+      // wearing their character, goes straight to the table.
+      if (campaign.role === 'dm') {
+        navigate(`/campaigns/${campaign.id}`);
+        return;
+      }
+      const { data } = await supabase.auth.getSession();
+      const sheets = await listSheets('authenticated', campaign.id).catch(() => []);
+      const wearing = wornByUser(sheets, data.session?.user?.id);
+      navigate(wearing ? `/campaigns/${campaign.id}` : `/campaigns/${campaign.id}/choose?welcome=1`);
     } catch (err) {
       // lib/session.js and lib/campaigns.js already turn every failure
       // into a message that says what actually went wrong — a bad code,

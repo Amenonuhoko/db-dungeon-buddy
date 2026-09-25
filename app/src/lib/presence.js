@@ -193,5 +193,6 @@ export function describeWhere(where) {
   const value = rest.join(':');
   if (kind === 'tab') return TAB_WHERE[value] || 'at the table';
   if (kind === 'sheet') return value ? `on ${value}'s sheet` : 'on a character sheet';
+  if (kind === 'choosing') return 'choosing a character';
   return 'at the table';
 }
