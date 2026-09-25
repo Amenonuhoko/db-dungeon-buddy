@@ -1059,6 +1059,26 @@ character per campaign at a time and can slip in and out:
 Offline campaigns are unchanged: one person on one device, no pool,
 roster or chooser.
 
+**View as Player** (`lib/viewAs.js`) — the DM's role chip in the
+campaign top bar is a switch: "View as Player" shows the campaign the
+way players see it:
+- the player tabs (Party, Combat, Notes);
+- the "without a character / Choose a Character" Party banner and the
+  chooser;
+- the player's wearer bar on sheets;
+- no Invite button, and no hidden conditions or other people's
+  private or DM-only notes. Those are filtered client-side, because RLS
+  still returns everything to the DM.
+
+A dashed banner says so and offers "Back to DM View". The switch is
+remembered per campaign, per device (so it holds across the campaign
+tabs and a sheet). It is only a view: the database still treats them as
+the DM, so anything done in it is real (slipping into a pre-made to test
+it, for example). Campaign Settings keeps the real DM controls either
+way. `useCampaignAccess()` returns the effective `isDM` plus `isRealDM`
+and `previewAsPlayer`; CampaignScreen's Outlet context carries
+`previewAsPlayer`.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no

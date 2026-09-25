@@ -98,7 +98,7 @@ export function CharacterSheetScreen() {
   const { campaignId, sheetId } = useParams();
   const navigate = useNavigate();
   const { status, user } = useSession();
-  const { isDM, isGuest, loading: campaignLoading, error: campaignError } = useCampaignAccess(campaignId);
+  const { isDM, isGuest, previewAsPlayer, loading: campaignLoading, error: campaignError } = useCampaignAccess(campaignId);
 
   const [sheets, setSheets] = useState([]);
   const [conditions, setConditions] = useState([]);
@@ -149,7 +149,11 @@ export function CharacterSheetScreen() {
     [user, isDM],
   );
   useCampaignPresence(status === 'authenticated' && !campaignLoading, campaignId, presenceMe, `sheet:${sheet?.name || ''}`);
-  const sheetConditions = conditions.filter((c) => c.characterId === sheetId);
+  // Previewing as a player (lib/viewAs.js): a hidden condition only
+  // shows to whoever is wearing the character, as RLS does for players.
+  const sheetConditions = conditions.filter(
+    (c) => c.characterId === sheetId && (!previewAsPlayer || c.visibleToParty !== false || sheet?.playerId === user?.id),
+  );
 
   function canEdit() {
     if (!sheet) return false;

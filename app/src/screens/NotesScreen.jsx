@@ -11,7 +11,7 @@ import { useSession } from '../lib/SessionContext.jsx';
 const BLANK_FORM = { title: '', body: '', visibility: 'private' };
 
 export function NotesScreen() {
-  const { campaignId, isGuest } = useOutletContext();
+  const { campaignId, isGuest, previewAsPlayer } = useOutletContext();
   const { status, user } = useSession();
 
   const [notes, setNotes] = useState([]);
@@ -79,6 +79,13 @@ export function NotesScreen() {
       setError(err.message);
     }
   }
+
+  // A DM previewing as a player (lib/viewAs.js) sees what a player
+  // would: their own notes and ones shared with the whole table — not
+  // players' private notes or notes meant only for the DM.
+  const visibleNotes = previewAsPlayer
+    ? notes.filter((note) => note.authorId === user?.id || note.visibility === 'campaign')
+    : notes;
 
   return (
     <div>
@@ -170,7 +177,7 @@ export function NotesScreen() {
       {!loading && notes.length === 0 && <p>No notes yet.</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {notes.map((note) => (
+        {visibleNotes.map((note) => (
           <Panel key={note.id}>
             {isMine(note) && <DeleteButton onConfirm={() => handleDelete(note.id)} label={note.title} />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>

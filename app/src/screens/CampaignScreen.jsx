@@ -12,6 +12,7 @@ import { listSheets, tableName } from '../lib/characters.js';
 import { useWornCharacters } from '../lib/live.js';
 import { TABLE_THREAD, useTableTalk } from '../lib/messages.js';
 import { useCampaignPresence, usePresenceEvents } from '../lib/presence.js';
+import { useViewAsPlayer } from '../lib/viewAs.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // Reopening a campaign lands on whichever tab you were last on (per
@@ -70,7 +71,14 @@ export function CampaignScreen() {
   // early-returns below, since hooks can't be called conditionally —
   // `false` until the campaign loads is a harmless default (the swipe
   // handlers just won't fire yet, same as while loading today).
-  const tabs = tabsForRole(campaign?.role === 'dm');
+  // A DM can preview the campaign as a player (lib/viewAs.js): the
+  // player tabs, Party and flows, with the database still treating them
+  // as the DM. isRealDM keeps campaign management (invite, settings)
+  // working either way.
+  const [viewAsPlayer, setViewAsPlayer] = useViewAsPlayer(campaignId);
+  const isRealDM = campaign?.role === 'dm';
+  const previewAsPlayer = isRealDM && viewAsPlayer;
+  const tabs = tabsForRole(isRealDM && !viewAsPlayer);
   const swipeHandlers = useSwipeTabs(campaignId, tabs);
   const location = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -166,9 +174,9 @@ export function CampaignScreen() {
     );
   }
 
-  const isDM = campaign.role === 'dm';
+  const isDM = isRealDM && !viewAsPlayer;
   // Guest campaigns are device-local — there's no one to invite to them.
-  const canInvite = isDM && Boolean(campaign.invite_code);
+  const canInvite = isRealDM && Boolean(campaign.invite_code);
 
   // Bottom padding has to clear the taller of the two fixed overlays
   // that float over every tab here — the global dice-fab (App.jsx),
@@ -184,13 +192,37 @@ export function CampaignScreen() {
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
         <div className="campaign-topbar">
           <BackButton to="/dashboard" label="Campaigns" />
-          <span className="chip chip-small">{isDM ? 'Dungeon Master' : 'Player'}</span>
+          {isRealDM ? (
+            <button
+              type="button"
+              className={`chip chip-small view-as-toggle${previewAsPlayer ? ' active' : ''}`}
+              onClick={() => setViewAsPlayer(!viewAsPlayer)}
+              aria-pressed={previewAsPlayer}
+              title={previewAsPlayer ? 'Back to your DM view' : 'See the campaign the way your players do'}
+            >
+              {previewAsPlayer ? 'Player View' : 'View as Player'}
+            </button>
+          ) : (
+            <span className="chip chip-small">Player</span>
+          )}
         </div>
+
+        {previewAsPlayer && (
+          <div className="view-as-banner" role="status">
+            <span>
+              <strong>Viewing as a player.</strong> You're still the DM behind the scenes — anything you do here really
+              happens.
+            </span>
+            <button type="button" className="btn btn-ghost btn-small" onClick={() => setViewAsPlayer(false)}>
+              Back to DM View
+            </button>
+          </div>
+        )}
 
         <div className="campaign-titlebar">
           <h2>{campaign.name}</h2>
           <div className="campaign-titlebar-actions">
-            {canInvite && (
+            {canInvite && !previewAsPlayer && (
               <button
                 type="button"
                 className="btn btn-ghost btn-small"
@@ -238,7 +270,7 @@ export function CampaignScreen() {
           <div style={{ marginTop: '1rem' }}>
             <CampaignSettings
               campaign={campaign}
-              isDM={isDM}
+              isDM={isRealDM}
               isGuest={status === 'guest'}
               onUpdated={setCampaign}
               onClose={() => setSettingsOpen(false)}
@@ -255,8 +287,9 @@ export function CampaignScreen() {
           <Outlet
             context={{
               campaignId,
-              role: campaign.role,
+              role: isDM ? 'dm' : 'player',
               isDM,
+              previewAsPlayer,
               isGuest: status === 'guest',
               presence,
               talk,

@@ -1805,6 +1805,15 @@ button.pip {
 
 .campaign-topbar .back-button {
   margin-bottom: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.campaign-topbar .chip {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .campaign-titlebar {
@@ -2928,4 +2937,36 @@ button.presence-card:active {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+
+/* A DM previewing their campaign as a player (lib/viewAs.js). */
+.view-as-toggle {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.view-as-toggle:hover {
+  border-color: var(--accent);
+}
+
+.view-as-toggle.active {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.view-as-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin: 0.9rem 0 1rem;
+  padding: 0.7rem 1rem;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  font-size: 0.88rem;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getGuestCampaign, getMyCampaign } from './campaigns.js';
 import { useSession } from './SessionContext.jsx';
+import { readViewAsPlayer } from './viewAs.js';
 
 // The same "which campaign, what role in it" resolution CampaignScreen
 // does, pulled out so a screen that deliberately opts out of the shared
@@ -27,11 +28,18 @@ export function useCampaignAccess(campaignId) {
     }
   }, [status, campaignId]);
 
+  // A DM previewing as a player (lib/viewAs.js) gets the player view;
+  // isRealDM is for the few things that are about the campaign itself
+  // rather than play (settings, "played by").
+  const isRealDM = campaign?.role === 'dm';
+  const previewAsPlayer = isRealDM && readViewAsPlayer(campaignId);
   return {
     campaign,
     loading: !campaign && !error,
     error,
-    isDM: campaign?.role === 'dm',
+    isDM: isRealDM && !previewAsPlayer,
+    isRealDM,
+    previewAsPlayer,
     isGuest: status === 'guest',
     status,
   };

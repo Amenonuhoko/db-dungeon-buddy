@@ -50,7 +50,7 @@ const BLANK_FORM = {
 const POOL = 'pool';
 
 export function CharactersScreen() {
-  const { campaignId, isDM, isGuest, openInvite, presence, talk, worn } = useOutletContext();
+  const { campaignId, isDM, isGuest, openInvite, presence, talk, worn, previewAsPlayer } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
 
@@ -167,7 +167,13 @@ export function CharactersScreen() {
   // A player's own character comes first — it's the one they came for.
   const orderedSheets = [...sheets].sort((a, b) => Number(!isDM && canEditSheet(b)) - Number(!isDM && canEditSheet(a)));
 
-  const conditionsByCharacterId = conditions.reduce((map, c) => {
+  // Previewing as a player (lib/viewAs.js): hidden conditions only show
+  // on the character you're wearing, as RLS would do for a real player.
+  const wornIds = new Set(sheets.filter((sheet) => sheet.playerId && sheet.playerId === user?.id).map((sheet) => sheet.id));
+  const shownConditions = previewAsPlayer
+    ? conditions.filter((c) => c.visibleToParty !== false || wornIds.has(c.characterId))
+    : conditions;
+  const conditionsByCharacterId = shownConditions.reduce((map, c) => {
     (map[c.characterId] ||= []).push(c);
     return map;
   }, {});
