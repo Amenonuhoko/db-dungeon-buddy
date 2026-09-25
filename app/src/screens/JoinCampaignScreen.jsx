@@ -41,7 +41,12 @@ export function JoinCampaignScreen() {
       const campaign = await joinCampaignByCode(code.trim());
       navigate(`/campaigns/${campaign.id}`);
     } catch (err) {
-      setError(/code/i.test(err.message || '') ? err.message : "Couldn't join with that code — check it with your DM.");
+      // lib/session.js and lib/campaigns.js already turn every failure
+      // into a message that says what actually went wrong — a bad code,
+      // or joining-without-an-account not being enabled on the backend.
+      // Don't flatten those back into "check the code": that sent players
+      // to their DM for a new code that failed exactly the same way.
+      setError(err.message || "Couldn't join that campaign — try again in a moment.");
     } finally {
       setBusy(false);
     }

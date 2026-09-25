@@ -77,14 +77,43 @@ export async function createCampaign(name, description) {
   return { ...data, role: 'dm' };
 }
 
+// Codes are generated as lowercase hex (001_core.sql). People copy them
+// out of chat apps and type them on phones, so forgive stray spaces,
+// capitals, and a pasted whole invite link.
+export function normalizeInviteCode(input) {
+  const raw = (input || '').trim();
+  const fromLink = raw.match(/[?&]code=([^&#\s]+)/);
+  const code = fromLink ? decodeURIComponent(fromLink[1]) : raw;
+  return code.replace(/\s+/g, '').toLowerCase();
+}
+
 export async function joinCampaignByCode(code) {
   const { data: campaignId, error: rpcError } = await supabase.rpc('join_campaign_with_code', {
-    p_code: code.trim(),
+    p_code: normalizeInviteCode(code),
   });
-  if (rpcError) throw rpcError;
+  if (rpcError) throw friendlyJoinError(rpcError);
   const { data, error } = await supabase.from('campaigns').select().eq('id', campaignId).single();
-  if (error) throw error;
-  return { ...data, role: 'player' };
+  if (error) throw friendlyJoinError(error);
+  // The DM opening their own invite link lands here too — keep their
+  // real role rather than claiming they just joined as a player.
+  const { data: auth } = await supabase.auth.getSession();
+  return { ...data, role: data.dm_id === auth.session?.user?.id ? 'dm' : 'player' };
+}
+
+function friendlyJoinError(error) {
+  const message = error?.message || '';
+  if (/invalid invite code/i.test(message)) {
+    return new Error("That code doesn't match any campaign — double-check it with your DM (or ask them for the invite link).");
+  }
+  // PGRST202: the join function doesn't exist — migrations not run.
+  if (error?.code === 'PGRST202' || /could not find the function/i.test(message)) {
+    return new Error("This backend isn't set up for joining yet — whoever runs it needs to run the database migrations (see README).");
+  }
+  if (/fetch|network/i.test(message) || error?.name === 'TypeError') {
+    return new Error("Couldn't reach the server — check your connection and try again.");
+  }
+  console.error('Join error:', error);
+  return new Error(`Couldn't join that campaign${message ? ` (${message})` : ''}.`);
 }
 
 export async function getMyCampaign(id) {

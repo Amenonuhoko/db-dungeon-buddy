@@ -268,8 +268,34 @@ export async function signInAnonymously(displayName) {
   const { data, error } = await supabase.auth.signInAnonymously({
     options: { data: { display_name: displayName } },
   });
-  if (error) throw error;
+  if (error) throw friendlyAnonymousError(error);
   return data;
+}
+
+// Joining without an account fails *before* the invite code is ever
+// looked at when this step fails — so these errors must never be passed
+// off as "bad code" (JoinCampaignScreen used to do exactly that, sending
+// players back to their DM for a new code that would fail the same way).
+// All of these are backend settings only whoever runs the Supabase
+// project can change, so say where.
+function friendlyAnonymousError(error) {
+  const message = error?.message || '';
+  if (error?.code === 'anonymous_provider_disabled' || /anonymous sign-?ins? (are )?disabled/i.test(message)) {
+    return new Error(
+      "Joining without an account isn't switched on yet. (Whoever runs this backend: turn on \"Allow anonymous sign-ins\" under Authentication → Sign In / Providers in Supabase.) Players with an account can log in and join with the code meanwhile.",
+    );
+  }
+  if (error?.status === 429 || error?.code === 'over_request_rate_limit' || /rate limit|too many/i.test(message)) {
+    return new Error(
+      "Too many people have joined from this network recently — wait a little and try again. (Whoever runs this backend: Supabase limits anonymous sign-ins per IP; raise it under Authentication → Rate Limits.)",
+    );
+  }
+  if (error?.code === 'captcha_failed' || /captcha/i.test(message)) {
+    return new Error(
+      "Joining is blocked by the backend's CAPTCHA setting, which this app doesn't support yet. (Whoever runs this backend: turn off CAPTCHA protection under Authentication → Attack Protection in Supabase.)",
+    );
+  }
+  return friendlyAuthError(error, "Couldn't get you to the table");
 }
 
 export async function signOut() {

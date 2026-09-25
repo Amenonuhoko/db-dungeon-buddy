@@ -104,6 +104,10 @@ data lives only in that browser's `localStorage`.
    `/join` screen, `BIBLE.md` §4), turn on **Anonymous sign-ins** under
    **Authentication → Sign In / Providers** in the Supabase dashboard —
    that's a project setting, not something the SQL migrations can flip.
+   **Without it, invite links only work for people who already have an
+   account** — everyone else gets "Joining without an account isn't
+   switched on yet." Also leave CAPTCHA protection off (Authentication →
+   Attack Protection); the join screen doesn't support it yet.
 8. **Authentication → URL Configuration**: set **Site URL** to your
    deployed app (e.g. `https://your-app.vercel.app`) and add
    `https://your-app.vercel.app/**` under **Redirect URLs** (plus your
