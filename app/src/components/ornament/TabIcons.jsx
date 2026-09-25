@@ -43,3 +43,14 @@ export function ShieldIcon() {
     </svg>
   );
 }
+
+export function SwordsIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <path d="M5 4 L14.5 13.5" />
+      <path d="M19 4 L9.5 13.5" />
+      <path d="M12.5 15.5 L16.5 11.5 M14.5 13.5 L19 18 M17.5 19.5 L20 17" />
+      <path d="M11.5 15.5 L7.5 11.5 M9.5 13.5 L5 18 M6.5 19.5 L4 17" />
+    </svg>
+  );
+}

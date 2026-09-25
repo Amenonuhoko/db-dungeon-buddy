@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
-import { BookIcon, PawIcon, QuillIcon, ShieldIcon } from '../components/ornament/TabIcons.jsx';
+import { BookIcon, PawIcon, QuillIcon, ShieldIcon, SwordsIcon } from '../components/ornament/TabIcons.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -18,6 +18,9 @@ const ALL_TABS = [
   { to: 'notes', label: 'Notes', icon: <QuillIcon /> },
   { to: 'bestiary', label: 'Bestiary', icon: <PawIcon /> },
   { to: 'characters', label: 'Characters', icon: <ShieldIcon /> },
+  // Visible to players too, unlike Encyclopedia/Bestiary — everyone at
+  // the table needs to see whose turn it is (BIBLE.md §8, Phase 4).
+  { to: 'combat', label: 'Combat', icon: <SwordsIcon /> },
 ];
 
 function tabsForRole(isDM) {

@@ -68,6 +68,64 @@ export function removeCondition(status, campaignId, id) {
   return conditionsFor(status).remove(campaignId, id);
 }
 
+// Clamped HP change for a PC — shared by the character sheet and the
+// combat tracker, so a hit taken from either screen is the same write.
+// Coming back above 0 HP clears death saves (they only mean anything
+// while down); those keys are only sent when there's something to clear,
+// so this stays a plain `currentHp` patch against a database that
+// hasn't run 005_live_play.sql yet.
+export function hpPatch(sheet, amount) {
+  const max = sheet.maxHp ?? Infinity;
+  const next = Math.max(0, Math.min(max, (sheet.currentHp ?? 0) + amount));
+  const patch = { currentHp: next };
+  if (next > 0 && (sheet.deathSaveSuccesses || sheet.deathSaveFailures)) {
+    patch.deathSaveSuccesses = 0;
+    patch.deathSaveFailures = 0;
+  }
+  return patch;
+}
+
+// Resources are freeform counters — spell slots, Ki, Rage, Channel
+// Divinity — not a hard-coded 5e table (BIBLE.md §7). `shortRest` marks
+// the ones that come back on a short rest (Warlock slots, Ki, …).
+export function resourcesOf(sheet) {
+  return Array.isArray(sheet.resources) ? sheet.resources : [];
+}
+
+// Long rest: full HP, every resource back to max, death saves cleared.
+// Deliberately leaves conditions alone — which ones a rest clears is a
+// DM call, not something to automate (BIBLE.md §8).
+export function longRestPatch(sheet) {
+  return {
+    ...(sheet.maxHp != null ? { currentHp: sheet.maxHp } : {}),
+    resources: resourcesOf(sheet).map((r) => ({ ...r, current: r.max })),
+    deathSaveSuccesses: 0,
+    deathSaveFailures: 0,
+  };
+}
+
+export function shortRestPatch(sheet) {
+  return { resources: resourcesOf(sheet).map((r) => (r.shortRest ? { ...r, current: r.max } : r)) };
+}
+
+// One death saving throw, 5e rules: 10+ is a success, a natural 1 counts
+// as two failures, a natural 20 means you're back up with 1 HP. Returns
+// the patch plus what happened, so the screen can say it out loud.
+export function deathSavePatch(sheet, roll) {
+  const successes = sheet.deathSaveSuccesses ?? 0;
+  const failures = sheet.deathSaveFailures ?? 0;
+  if (roll === 20) {
+    return { patch: { currentHp: 1, deathSaveSuccesses: 0, deathSaveFailures: 0 }, outcome: 'Natural 20 — back on your feet with 1 HP!' };
+  }
+  if (roll === 1) {
+    return { patch: { deathSaveFailures: Math.min(3, failures + 2) }, outcome: 'Natural 1 — two failures.' };
+  }
+  if (roll >= 10) {
+    return { patch: { deathSaveSuccesses: Math.min(3, successes + 1) }, outcome: `Rolled ${roll} — a success.` };
+  }
+  return { patch: { deathSaveFailures: Math.min(3, failures + 1) }, outcome: `Rolled ${roll} — a failure.` };
+}
+
 export function sheetToMarkdown(sheet, conditions = []) {
   const abilities = { ...BLANK_ABILITIES, ...sheet.abilities };
   const abilityRow = ABILITY_KEYS.map((k) => `${abilities[k]} (${modifier(abilities[k])})`).join(' | ');

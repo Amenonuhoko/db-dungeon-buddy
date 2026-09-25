@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { logRoll } from '../lib/diceLog.js';
+import { useSession } from '../lib/SessionContext.jsx';
 import { Die } from './ornament/Die.jsx';
 import { LaurelFlourish } from './ornament/Laurel.jsx';
 import { Panel } from './ornament/Panel.jsx';
@@ -65,6 +68,15 @@ export function DiceRoller() {
   const rollTimeout = useRef(null);
   const fabRef = useRef(null);
   const panelRef = useRef(null);
+  const location = useLocation();
+  const { status, user } = useSession();
+
+  // Rolls made while inside an account-mode campaign are shared with the
+  // table (dice_rolls — BIBLE.md §7, shown on the Combat tab). Anywhere
+  // else — Home, a guest campaign — there's no table to share with, so
+  // it stays this device's own history, same as always.
+  const campaignMatch = location.pathname.match(/^\/campaigns\/([^/]+)/);
+  const sharedCampaignId = status === 'authenticated' && campaignMatch ? campaignMatch[1] : null;
 
   const effectiveModifier = modifier === '' ? 0 : Number(modifier) || 0;
 
@@ -113,7 +125,18 @@ export function DiceRoller() {
     event.preventDefault();
     const safeCount = Math.min(Math.max(Number(count) || 1, 1), MAX_COUNT);
     const safeSides = Math.min(Math.max(Number(sides) || 2, 2), 1000);
-    addRoll(rollDice(safeCount, safeSides, effectiveModifier));
+    const result = rollDice(safeCount, safeSides, effectiveModifier);
+    addRoll(result);
+    if (sharedCampaignId) {
+      // Fire-and-forget: the roll already happened and is on screen; a
+      // failed log (offline, migration not run yet) shouldn't block it.
+      logRoll(sharedCampaignId, {
+        displayName: user?.user_metadata?.display_name || 'Someone',
+        expression: formatExpression(result),
+        rolls: result.rolls,
+        total: result.total,
+      }).catch((err) => console.warn('Roll not shared with the table:', err.message));
+    }
     setRolling(true);
     window.clearTimeout(rollTimeout.current);
     rollTimeout.current = window.setTimeout(() => setRolling(false), ROLL_SPIN_MS);
@@ -158,6 +181,7 @@ export function DiceRoller() {
             </div>
             <p className="hint-text" style={{ textAlign: 'center', marginTop: '0.5rem' }}>
               Tap a die again to roll more of it — three taps on d6 makes 3d6.
+              {sharedCampaignId && ' Rolls here are shared with the table.'}
             </p>
 
             <form onSubmit={handleRoll} className="dice-roll-row">

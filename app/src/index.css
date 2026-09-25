@@ -654,10 +654,20 @@ input:focus-visible {
   background: rgba(202, 162, 75, 0.14);
 }
 
-@media (max-width: 420px) {
+/* Five tabs (with Combat) have to fit a ~360-390px phone without the
+   dock scrolling sideways and clipping the last label — tighter padding
+   and tracking here rather than shortening any label. Covers every
+   phone width: the roomier default padding only fits five tabs from
+   ~520px up. */
+@media (max-width: 520px) {
+  .tab-dock {
+    gap: 0;
+  }
+
   .tab-dock-item {
-    padding: 0.5rem 0.65rem;
-    font-size: 0.58rem;
+    padding: 0.5rem 0.42rem;
+    font-size: 0.54rem;
+    letter-spacing: 0.02em;
   }
 }
 
@@ -1217,4 +1227,428 @@ input:focus-visible {
   .ability-edit-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* ---------------------------------------------------------------------
+ * Combat tracker (CombatScreen.jsx — BIBLE.md §7/§8, Phase 4). Rows are
+ * ordinary .panel surfaces tightened up for a list you scan mid-fight;
+ * the current turn gets the one gold glow on the screen, so "whose turn
+ * is it" reads at a glance from across a table.
+ * ------------------------------------------------------------------- */
+.combat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.combat-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+.combat-your-turn {
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius);
+  background: rgba(202, 162, 75, 0.14);
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.combat-row {
+  padding: 0.9rem 1rem;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    opacity 200ms ease;
+}
+
+.combat-row.current {
+  border-color: var(--gold-bright);
+  box-shadow:
+    inset 0 0 0 1px var(--gold-deep),
+    var(--shadow-glow);
+}
+
+.combat-row.down {
+  opacity: 0.55;
+}
+
+.combat-row-main {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.initiative-badge {
+  flex-shrink: 0;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+
+.initiative-edit {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.initiative-input {
+  width: 3rem;
+  background: var(--surface);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  color: var(--gold-bright);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.35rem 0.2rem;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.initiative-input::-webkit-outer-spin-button,
+.initiative-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.initiative-roll {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+}
+
+.initiative-roll:hover {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.combat-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  /* Leave room for the corner delete badge on the DM's view. */
+  padding-right: 0.5rem;
+}
+
+.combat-now {
+  color: var(--gold-bright);
+  font-size: 0.75rem;
+}
+
+.combat-name {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.combat-status-dying {
+  border-color: var(--oxblood);
+  color: var(--oxblood);
+}
+
+.combat-status-stable {
+  border-color: var(--laurel);
+  color: var(--laurel);
+}
+
+.combat-status-dead {
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+  color: var(--text);
+}
+
+.combat-hp {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.55rem;
+}
+
+.hp-track-slim {
+  flex: 1;
+  height: 10px;
+}
+
+.combat-hp-numbers {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.combat-hp-descriptor {
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.combat-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.condition-select,
+.condition-custom input {
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.condition-custom input {
+  text-transform: none;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  width: 8rem;
+  cursor: text;
+}
+
+.condition-select option {
+  background: var(--surface-raised);
+  color: var(--text);
+  text-transform: none;
+}
+
+.combat-hp-adjust {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.7rem;
+}
+
+.death-save-mini {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.45rem;
+}
+
+/* Death-save pips — shared by the combat row (read-only) and the
+   character sheet (tappable). Three per track; successes fill laurel
+   green, failures oxblood. */
+.pips {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.pip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0;
+}
+
+.pips-success .pip.filled {
+  background: var(--laurel);
+  border-color: var(--laurel);
+}
+
+.pips-failure .pip.filled {
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+}
+
+button.pip {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.pips-success button.pip {
+  border-color: var(--laurel);
+}
+
+.pips-failure button.pip {
+  border-color: var(--oxblood);
+}
+
+/* Table roll log. */
+.table-rolls {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.table-rolls li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.table-roll-who {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-roll-expr {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.table-roll-total {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--gold-bright);
+  min-width: 2rem;
+  text-align: right;
+}
+
+.table-rolls li.roll-crit .table-roll-total {
+  filter: drop-shadow(0 0 6px var(--gold-bright));
+}
+
+.table-rolls li.roll-fumble .table-roll-total {
+  color: var(--oxblood);
+}
+
+/* ---------------------------------------------------------------------
+ * Character sheet additions (Phase 4): death saves + resources + rests.
+ * ------------------------------------------------------------------- */
+.death-saves {
+  margin: 0 auto 1.75rem;
+  max-width: 420px;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--oxblood);
+  background: rgba(122, 34, 34, 0.08);
+  text-align: center;
+}
+
+.death-save-tracks {
+  display: flex;
+  justify-content: center;
+  gap: 1.75rem;
+  margin: 0.6rem 0 0.8rem;
+}
+
+.death-save-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.character-sheet-resources {
+  margin: 2rem 0;
+}
+
+.resource-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.resource-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.resource-label {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.resource-short-rest {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-style: italic;
+  letter-spacing: 0;
+}
+
+.resource-pips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.resource-pip {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  transform: rotate(45deg);
+  border: 1px solid var(--gold);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.resource-pip.filled {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+}
+
+.resource-pip:disabled {
+  cursor: default;
+}
+
+.resource-count {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--gold-bright);
+  min-width: 3.2rem;
+  text-align: center;
 }

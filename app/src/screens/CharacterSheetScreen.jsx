@@ -7,20 +7,37 @@ import {
   ABILITY_KEYS,
   addCondition,
   BLANK_ABILITIES,
+  deathSavePatch,
+  hpPatch,
   listConditions,
   listSheets,
   LOCAL_PLAYER_ID,
+  longRestPatch,
   modifier,
   removeCondition,
   removeSheet,
+  resourcesOf,
   sheetToMarkdown,
+  shortRestPatch,
   updateSheet,
 } from '../lib/characters.js';
+import { rollD20 } from '../lib/encounters.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
 import { useCampaignAccess } from '../lib/useCampaignAccess.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 const BLANK_CONDITION = { label: '', note: '', visibleToParty: true };
+const BLANK_RESOURCE = { label: '', max: '', shortRest: false };
+
+// A write that fails because the database predates the Phase 4 columns
+// (resources, death saves) reads as a setup step, not a mystery.
+function describeWriteError(err) {
+  const msg = err?.message || '';
+  if (err?.code === 'PGRST204' || /column .*(resources|death_save)|schema cache/i.test(msg)) {
+    return 'This needs db/migrations/005_live_play.sql run in Supabase first (see README.md → Database setup).';
+  }
+  return msg || 'Something went wrong.';
+}
 
 // The hexagonal ability/stat plate — the one piece of this screen's
 // vocabulary that isn't borrowed from the rest of the app (which is all
@@ -36,6 +53,26 @@ function StatHex({ label, value, sub, big }) {
         {sub != null && <span className="stat-hex-sub">{sub}</span>}
       </div>
     </div>
+  );
+}
+
+function DeathSavePips({ kind, count, onTap }) {
+  return (
+    <span className={`pips pips-${kind}`}>
+      {[0, 1, 2].map((i) =>
+        onTap ? (
+          <button
+            key={i}
+            type="button"
+            className={`pip${i < count ? ' filled' : ''}`}
+            onClick={() => onTap(i)}
+            aria-label={`${kind === 'success' ? 'Success' : 'Failure'} ${i + 1}`}
+          />
+        ) : (
+          <span key={i} className={`pip${i < count ? ' filled' : ''}`} />
+        ),
+      )}
+    </span>
   );
 }
 
@@ -71,6 +108,21 @@ export function CharacterSheetScreen() {
 
   const [conditionOpen, setConditionOpen] = useState(false);
   const [conditionForm, setConditionForm] = useState(BLANK_CONDITION);
+
+  const [resourceOpen, setResourceOpen] = useState(false);
+  const [resourceForm, setResourceForm] = useState(BLANK_RESOURCE);
+  const [deathSaveOutcome, setDeathSaveOutcome] = useState(null);
+  const [restConfirm, setRestConfirm] = useState(null); // 'short' | 'long' | null
+  // Load failures replace the whole screen (there's nothing to show);
+  // a failed *write* shouldn't — it goes here, inline, and the sheet
+  // stays on screen.
+  const [actionError, setActionError] = useState(null);
+
+  useEffect(() => {
+    if (!restConfirm) return undefined;
+    const t = window.setTimeout(() => setRestConfirm(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [restConfirm]);
 
   useEffect(() => {
     setLoading(true);
@@ -113,21 +165,72 @@ export function CharacterSheetScreen() {
       setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
       setEditing(false);
     } catch (err) {
-      setError(err.message);
+      setActionError(describeWriteError(err));
+    }
+  }
+
+  async function patchSheet(patch) {
+    setActionError(null);
+    try {
+      const updated = await updateSheet(status, campaignId, sheet.id, patch);
+      setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
+      return true;
+    } catch (err) {
+      setActionError(describeWriteError(err));
+      return false;
     }
   }
 
   async function applyHpDelta(sign) {
     const amount = (Math.abs(Number(hpDelta)) || 1) * sign;
-    const max = sheet.maxHp ?? Infinity;
-    const next = Math.max(0, Math.min(max, (sheet.currentHp ?? 0) + amount));
-    try {
-      const updated = await updateSheet(status, campaignId, sheet.id, { currentHp: next });
-      setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
-      setHpDelta('');
-    } catch (err) {
-      setError(err.message);
+    setDeathSaveOutcome(null);
+    if (await patchSheet(hpPatch(sheet, amount))) setHpDelta('');
+  }
+
+  // Tapping a pip sets the count to that pip (tapping the last filled one
+  // clears it back one) — quicker than +/- buttons for a 0-3 track.
+  function setDeathSave(kind, index) {
+    const key = kind === 'success' ? 'deathSaveSuccesses' : 'deathSaveFailures';
+    const currentCount = sheet[key] ?? 0;
+    setDeathSaveOutcome(null);
+    patchSheet({ [key]: currentCount === index + 1 ? index : index + 1 });
+  }
+
+  function rollDeathSave() {
+    const { patch, outcome } = deathSavePatch(sheet, rollD20());
+    setDeathSaveOutcome(outcome);
+    patchSheet(patch);
+  }
+
+  function setResourceCurrent(index, current) {
+    const next = resourcesOf(sheet).map((r, i) => (i === index ? { ...r, current: Math.max(0, Math.min(r.max, current)) } : r));
+    patchSheet({ resources: next });
+  }
+
+  function removeResource(index) {
+    patchSheet({ resources: resourcesOf(sheet).filter((_, i) => i !== index) });
+  }
+
+  async function handleAddResource(event) {
+    event.preventDefault();
+    const label = resourceForm.label.trim();
+    const max = Math.min(99, Math.max(1, Math.round(Number(resourceForm.max)) || 0));
+    if (!label || !max) return;
+    const next = [...resourcesOf(sheet), { label: label.slice(0, 60), max, current: max, shortRest: resourceForm.shortRest }];
+    if (await patchSheet({ resources: next })) {
+      setResourceOpen(false);
+      setResourceForm(BLANK_RESOURCE);
     }
+  }
+
+  function rest(kind) {
+    if (restConfirm !== kind) {
+      setRestConfirm(kind);
+      return;
+    }
+    setRestConfirm(null);
+    setDeathSaveOutcome(null);
+    patchSheet(kind === 'long' ? longRestPatch(sheet) : shortRestPatch(sheet));
   }
 
   async function handleDelete() {
@@ -140,7 +243,7 @@ export function CharacterSheetScreen() {
       await removeSheet(status, campaignId, sheet.id);
       navigate(`/campaigns/${campaignId}/characters`);
     } catch (err) {
-      setError(err.message);
+      setActionError(describeWriteError(err));
     }
   }
 
@@ -153,7 +256,7 @@ export function CharacterSheetScreen() {
       setConditionOpen(false);
       setConditionForm(BLANK_CONDITION);
     } catch (err) {
-      setError(err.message);
+      setActionError(describeWriteError(err));
     }
   }
 
@@ -162,7 +265,7 @@ export function CharacterSheetScreen() {
       await removeCondition(status, campaignId, id);
       setConditions((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
-      setError(err.message);
+      setActionError(describeWriteError(err));
     }
   }
 
@@ -214,6 +317,12 @@ export function CharacterSheetScreen() {
   const hpPct = sheet.maxHp ? Math.max(0, Math.min(100, ((sheet.currentHp ?? 0) / sheet.maxHp) * 100)) : 0;
   const hpBand = hpPct > 50 ? 'ok' : hpPct > 25 ? 'warn' : 'danger';
   const editable = canEdit();
+  const resources = resourcesOf(sheet);
+  // Death saves only mean anything at 0 HP (and only if HP is being
+  // tracked at all) — the block stays out of the way otherwise.
+  const down = sheet.maxHp != null && (sheet.currentHp ?? 0) <= 0;
+  const deathStatus =
+    (sheet.deathSaveFailures ?? 0) >= 3 ? 'Dead' : (sheet.deathSaveSuccesses ?? 0) >= 3 ? 'Stable' : null;
 
   return (
     <div className="character-sheet-screen screen-enter">
@@ -353,6 +462,12 @@ export function CharacterSheetScreen() {
                 {sheet.background && <p className="character-sheet-background">{sheet.background}</p>}
               </div>
 
+              {actionError && (
+                <p className="error-text" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                  {actionError}
+                </p>
+              )}
+
               <div className="character-sheet-combat-row">
                 <StatHex big label="Armor" value={sheet.armorClass ?? '—'} />
                 <StatHex big label="Initiative" value={modifier(abilities.dex)} />
@@ -390,11 +505,159 @@ export function CharacterSheetScreen() {
                 )}
               </div>
 
+              {down && (
+                <div className="death-saves">
+                  <label className="character-sheet-section-label" style={{ marginBottom: 0 }}>
+                    Death Saves{deathStatus ? ` · ${deathStatus}` : ''}
+                  </label>
+                  <div className="death-save-tracks">
+                    <div className="death-save-track">
+                      <DeathSavePips
+                        kind="success"
+                        count={sheet.deathSaveSuccesses ?? 0}
+                        onTap={editable ? (i) => setDeathSave('success', i) : null}
+                      />
+                      Successes
+                    </div>
+                    <div className="death-save-track">
+                      <DeathSavePips
+                        kind="failure"
+                        count={sheet.deathSaveFailures ?? 0}
+                        onTap={editable ? (i) => setDeathSave('failure', i) : null}
+                      />
+                      Failures
+                    </div>
+                  </div>
+                  {deathSaveOutcome && <p style={{ fontSize: '0.85rem', marginBottom: '0.6rem' }}>{deathSaveOutcome}</p>}
+                  {editable && !deathStatus && (
+                    <button type="button" className="btn btn-ghost btn-small" onClick={rollDeathSave}>
+                      Roll Death Save
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="ability-row">
                 {ABILITY_KEYS.map((key) => (
                   <StatHex key={key} label={key.toUpperCase()} value={abilities[key]} sub={modifier(abilities[key])} />
                 ))}
               </div>
+
+              {(resources.length > 0 || editable) && (
+                <div className="character-sheet-resources">
+                  <label className="character-sheet-section-label">Resources</label>
+                  {resources.length === 0 && (
+                    <p className="hint-text">Spell slots, Ki, Rage, Channel Divinity — track anything that gets spent and comes back on a rest.</p>
+                  )}
+                  <div className="resource-list">
+                    {resources.map((r, i) => (
+                      <div key={`${r.label}-${i}`} className="resource-row">
+                        <span className="resource-label">
+                          {r.label}
+                          {r.shortRest && <span className="resource-short-rest"> · short rest</span>}
+                        </span>
+                        {r.max <= 10 ? (
+                          <span className="resource-pips" aria-label={`${r.current} of ${r.max}`}>
+                            {Array.from({ length: r.max }, (_, p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                className={`resource-pip${p < r.current ? ' filled' : ''}`}
+                                disabled={!editable}
+                                onClick={() => setResourceCurrent(i, r.current === p + 1 ? p : p + 1)}
+                                aria-label={`Set ${r.label} to ${r.current === p + 1 ? p : p + 1}`}
+                              />
+                            ))}
+                          </span>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            {editable && (
+                              <button type="button" className="btn btn-ghost btn-small" onClick={() => setResourceCurrent(i, r.current - 1)} aria-label={`Spend one ${r.label}`}>
+                                −
+                              </button>
+                            )}
+                            <span className="resource-count">
+                              {r.current}/{r.max}
+                            </span>
+                            {editable && (
+                              <button type="button" className="btn btn-ghost btn-small" onClick={() => setResourceCurrent(i, r.current + 1)} aria-label={`Restore one ${r.label}`}>
+                                +
+                              </button>
+                            )}
+                          </span>
+                        )}
+                        {editable && (
+                          <button
+                            type="button"
+                            className="condition-chip-remove"
+                            style={{ color: 'var(--text-dim)' }}
+                            onClick={() => removeResource(i)}
+                            aria-label={`Remove ${r.label}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {editable &&
+                    (resourceOpen ? (
+                      <form
+                        onSubmit={handleAddResource}
+                        style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end', marginTop: '0.75rem' }}
+                      >
+                        <div className="field" style={{ flex: '2 1 160px' }}>
+                          <label htmlFor="resLabel">Name</label>
+                          <input
+                            id="resLabel"
+                            value={resourceForm.label}
+                            onChange={(e) => setResourceForm({ ...resourceForm, label: e.target.value })}
+                            placeholder="1st-level slots, Ki…"
+                            maxLength={60}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="field" style={{ flex: '1 1 70px' }}>
+                          <label htmlFor="resMax">Max</label>
+                          <input
+                            id="resMax"
+                            type="number"
+                            min="1"
+                            max="99"
+                            value={resourceForm.max}
+                            onChange={(e) => setResourceForm({ ...resourceForm, max: e.target.value })}
+                          />
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                          <input
+                            type="checkbox"
+                            checked={resourceForm.shortRest}
+                            onChange={(e) => setResourceForm({ ...resourceForm, shortRest: e.target.checked })}
+                          />
+                          Recovers on a short rest
+                        </label>
+                        <button className="btn btn-primary btn-small" type="submit">
+                          Add
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-small"
+                          type="button"
+                          onClick={() => {
+                            setResourceOpen(false);
+                            setResourceForm(BLANK_RESOURCE);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <button className="btn btn-ghost btn-small" type="button" onClick={() => setResourceOpen(true)} style={{ marginTop: '0.75rem' }}>
+                        + Add Resource
+                      </button>
+                    ))}
+                </div>
+              )}
 
               <div className="character-sheet-conditions">
                 <label className="character-sheet-section-label">Conditions</label>
@@ -486,13 +749,33 @@ export function CharacterSheetScreen() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost btn-small" type="button" onClick={exportSheet}>
                   Export
                 </button>
                 {editable && (
                   <button className="btn btn-ghost btn-small" type="button" onClick={startEditing}>
                     Edit Sheet
+                  </button>
+                )}
+                {editable && resources.some((r) => r.shortRest) && (
+                  <button
+                    className={`btn btn-small ${restConfirm === 'short' ? 'btn-primary' : 'btn-ghost'}`}
+                    type="button"
+                    onClick={() => rest('short')}
+                    title="Restores resources marked “recovers on a short rest”"
+                  >
+                    {restConfirm === 'short' ? 'Tap to confirm' : 'Short Rest'}
+                  </button>
+                )}
+                {editable && (
+                  <button
+                    className={`btn btn-small ${restConfirm === 'long' ? 'btn-primary' : 'btn-ghost'}`}
+                    type="button"
+                    onClick={() => rest('long')}
+                    title="Full HP, every resource restored, death saves cleared — conditions are left to the DM"
+                  >
+                    {restConfirm === 'long' ? 'Tap to confirm' : 'Long Rest'}
                   </button>
                 )}
               </div>

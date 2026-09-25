@@ -8,6 +8,7 @@ import { CampaignHubScreen } from './screens/CampaignHubScreen.jsx';
 import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/CampaignScreen.jsx';
 import { CharacterSheetScreen } from './screens/CharacterSheetScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
+import { CombatScreen } from './screens/CombatScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
@@ -81,6 +82,7 @@ function Routed() {
           }
         />
         <Route path="characters" element={<CharactersScreen />} />
+        <Route path="combat" element={<CombatScreen />} />
       </Route>
       {/* Deliberately a sibling of the campaign shell above, not nested
           under its Outlet — a character sheet is a whole-screen affair of

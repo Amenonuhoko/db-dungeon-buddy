@@ -639,84 +639,102 @@ Built, but not a `db/migrations/` table — no backend at all:
   to, so it's the one place this app editorializes on a roll's result
   rather than just reporting a number.
 
-Planned (`005_live_play.sql` — Phase 4, scoped 2026-09; see §8 for the
-build order this maps to):
+Built (`005_live_play.sql` — Phase 4, the live-play phase from §8):
 
-- **`encounters`** — one row per combat, campaign-scoped: `id`,
-  `campaign_id`, `name` (default `'Encounter'`), `round` (starts at 1),
-  `current_turn` (index into that encounter's combatants ordered by
-  `initiative desc`, DM-advanced), `active boolean` (a campaign can have
-  past, ended encounters kept for history — `active` just marks the
-  current one, if any), `created_by`/timestamps. RLS: any campaign member
-  can `select`; only `is_campaign_dm()` can `insert`/`update`/`delete` —
-  starting, advancing, and ending a fight is a DM action, same doctrine
-  as `bestiary_entries`.
-- **`encounter_combatants`** — one row per combatant in a specific
-  encounter. `encounter_id`, `campaign_id` (denormalized, same reasoning
-  as `character_conditions.campaign_id` — simpler RLS, no join needed),
-  `character_id` (nullable FK to `character_sheets` — set for a PC,
-  null for a monster/NPC), `name` (PC name snapshot, or a monster/NPC's
-  name typed by the DM), `initiative integer`, `is_pc boolean`. HP is
-  deliberately **not** duplicated here for a PC: `character_sheets.
-  current_hp`/`max_hp` stays the single source of truth (RLS already
-  lets the DM or that player update it — see below), so this table only
-  carries its own `max_hp`/`current_hp` for the `is_pc = false` case,
-  left `null` for a PC row. Same reasoning for conditions: a PC's
-  existing `character_conditions` rows are what the combat view reads
-  and the DM writes exactly as already built; this table gets its own
-  lightweight `conditions text[] default '{}'` for monsters/NPCs only,
-  since they have no `character_sheets` row to hang a condition off and
-  don't need `visible_to_party`'s "hide it from the party but not the
-  affected player" nuance — a monster's condition is never secret from
-  anyone but the DM's own notes. RLS mirrors `encounters`: DM-only
-  write, campaign-member read.
-- **`character_sheets` gains three columns** (an `alter table`, not a
-  new table): `resources jsonb not null default '[]'` — an array of
-  `{label, max, current}` objects for spell slots, Ki points, Rage uses,
-  or any other class resource, deliberately *not* a hard-coded 5e spell-
-  slot-by-level table (this app is a companion, not a rules engine — see
-  §1; the DM or player just names a counter and how big it is) — and
-  `death_save_successes` / `death_save_failures` (`smallint`, `0-3`,
-  `check` constrained). Same RLS as the rest of the sheet already
-  covers all three (DM or the owning player); no new policy needed.
-  `death_save_successes`/`failures` reset to 0 whenever `current_hp` is
-  raised back above 0 — a small addition to the existing HP-adjust
-  handler in `lib/characters.js`, not new plumbing.
-- **`dice_rolls`** (lower priority — see §8's 4d) — `campaign_id`,
-  `user_id`, `display_name` (snapshotted at roll time, so a later name
-  change doesn't rewrite history), `expression` (e.g. `"3d6 + 5"`),
-  `rolls jsonb`, `total integer`, `created_at`. RLS: campaign members
-  insert their own (`user_id = auth.uid()`), read every roll in
-  campaigns they belong to. `DiceRoller.jsx` logs here automatically
-  whenever it's opened from inside a campaign route
-  (`/campaigns/:id/*`) — no separate "share this roll" toggle; a roll
-  made from Home before picking a campaign has nothing to attach to and
-  stays purely local, same as today.
+- **`encounters`** — one row per fight, campaign-scoped: `name`, `round`
+  (starts at 1), `current_combatant_id`, `active`. The turn marker is a
+  combatant **id**, not an index into the initiative order (the original
+  scoping said index): an index silently points at someone else the
+  moment a combatant is added or removed mid-fight, an id keeps pointing
+  at whoever's actually up. `current_combatant_id` null on an active
+  encounter means "still setting up" (initiative being rolled) — the DM's
+  "Begin Combat" sets it. RLS: campaign members read, `is_campaign_dm()`
+  writes — starting, advancing and ending a fight is a DM action.
+- **`encounter_combatants`** — one row per participant: `encounter_id`,
+  `campaign_id` (denormalized for join-free RLS, same as
+  `character_conditions`), `character_id` (set for a PC, null for a
+  monster/NPC), `name`, `initiative`, `dex_modifier` (initiative
+  tie-breaker, and what the d20 button adds), `is_pc`. A PC's HP and
+  conditions are **not** stored here — `character_sheets.current_hp` and
+  `character_conditions` stay the single source of truth, so a hit taken
+  on the Combat tab and one applied from the sheet are the same write and
+  the two screens can't disagree. `armor_class`/`max_hp`/`current_hp`/
+  `conditions text[]` only matter for monsters/NPCs. Same RLS shape as
+  `encounters`.
+- **`character_sheets` gained** `resources jsonb` (an array of
+  `{label, max, current, shortRest}` — freeform counters for spell slots,
+  Ki, Rage, anything, deliberately *not* a hard-coded 5e spell-slot
+  table; this app is a companion, not a rules engine, §1) and
+  `death_save_successes`/`death_save_failures` (`0-3`, check-constrained).
+  Covered by the sheet's existing "DM or owning player" policy.
+- **`dice_rolls`** — the shared table log: `display_name` (snapshotted at
+  roll time), `expression`, `rolls jsonb`, `total`, `created_by` (stamped
+  server-side). Members post and read; only the DM can clear; nobody can
+  edit a roll after the fact.
 
-**Realtime**: these are the first tables in the app needing it. Both
-`encounters` and `encounter_combatants` get added to the
-`supabase_realtime` publication in the migration
-(`alter publication supabase_realtime add table encounters,
-encounter_combatants;`); the client subscribes per open encounter
-(`supabase.channel('encounter:' + id).on('postgres_changes', {event:
-'*', schema: 'public', table: 'encounter_combatants', filter:
-'encounter_id=eq.' + id}, ...).subscribe()`), which is what makes the
-DM advancing a turn show up on every player's phone without a manual
-reload. Supabase Realtime respects RLS on the authenticated client, so
-no extra security work beyond the policies above.
+**Realtime** — the first tables in the app to use it. The migration adds
+`encounters`, `encounter_combatants`, `character_sheets`,
+`character_conditions` and `dice_rolls` to the `supabase_realtime`
+publication (guarded, so re-running doesn't error). The last three are
+there because a PC's HP/conditions and the roll log live in them, not on
+the combatant row. `subscribeToCampaignLive()` (`lib/encounters.js`)
+opens one channel per campaign and debounces every event into a single
+refetch — at this scale, refetching beats hand-merging deltas. DELETE
+events can't be column-filtered in Supabase Realtime, so those are
+subscribed unfiltered (under RLS they carry only the primary key — a
+delete elsewhere just costs a harmless refetch). The Combat tab also
+refetches when a backgrounded phone tab becomes visible again, since a
+suspended tab can miss events. Realtime applies each table's RLS select
+policy per subscriber, so nobody receives rows they couldn't already read.
 
-**Deliberately out of scope for Phase 4** (see §8 for why): Guest mode
-gets no combat tracker — it's local-only by construction (§4), and
-Realtime has nothing to sync between devices that aren't talking to a
-real backend. The Combat tab simply doesn't render for `status ===
-'guest'`, the one feature in the app with that exception. Structured
-inventory/currency (a real item list with weight/gold, instead of
-`equipment`'s one freeform text field) and an assisted level-up flow
-(recomputing HP/proficiency bonus instead of hand-editing
-`class_and_level` text) are real gaps too, but neither blocks running a
-session the way a missing initiative tracker does, so both are left for
-a later phase rather than growing this one further.
+**Guest mode gets a single-device tracker** (a change from the original
+scoping, which excluded it): `lib/encounters.js` uses the same
+`contentStore` guest/account split as every other content type, so a
+guest DM gets the full tracker in `localStorage` — it just doesn't sync,
+because there's nothing to sync to. Running combat on one laptop the
+table can see is a real way to play. The roll log is account-only (a
+guest's roller already keeps its own history). A guest *player* sees a
+note that combat runs on the DM's device.
 
+**The screens** — `CombatScreen.jsx` (a fifth tab, `/campaigns/:id/combat`,
+visible to players too, unlike Encyclopedia/Bestiary):
+- DM: Start Encounter (every character sheet joins automatically), Add
+  Combatant (custom, from the Bestiary with AC/HP/DEX prefilled, or a
+  party member not yet in the fight; "how many" spawns numbered copies
+  that each roll their own initiative), inline initiative box + d20
+  button per row, Roll NPC Initiative, Begin Combat, Next Turn / Back
+  (wrapping advances the round), End Encounter (two-tap confirm). HP
+  damage/heal and conditions (SRD quick-picks or custom) inline on every
+  row, so the DM never alt-tabs to a sheet mid-fight.
+- Players: the same list live and read-only, their own character's HP
+  controls, an "It's your turn!" banner. Monster HP shows as a
+  descriptor ("Bloodied"), not numbers — exact figures stay with the DM,
+  as at a real table. A PC at 0 HP shows Dying/Stable/Dead from their
+  death saves.
+- The current turn gets the screen's one gold glow; a monster at 0 HP
+  dims. Table Rolls panel at the bottom (account mode).
+- `CharacterSheetScreen.jsx` gained a death-save block (only at 0 HP:
+  tappable pips plus "Roll Death Save" — 10+ succeeds, a natural 1 is two
+  failures, a natural 20 is back up at 1 HP), a Resources section
+  (diamond pips up to 10, a −/+ counter above that), and Short Rest
+  (restores resources marked "recovers on a short rest") / Long Rest
+  (full HP, every resource, death saves cleared — conditions deliberately
+  left to the DM). Healing above 0 HP clears death saves automatically
+  (`hpPatch()` in `lib/characters.js`, shared by both screens). A failed
+  write now shows inline instead of replacing the whole sheet with an
+  error screen, and a write against a database that hasn't run
+  migration 005 yet says so instead of showing a raw column error.
+- `DiceRoller.jsx` posts to `dice_rolls` whenever it's opened inside an
+  account-mode campaign route (fire-and-forget — a failed log never
+  blocks the roll itself), and says so in its hint text.
+
+Deliberately left for later (§8 Phase 5): structured inventory/currency
+(a real item list with weight/gold, instead of `equipment`'s freeform
+text) and an assisted level-up flow (instead of hand-editing
+`class_and_level`) — real gaps, but neither blocks running a session.
+
+Not built yet — each still gets its own migration + RLS pass when its
+screen is built, per the rule above:
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
   already exists per-entry, but there's no cross-content tagging/
   filtering (e.g. one tag spanning encyclopedia + bestiary + notes +
@@ -739,39 +757,11 @@ a later phase rather than growing this one further.
    (shipped in phase 2, notes aren't DM-only), and a no-account "join a
    campaign as a player" path via anonymous sign-in (§4). Bottom
    swipeable tab nav and the global dice roller also landed here.
-4. **Live play** — full schema in §7. Account-mode only (no guest-mode
-   combat tracker — see §7's scoping note); a new **Combat** tab in the
-   campaign shell, visible to DM *and* players (unlike Encyclopedia/
-   Bestiary), since everyone needs to see whose turn it is. Priority
-   order within the phase, each independently shippable:
-   1. **`005_live_play.sql` + Realtime plumbing** — `encounters`/
-      `encounter_combatants` tables, RLS, publication. Everything else in
-      this phase depends on this landing first; nothing user-facing yet.
-   2. **`CombatScreen.jsx`** — the actual initiative tracker: DM starts
-      an encounter (auto-pull the party's PCs, add monsters by typing a
-      name or pulling from the Bestiary, roll or type initiative), the
-      ordered list with the current turn highlighted, DM-only "Next
-      Turn"/"End Encounter" controls, players get a live read-only view.
-      PC rows embed the same HP damage/heal control already built for
-      `CharacterSheetScreen.jsx` (writing to the same `character_sheets`
-      columns, same RLS) rather than making the DM alt-tab to each
-      player's sheet mid-fight — the single biggest live-play UX win for
-      the least new code, since it's reusing an existing control, not
-      building one. This is the phase's actual deliverable; 1 and 3-4
-      exist to support it.
-   3. **Death saves + resources on `CharacterSheetScreen.jsx`** — the
-      `alter table` from §7, plus UI: a three-pip success/failure
-      tracker that only appears at `current_hp <= 0` (and a "DYING"
-      badge on that PC's `CombatScreen` row so the table notices without
-      opening their sheet), a "Resources" section (add/rename a counter,
-      tap to spend/restore), and a "Long Rest" button that restores HP
-      to max and every resource's `current` back to `max` — deliberately
-      *not* auto-clearing conditions too (which ones survive a rest is a
-      DM judgment call this app shouldn't make for them).
-   4. **Shared dice roll log** (`dice_rolls`, §7) — lowest priority, cut
-      first if the phase is running long. `DiceRoller.jsx` logs
-      automatically when opened from inside a campaign; a small
-      "table rolls" panel becomes reachable from `CombatScreen.jsx`.
+4. **Live play** — done. Combat tab with a live initiative tracker
+   (Supabase Realtime in account mode, single-device in guest mode),
+   inline HP/conditions per combatant, death saves, class resources with
+   short/long rests, and a shared table roll log. Full detail in §7. To
+   use it on a deployed backend, run `db/migrations/005_live_play.sql`.
 5. **Polish**: offline sync queue, guest→account migration, campaign
    invite-flow UI beyond the raw code field, session recap/log, tagging
    (see §7 — needs scoping first), structured inventory/currency (a real
@@ -836,9 +826,9 @@ a later phase rather than growing this one further.
     after a password-reset link has landed someone on `/reset-password`
     already authenticated.
   - `/campaigns/:id` (and everything nested under it — Encyclopedia,
-    Notes, Bestiary, Characters, reached via the bottom tab dock, not
+    Notes, Bestiary, Characters, Combat, reached via the bottom tab dock, not
     stack navigation) → back to `/dashboard`, labeled "Campaigns". One
-    `BackButton` above the swipeable tab content covers all four tabs.
+    `BackButton` above the swipeable tab content covers every tab.
   - `/dashboard` has no back arrow — it's the authenticated root. Its
     existing "Log Out" / "Leave Table" button is the deliberate exit
     action instead (a plain back to `/` while still signed in would just
