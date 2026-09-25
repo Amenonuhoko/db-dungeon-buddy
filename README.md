@@ -84,7 +84,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `009_characters.sql`, and onward as new ones
+   (`001_core.sql` → `010_sheet_privacy.sql`, and onward as new ones
    land). Every file is safe to re-run, so if you're not sure which ones
    an existing project has, run them all again in order. **007 matters
    for security** now that anyone with an invite link can join — see
@@ -92,7 +92,7 @@ data lives only in that browser's `localStorage`.
    `campaign_members`, `encyclopedia_entries`, `bestiary_entries`,
    `notes`, `character_sheets`, `character_conditions`, `encounters`,
    `encounter_combatants`, `dice_rolls`, `messages`, `party_items`,
-   `party_coins` and `roster_characters`, with the
+   `party_coins`, `roster_characters` and `character_details`, with the
    triggers and RLS policies documented inline — see the comments in each
    file for what it does and why. New content types get their own
    numbered file here as they're built (see `BIBLE.md` §7) rather than

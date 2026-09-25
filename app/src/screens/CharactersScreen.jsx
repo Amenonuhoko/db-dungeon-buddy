@@ -118,7 +118,7 @@ export function CharactersScreen() {
       .finally(() => setLoading(false));
   }, [load]);
 
-  useCampaignLive(status === 'authenticated', campaignId, ['campaign_members', 'character_sheets', 'character_conditions'], load);
+  useCampaignLive(status === 'authenticated', campaignId, ['campaign_members', 'character_sheets', 'character_details', 'character_conditions'], load);
 
   function canEditSheet(sheet) {
     if (isDM) return true;

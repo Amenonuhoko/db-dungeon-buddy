@@ -117,16 +117,120 @@ export function finalizeQuickFields(form, picks) {
   };
 }
 
-export function listSheets(status, campaignId) {
-  return sheetsFor(status).list(campaignId);
+// ---------------------------------------------------------------------
+// Private details (db/migrations/010_sheet_privacy.sql). Online, a sheet
+// is two rows: character_sheets — what the whole party sees (name,
+// class, race, HP, AC, speed, death saves) — and character_details —
+// what only the DM and whoever is wearing the character see (ability
+// scores, background, gear, features, resources). These helpers stitch
+// them back into one sheet object, so screens never need to know; a
+// sheet whose details you can't see comes back with detailsHidden: true.
+// Against a backend that hasn't run 010 yet, the private fields are
+// still on character_sheets and everything falls back to one table.
+// Offline campaigns are a single local record, as before.
+// ---------------------------------------------------------------------
+const PRIVATE_FIELDS = ['background', 'abilities', 'equipment', 'features', 'resources'];
+const DETAILS_COLUMNS = 'character_id, background, abilities, equipment, features, resources';
+
+function detailsMissing(error) {
+  return error?.code === '42P01' || error?.code === 'PGRST205' || /character_details/i.test(error?.message || '');
 }
 
-export function createSheet(status, campaignId, fields) {
-  return sheetsFor(status).create(campaignId, fields);
+function fromDetailsRow(row) {
+  return {
+    background: row.background,
+    abilities: row.abilities,
+    equipment: row.equipment,
+    features: row.features,
+    resources: row.resources,
+  };
 }
 
-export function updateSheet(status, campaignId, id, patch) {
-  return sheetsFor(status).update(campaignId, id, patch);
+function toDetailsRow(fields) {
+  const row = {};
+  for (const key of PRIVATE_FIELDS) if (key in fields) row[key] = fields[key];
+  return row;
+}
+
+function splitFields(fields) {
+  const pub = {};
+  const priv = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (key === 'detailsHidden') continue;
+    if (PRIVATE_FIELDS.includes(key)) priv[key] = value;
+    else pub[key] = value;
+  }
+  return { pub, priv };
+}
+
+// { [characterId]: details } for every sheet you're allowed to see into,
+// or null on a backend without the details table.
+async function fetchDetails(campaignId) {
+  const { data, error } = await supabase.from('character_details').select(DETAILS_COLUMNS).eq('campaign_id', campaignId);
+  if (error) {
+    if (detailsMissing(error)) return null;
+    throw error;
+  }
+  return Object.fromEntries(data.map((row) => [row.character_id, fromDetailsRow(row)]));
+}
+
+async function writeDetails(campaignId, sheetId, priv) {
+  const { data, error } = await supabase
+    .from('character_details')
+    .update(toDetailsRow(priv))
+    .eq('character_id', sheetId)
+    .select(DETAILS_COLUMNS);
+  if (error) {
+    // Pre-010 backend: the private fields still live on the sheet.
+    if (detailsMissing(error)) return remoteSheets.update(campaignId, sheetId, priv);
+    throw error;
+  }
+  if (!data.length) throw new Error("Only this character's player or the DM can change that.");
+  return fromDetailsRow(data[0]);
+}
+
+async function readSheetRow(sheetId) {
+  const { data, error } = await supabase.from('character_sheets').select().eq('id', sheetId).single();
+  if (error) throw error;
+  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v]));
+}
+
+async function readDetails(sheetId) {
+  const { data, error } = await supabase.from('character_details').select(DETAILS_COLUMNS).eq('character_id', sheetId);
+  if (error) {
+    if (detailsMissing(error)) return {};
+    throw error;
+  }
+  return data.length ? fromDetailsRow(data[0]) : { detailsHidden: true };
+}
+
+export async function listSheets(status, campaignId) {
+  if (status === 'guest') return localSheets.list(campaignId);
+  const [sheets, details] = await Promise.all([remoteSheets.list(campaignId), fetchDetails(campaignId)]);
+  if (!details) return sheets;
+  return sheets.map((sheet) => (details[sheet.id] ? { ...sheet, ...details[sheet.id] } : { ...sheet, detailsHidden: true }));
+}
+
+export async function createSheet(status, campaignId, fields) {
+  if (status === 'guest') return localSheets.create(campaignId, fields);
+  const { pub, priv } = splitFields(fields);
+  const created = await remoteSheets.create(campaignId, pub);
+  // The details row is created with the sheet (a database trigger); fill
+  // in whatever private fields came with it.
+  if (Object.keys(priv).length === 0) return { ...created, ...(await readDetails(created.id)) };
+  return { ...created, ...(await writeDetails(campaignId, created.id, priv)) };
+}
+
+// Always resolves to the whole sheet, both halves, so callers can swap it
+// straight into their list.
+export async function updateSheet(status, campaignId, id, patch) {
+  if (status === 'guest') return localSheets.update(campaignId, id, patch);
+  const { pub, priv } = splitFields(patch);
+  const [publicRow, privateRow] = await Promise.all([
+    Object.keys(pub).length ? remoteSheets.update(campaignId, id, pub) : readSheetRow(id),
+    Object.keys(priv).length ? writeDetails(campaignId, id, priv) : readDetails(id),
+  ]);
+  return { ...publicRow, ...privateRow };
 }
 
 export function removeSheet(status, campaignId, id) {
@@ -222,9 +326,10 @@ export function sheetToMarkdown(sheet, conditions = []) {
     `**Hit Points** ${sheet.currentHp ?? '—'} / ${sheet.maxHp ?? '—'}`,
     `**Speed** ${sheet.speed || '—'}`,
     '',
-    `| ${abilityHeader} |`,
-    `| ${abilityDivider} |`,
-    `| ${abilityRow} |`,
+    // Someone else's character online (010): its private half isn't ours.
+    ...(sheet.detailsHidden
+      ? ['*Ability scores, background, gear and features are private to this character\'s player and the DM.*']
+      : [`| ${abilityHeader} |`, `| ${abilityDivider} |`, `| ${abilityRow} |`]),
   ];
 
   if (sheet.background?.trim()) lines.push('', `**Background** ${sheet.background.trim()}`);

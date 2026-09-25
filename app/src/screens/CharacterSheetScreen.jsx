@@ -335,6 +335,11 @@ export function CharacterSheetScreen() {
   const hpPct = sheet.maxHp ? Math.max(0, Math.min(100, ((sheet.currentHp ?? 0) / sheet.maxHp) * 100)) : 0;
   const hpBand = hpPct > 50 ? 'ok' : hpPct > 25 ? 'warn' : 'danger';
   const editable = canEdit();
+  // Someone else's character, online: its private half (010) isn't ours
+  // to see — say so rather than showing blank scores.
+  // A DM previewing as a player (lib/viewAs.js) sees it the same way for
+  // any character they aren't wearing.
+  const detailsHidden = Boolean(sheet.detailsHidden) || (previewAsPlayer && sheet.playerId !== user?.id);
   const resources = resourcesOf(sheet);
   // Death saves only mean anything at 0 HP (and only if HP is being
   // tracked at all) — the block stays out of the way otherwise.
@@ -499,7 +504,7 @@ export function CharacterSheetScreen() {
 
               <div className="character-sheet-combat-row">
                 <StatHex big label="Armor" value={sheet.armorClass ?? '—'} />
-                <StatHex big label="Initiative" value={modifier(abilities.dex)} />
+                <StatHex big label="Initiative" value={detailsHidden ? '—' : modifier(abilities.dex)} />
                 <StatHex big label="Speed" value={sheet.speed || '—'} />
               </div>
 
@@ -566,13 +571,20 @@ export function CharacterSheetScreen() {
                 </div>
               )}
 
-              <div className="ability-row">
-                {ABILITY_KEYS.map((key) => (
-                  <StatHex key={key} label={key.toUpperCase()} value={abilities[key]} sub={modifier(abilities[key])} />
-                ))}
-              </div>
+              {detailsHidden ? (
+                <p className="private-details">
+                  <strong>Private.</strong> Ability scores, background, gear, features and resources are only visible to
+                  this character's player and the DM.
+                </p>
+              ) : (
+                <div className="ability-row">
+                  {ABILITY_KEYS.map((key) => (
+                    <StatHex key={key} label={key.toUpperCase()} value={abilities[key]} sub={modifier(abilities[key])} />
+                  ))}
+                </div>
+              )}
 
-              {(resources.length > 0 || editable) && (
+              {!detailsHidden && (resources.length > 0 || editable) && (
                 <div className="character-sheet-resources">
                   <label className="character-sheet-section-label">Resources</label>
                   {resources.length === 0 && (
@@ -767,16 +779,18 @@ export function CharacterSheetScreen() {
                 )}
               </div>
 
-              <div className="character-sheet-columns">
-                <div className="character-sheet-scroll">
-                  <h3>Equipment</h3>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{sheet.equipment?.trim() || 'Nothing recorded yet.'}</p>
+              {!detailsHidden && (
+                <div className="character-sheet-columns">
+                  <div className="character-sheet-scroll">
+                    <h3>Equipment</h3>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{sheet.equipment?.trim() || 'Nothing recorded yet.'}</p>
+                  </div>
+                  <div className="character-sheet-scroll">
+                    <h3>Features &amp; Traits</h3>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{sheet.features?.trim() || 'Nothing recorded yet.'}</p>
+                  </div>
                 </div>
-                <div className="character-sheet-scroll">
-                  <h3>Features &amp; Traits</h3>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{sheet.features?.trim() || 'Nothing recorded yet.'}</p>
-                </div>
-              </div>
+              )}
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost btn-small" type="button" onClick={exportSheet}>

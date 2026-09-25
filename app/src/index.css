@@ -2986,3 +2986,14 @@ button.presence-card:active {
   margin: 0;
   flex: 1 1 14rem;
 }
+
+/* A sheet whose private details belong to someone else (010). */
+.private-details {
+  margin: 1.25rem 0;
+  padding: 0.9rem 1rem;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}

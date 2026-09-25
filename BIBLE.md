@@ -1079,6 +1079,34 @@ way. `useCampaignAccess()` returns the effective `isDM` plus `isRealDM`
 and `previewAsPlayer`; CampaignScreen's Outlet context carries
 `previewAsPlayer`.
 
+**Private character details (`010_sheet_privacy.sql`).** Sheets used to
+be readable in full by every member. Now the party sees only what it
+needs: name, class, race, HP, AC, speed, death saves and visible
+conditions, on Party cards and in Combat.
+
+- Ability scores, background, gear, features and resources live in
+  `character_details`, one row per sheet. The DM and whoever is wearing
+  the character (while still a member) can read and write it; a pool
+  character's details are DM-only until someone slips in.
+- A trigger creates the row with the sheet, and it's deleted with it.
+  Its `character_id` and `campaign_id` are pinned.
+- The migration copies existing data across (only for sheets without a
+  details row, so re-running never overwrites) and drops the columns
+  from `character_sheets`. 007's size-limit loop now skips checks for
+  columns that no longer exist, so re-running all migrations in order
+  stays safe.
+- `lib/characters.js` hides the split: `listSheets` merges both halves;
+  `createSheet` and `updateSheet` route public and private fields to
+  their tables and always return the whole sheet. A sheet whose details
+  you can't see comes back `detailsHidden: true`, and the sheet shows a
+  "Private" notice instead of default scores (the Markdown export says
+  the same). On a backend without 010, everything falls back to the
+  single table.
+- A DM in View as Player also gets the "Private" treatment on
+  characters they aren't wearing.
+- **Deploy order:** after running 010, deploy this app version. Older
+  builds still try to write the moved columns to `character_sheets`.
+
 **Campaign import from a JSON file** — an "Import a campaign file" link
 at the bottom of `CampaignHubScreen` (it started as an upload icon beside
 the old "Your Campaigns" heading, which the ease-of-use pass removed; no
