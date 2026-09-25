@@ -51,7 +51,7 @@ function Splash() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
       <span style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-        AWAKENING THE CODEX…
+        GATHERING THE PARTY…
       </span>
     </div>
   );

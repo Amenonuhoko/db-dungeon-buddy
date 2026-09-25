@@ -1,29 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { DeleteButton } from '../components/DeleteButton.jsx';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
-  ABILITY_KEYS,
   BLANK_ABILITIES,
   createSheet,
   EXAMPLES,
   listConditions,
   listSheets,
   LOCAL_PLAYER_ID,
-  modifier,
-  removeCondition,
-  removeSheet,
   sheetsToMarkdown,
-  sheetToMarkdown,
 } from '../lib/characters.js';
 import { listCampaignMembers } from '../lib/campaigns.js';
-import { downloadTextFile, slugify } from '../lib/markdownExport.js';
+import { downloadTextFile } from '../lib/markdownExport.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-// The roster: create/hand out a sheet, a quick-glance card per character,
-// Export, and Delete. Actually reading or editing one sheet is a whole
+// The Party roster: add a character, and one tappable card per
+// character (delete and per-sheet export live on the sheet itself). Actually reading or editing one sheet is a whole
 // screen of its own — see CharacterSheetScreen.jsx / BIBLE.md §3/§9 —
 // this list's job is picking which one, not showing it in full.
 const BLANK_FORM = {
@@ -42,7 +36,7 @@ const BLANK_FORM = {
 };
 
 export function CharactersScreen() {
-  const { campaignId, isDM, isGuest } = useOutletContext();
+  const { campaignId, isDM, isGuest, openInvite } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
 
@@ -110,7 +104,8 @@ export function CharactersScreen() {
       name: form.name.trim(),
       armorClass: form.armorClass === '' ? null : Number(form.armorClass),
       maxHp: form.maxHp === '' ? null : Number(form.maxHp),
-      currentHp: form.currentHp === '' ? null : Number(form.currentHp),
+      // New characters start at full health — one less number to enter.
+      currentHp: form.currentHp === '' ? (form.maxHp === '' ? null : Number(form.maxHp)) : Number(form.currentHp),
     };
     try {
       const created = await createSheet(status, campaignId, fields);
@@ -123,20 +118,8 @@ export function CharactersScreen() {
     }
   }
 
-  async function handleDeleteSheet(id) {
-    try {
-      if (status === 'guest') {
-        for (const c of conditions.filter((c) => c.characterId === id)) {
-          await removeCondition(status, campaignId, c.id);
-        }
-      }
-      await removeSheet(status, campaignId, id);
-      setSheets((prev) => prev.filter((s) => s.id !== id));
-      setConditions((prev) => prev.filter((c) => c.characterId !== id));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
+  // A player's own character comes first — it's the one they came for.
+  const orderedSheets = [...sheets].sort((a, b) => Number(!isDM && canEditSheet(b)) - Number(!isDM && canEditSheet(a)));
 
   const conditionsByCharacterId = conditions.reduce((map, c) => {
     (map[c.characterId] ||= []).push(c);
@@ -160,12 +143,15 @@ export function CharactersScreen() {
         </button>
         {canCreate && (
           <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            {isGuestPlayer ? 'Create My Sheet' : 'Hand Out a Sheet'}
+            {isGuestPlayer ? 'Create My Character' : 'Add Character'}
           </button>
         )}
       </div>
 
-      {canCreate && !showForm && (
+      {/* No examples until there's a player to give a character to — in
+          account mode every character belongs to a player, so a template
+          can't be used yet, and "invite your players" is the next step. */}
+      {canCreate && !showForm && (isGuest || players.length > 0) && (
         <ExampleGallery
           items={EXAMPLES}
           isEmpty={sheets.length === 0}
@@ -187,16 +173,16 @@ export function CharactersScreen() {
         <Panel style={{ marginBottom: '1.5rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <p className="hint-text">
-              Who are they, how do they fight, and what's one thing that makes them a person, not a stat block? The
-              full sheet — everything else, HP tracking, conditions — opens once this is saved.
+              Just the basics — ability scores, equipment and features go on the full sheet, which opens as soon as
+              this is saved.
             </p>
 
             {!isGuest && (
               <div className="field">
-                <label htmlFor="sheetPlayer">Hand this sheet to</label>
+                <label htmlFor="sheetPlayer">Player</label>
                 {players.length === 0 ? (
                   <p style={{ fontSize: '0.85rem' }}>
-                    No players have joined this campaign yet — share your invite code first.
+                    No players have joined yet — each character belongs to a player, so invite them first.
                   </p>
                 ) : (
                   <select
@@ -219,12 +205,13 @@ export function CharactersScreen() {
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <div className="field" style={{ flex: '2 1 200px' }}>
-                <label htmlFor="charName">Name</label>
+                <label htmlFor="charName">Character name</label>
                 <input
                   id="charName"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Mira Duskwalker"
+                  maxLength={120}
                   autoFocus
                 />
               </div>
@@ -237,86 +224,31 @@ export function CharactersScreen() {
                   placeholder="Rogue 3"
                 />
               </div>
-              <div className="field" style={{ flex: '1 1 140px' }}>
-                <label htmlFor="charRace">Race / Species</label>
-                <input id="charRace" value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="charBackground">Background</label>
-              <input
-                id="charBackground"
-                value={form.background}
-                onChange={(e) => setForm({ ...form, background: e.target.value })}
-                placeholder="Criminal, Sage, Soldier…"
-              />
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <div className="field" style={{ flex: '1 1 100px' }}>
+              <div className="field" style={{ flex: '2 1 160px' }}>
+                <label htmlFor="charRace">Race / Species</label>
+                <input
+                  id="charRace"
+                  value={form.race}
+                  onChange={(e) => setForm({ ...form, race: e.target.value })}
+                  placeholder="Half-Elf"
+                />
+              </div>
+              <div className="field" style={{ flex: '1 1 90px' }}>
+                <label htmlFor="charMaxHp">Max HP</label>
+                <input id="charMaxHp" type="number" min="0" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
+              </div>
+              <div className="field" style={{ flex: '1 1 90px' }}>
                 <label htmlFor="charAC">Armor Class</label>
                 <input id="charAC" type="number" value={form.armorClass} onChange={(e) => setForm({ ...form, armorClass: e.target.value })} />
               </div>
-              <div className="field" style={{ flex: '1 1 100px' }}>
-                <label htmlFor="charMaxHp">Max HP</label>
-                <input id="charMaxHp" type="number" value={form.maxHp} onChange={(e) => setForm({ ...form, maxHp: e.target.value })} />
-              </div>
-              <div className="field" style={{ flex: '1 1 100px' }}>
-                <label htmlFor="charCurrentHp">Current HP</label>
-                <input id="charCurrentHp" type="number" value={form.currentHp} onChange={(e) => setForm({ ...form, currentHp: e.target.value })} />
-              </div>
-              <div className="field" style={{ flex: '1 1 140px' }}>
-                <label htmlFor="charSpeed">Speed</label>
-                <input id="charSpeed" value={form.speed} onChange={(e) => setForm({ ...form, speed: e.target.value })} />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-                Ability Scores
-              </label>
-              <div className="ability-edit-grid">
-                {ABILITY_KEYS.map((key) => (
-                  <div key={key} className="field">
-                    <label htmlFor={`charAbility-${key}`}>{key.toUpperCase()}</label>
-                    <input
-                      id={`charAbility-${key}`}
-                      type="number"
-                      value={form.abilities[key]}
-                      onChange={(e) =>
-                        setForm({ ...form, abilities: { ...form.abilities, [key]: Number(e.target.value) } })
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="charEquipment">Equipment</label>
-              <textarea
-                id="charEquipment"
-                value={form.equipment}
-                onChange={(e) => setForm({ ...form, equipment: e.target.value })}
-                placeholder="Shortsword, leather armor, a pack that's seen better days."
-                rows={2}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="charFeatures">Features &amp; Traits</label>
-              <textarea
-                id="charFeatures"
-                value={form.features}
-                onChange={(e) => setForm({ ...form, features: e.target.value })}
-                placeholder="Sneak Attack, Cunning Action, a signature move players will remember."
-                rows={2}
-              />
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="btn btn-primary" type="submit" disabled={!form.playerId}>
-                {isGuestPlayer ? 'Create Sheet' : 'Hand Out Sheet'}
+              <button className="btn btn-primary" type="submit" disabled={!form.playerId || !form.name.trim()}>
+                Create Character
               </button>
               <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
                 Cancel
@@ -326,88 +258,85 @@ export function CharactersScreen() {
         </Panel>
       )}
 
-      {loading && <p>Loading the roster…</p>}
-      {!loading && sheets.length === 0 && (
-        <p>
-          {canCreate
-            ? isGuestPlayer
-              ? 'No sheet yet — create yours below.'
-              : 'No sheets yet — hand out the first one.'
-            : "You don't have a character sheet yet — ask your DM."}
-        </p>
+      {loading && <p>Loading the party…</p>}
+      {!loading && sheets.length === 0 && !showForm && (
+        <Panel style={{ textAlign: 'center' }}>
+          <p>
+            {isGuestPlayer
+              ? 'Create your character to get started.'
+              : isDM
+                ? players.length === 0 && openInvite
+                  ? 'No players yet. Invite them first — then add a character for each, and they can edit their own.'
+                  : isGuest
+                  ? 'Add a character for each member of your party.'
+                  : 'Add a character for each player — they can edit their own sheet from their device.'
+                : "Your DM hasn't made your character yet — it'll show up here as soon as they do."}
+          </p>
+          {isDM && players.length === 0 && openInvite && (
+            <button className="btn btn-primary btn-small" type="button" onClick={openInvite} style={{ marginTop: '1rem' }}>
+              Invite Players
+            </button>
+          )}
+        </Panel>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {sheets.map((sheet) => {
-          const abilities = { ...BLANK_ABILITIES, ...sheet.abilities };
-          const sheetConditions = conditionsByCharacterId[sheet.id] || [];
-          return (
-            <Panel key={sheet.id}>
-              {canEditSheet(sheet) && <DeleteButton onConfirm={() => handleDeleteSheet(sheet.id)} label={sheet.name} />}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
-                <h3 style={{ fontSize: '1.1rem' }}>{sheet.name}</h3>
-                {sheet.classAndLevel && <span className="chip">{sheet.classAndLevel}</span>}
-              </div>
-              <p style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>
-                {sheet.race}
-                {sheet.background ? ` · ${sheet.background}` : ''}
-              </p>
-              <p style={{ marginTop: '0.5rem' }}>
-                AC {sheet.armorClass ?? '—'} · HP {sheet.currentHp ?? '—'} / {sheet.maxHp ?? '—'} · Speed{' '}
-                {sheet.speed || '—'}
-              </p>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-                  gap: '0.5rem',
-                  marginTop: '0.75rem',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.85rem',
-                  textAlign: 'center',
-                }}
-              >
-                {ABILITY_KEYS.map((key) => (
-                  <div key={key}>
-                    <div style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>{key.toUpperCase()}</div>
-                    <div>
-                      {abilities[key]} ({modifier(abilities[key])})
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {sheetConditions.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.75rem' }}>
-                  {sheetConditions.map((c) => (
-                    <span key={c.id} className="condition-chip">
-                      {c.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                <button
-                  className="btn btn-ghost btn-small"
-                  type="button"
-                  onClick={() => downloadTextFile(`${slugify(sheet.name)}.md`, sheetToMarkdown(sheet, sheetConditions))}
-                >
-                  Export
-                </button>
-                <button
-                  className="btn btn-primary btn-small"
-                  type="button"
-                  onClick={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
-                >
-                  Open Sheet
-                </button>
-              </div>
-            </Panel>
-          );
-        })}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {orderedSheets.map((sheet) => (
+          <PartyCard
+            key={sheet.id}
+            sheet={sheet}
+            conditions={conditionsByCharacterId[sheet.id] || []}
+            mine={!isDM && canEditSheet(sheet)}
+            onOpen={() => navigate(`/campaigns/${campaignId}/characters/${sheet.id}`)}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+// One tap target per character — name, what they are, how hurt they are,
+// and what's afflicting them. Everything else (full stats, edit, export,
+// delete) lives on the sheet this opens; the roster's job is picking one.
+function PartyCard({ sheet, conditions, mine, onOpen }) {
+  const hp = sheet.currentHp;
+  const max = sheet.maxHp;
+  const pct = max ? Math.max(0, Math.min(100, ((hp ?? 0) / max) * 100)) : 0;
+  const band = pct > 50 ? 'ok' : pct > 25 ? 'warn' : 'danger';
+  return (
+    <button type="button" className={`panel party-card${mine ? ' mine' : ''}`} onClick={onOpen}>
+      <div className="party-card-top">
+        <span className="party-card-name">{sheet.name}</span>
+        {mine && <span className="chip chip-small">You</span>}
+        <span className="campaign-card-arrow" aria-hidden="true">
+          →
+        </span>
+      </div>
+      {(sheet.classAndLevel || sheet.race) && (
+        <p className="party-card-sub">{[sheet.classAndLevel, sheet.race].filter(Boolean).join(' · ')}</p>
+      )}
+      <div className="party-card-stats">
+        {max != null && (
+          <div className="combat-hp" style={{ marginTop: 0, flex: 1 }}>
+            <div className="hp-track hp-track-slim">
+              <div className={`hp-track-fill hp-track-fill-${band}`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="combat-hp-numbers">
+              {hp ?? '—'}/{max}
+            </span>
+          </div>
+        )}
+        {sheet.armorClass != null && <span className="chip chip-small">AC {sheet.armorClass}</span>}
+      </div>
+      {conditions.length > 0 && (
+        <div className="combat-conditions">
+          {conditions.map((c) => (
+            <span key={c.id} className="condition-chip">
+              {c.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </button>
   );
 }

@@ -124,7 +124,7 @@ export function BestiaryScreen() {
         </button>
         {isDM && (
           <button className="btn btn-primary btn-small" type="button" onClick={startCreate}>
-            New Creature
+            New Monster
           </button>
         )}
       </div>
@@ -271,7 +271,7 @@ export function BestiaryScreen() {
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button className="btn btn-primary" type="submit">
-                {editingId ? 'Save Changes' : 'Add Creature'}
+                {editingId ? 'Save Changes' : 'Add Monster'}
               </button>
               <button className="btn btn-ghost" type="button" onClick={() => setShowForm(false)}>
                 Cancel
@@ -283,7 +283,7 @@ export function BestiaryScreen() {
 
       {loading && <p>Loading the bestiary…</p>}
       {!loading && creatures.length === 0 && (
-        <p>{isDM ? 'No creatures yet — add the first one.' : 'The DM hasn’t added any creatures yet.'}</p>
+        <p>{isDM ? 'No monsters yet — add the first one, or start from an example.' : 'The DM hasn’t added any monsters yet.'}</p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

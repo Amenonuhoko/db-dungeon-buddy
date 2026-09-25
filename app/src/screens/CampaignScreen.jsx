@@ -2,30 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
-import { BookIcon, PawIcon, QuillIcon, ShieldIcon, SwordsIcon } from '../components/ornament/TabIcons.jsx';
+import { InvitePanel } from '../components/InvitePanel.jsx';
+import { ALL_TABS, tabsForRole } from '../lib/campaignTabs.jsx';
 import { getGuestCampaign, getMyCampaign } from '../lib/campaigns.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-// Encyclopedia and Bestiary are the DM's world-building tools — lore and
-// monster stats a DM authors for their own reference, not something a
-// player needs a tab for. A player's whole surface is their own Notes
-// and their own Character sheet, so those two tabs simply don't exist
-// for them (not just locked/read-only — see BIBLE.md §4/§9).
-const DM_ONLY_TABS = ['encyclopedia', 'bestiary'];
+// Reopening a campaign lands on whichever tab you were last on (per
+// campaign, per device) — mid-fight, that's Combat, not a detour
+// through a default tab. First visit lands on Party.
+const lastTabKey = (campaignId) => `dungeonbuddy.lastTab.${campaignId}`;
 
-const ALL_TABS = [
-  { to: 'encyclopedia', label: 'Encyclopedia', icon: <BookIcon /> },
-  { to: 'notes', label: 'Notes', icon: <QuillIcon /> },
-  { to: 'bestiary', label: 'Bestiary', icon: <PawIcon /> },
-  { to: 'characters', label: 'Characters', icon: <ShieldIcon /> },
-  // Visible to players too, unlike Encyclopedia/Bestiary — everyone at
-  // the table needs to see whose turn it is (BIBLE.md §8, Phase 4).
-  { to: 'combat', label: 'Combat', icon: <SwordsIcon /> },
-];
-
-function tabsForRole(isDM) {
-  return isDM ? ALL_TABS : ALL_TABS.filter((tab) => !DM_ONLY_TABS.includes(tab.to));
+function readLastTab(campaignId) {
+  try {
+    return localStorage.getItem(lastTabKey(campaignId));
+  } catch {
+    return null;
+  }
 }
+
 
 // Swipe threshold tuned to feel deliberate — a scroll or a tap-drag on a
 // button shouldn't accidentally flip tabs. Horizontal motion has to
@@ -70,6 +64,18 @@ export function CampaignScreen() {
   // handlers just won't fire yet, same as while loading today).
   const tabs = tabsForRole(campaign?.role === 'dm');
   const swipeHandlers = useSwipeTabs(campaignId, tabs);
+  const location = useLocation();
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  useEffect(() => {
+    const tab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`));
+    if (!tab) return;
+    try {
+      localStorage.setItem(lastTabKey(campaignId), tab.to);
+    } catch {
+      // Private mode / storage blocked — just lands on Party next time.
+    }
+  }, [location.pathname, campaignId]);
 
   useEffect(() => {
     setCampaign(null);
@@ -89,7 +95,7 @@ export function CampaignScreen() {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem 1.5rem 9rem' }}>
         <div className="screen-enter" style={{ textAlign: 'center' }}>
           <p className="error-text">{error}</p>
           <div style={{ marginTop: '1rem' }}>
@@ -104,13 +110,15 @@ export function CampaignScreen() {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <p style={{ fontFamily: 'var(--font-display)', color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-          OPENING THE CODEX…
+          OPENING THE CAMPAIGN…
         </p>
       </div>
     );
   }
 
   const isDM = campaign.role === 'dm';
+  // Guest campaigns are device-local — there's no one to invite to them.
+  const canInvite = isDM && Boolean(campaign.invite_code);
 
   // Bottom padding has to clear the taller of the two fixed overlays
   // that float over every tab here — the global dice-fab (App.jsx),
@@ -124,20 +132,25 @@ export function CampaignScreen() {
   return (
     <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 10rem' }}>
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '0.6rem' }}>
+        <div className="campaign-topbar">
+          <BackButton to="/dashboard" label="Campaigns" />
           <span className="chip chip-small">{isDM ? 'Dungeon Master' : 'Player'}</span>
         </div>
 
-        <BackButton to="/dashboard" label="Campaigns" />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="campaign-titlebar">
           <h2>{campaign.name}</h2>
-          {isDM && campaign.invite_code && (
-            <p style={{ fontSize: '0.85rem' }}>
-              Invite code: <span style={{ color: 'var(--gold-bright)', letterSpacing: '0.08em' }}>{campaign.invite_code}</span>
-            </p>
+          {canInvite && (
+            <button type="button" className="btn btn-ghost btn-small" onClick={() => setInviteOpen((o) => !o)} aria-expanded={inviteOpen}>
+              Invite Players
+            </button>
           )}
         </div>
+
+        {canInvite && inviteOpen && (
+          <div style={{ marginTop: '1rem' }}>
+            <InvitePanel code={campaign.invite_code} campaignName={campaign.name} onClose={() => setInviteOpen(false)} />
+          </div>
+        )}
 
         <div
           className="swipe-area"
@@ -145,7 +158,20 @@ export function CampaignScreen() {
           onTouchStart={swipeHandlers.onTouchStart}
           onTouchEnd={swipeHandlers.onTouchEnd}
         >
-          <Outlet context={{ campaignId, role: campaign.role, isDM, isGuest: status === 'guest' }} />
+          <Outlet
+            context={{
+              campaignId,
+              role: campaign.role,
+              isDM,
+              isGuest: status === 'guest',
+              openInvite: canInvite
+                ? () => {
+                    setInviteOpen(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                : null,
+            }}
+          />
         </div>
       </div>
 
@@ -157,7 +183,9 @@ export function CampaignScreen() {
 export function CampaignIndexRedirect() {
   const { campaignId } = useParams();
   const { isDM } = useOutletContext();
-  return <Navigate to={`/campaigns/${campaignId}/${isDM ? 'encyclopedia' : 'notes'}`} replace />;
+  const last = readLastTab(campaignId);
+  const allowed = tabsForRole(isDM).some((t) => t.to === last);
+  return <Navigate to={`/campaigns/${campaignId}/${allowed ? last : 'characters'}`} replace />;
 }
 
 // Guards the two DM-only tabs (Encyclopedia, Bestiary) against a player
@@ -169,6 +197,6 @@ export function CampaignIndexRedirect() {
 export function RequireDM({ children }) {
   const { campaignId } = useParams();
   const { isDM } = useOutletContext();
-  if (!isDM) return <Navigate to={`/campaigns/${campaignId}/notes`} replace />;
+  if (!isDM) return <Navigate to={`/campaigns/${campaignId}/characters`} replace />;
   return children;
 }

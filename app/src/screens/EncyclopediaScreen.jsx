@@ -132,7 +132,7 @@ export function EncyclopediaScreen() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search the codex…"
+            placeholder="Search lore…"
             style={{
               flex: '1 1 200px',
               background: 'var(--surface-raised)',
@@ -257,7 +257,7 @@ export function EncyclopediaScreen() {
         </Panel>
       )}
 
-      {loading && <p>Loading the codex…</p>}
+      {loading && <p>Loading lore…</p>}
       {!loading && filtered.length === 0 && (
         <p>
           {entries.length === 0

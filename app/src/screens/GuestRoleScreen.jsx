@@ -34,7 +34,7 @@ export function GuestRoleScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem 1.5rem 9rem' }}>
       <form onSubmit={handleSubmit} className="screen-enter" style={{ width: 'min(520px, 100%)' }}>
         <BackButton to="/" />
         <h2 style={{ textAlign: 'center' }}>Enter the Table</h2>

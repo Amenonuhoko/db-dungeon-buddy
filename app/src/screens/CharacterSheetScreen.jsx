@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
+import { BottomTabDock } from '../components/BottomTabDock.jsx';
 import { DeleteButton } from '../components/DeleteButton.jsx';
 import { LaurelFlourish } from '../components/ornament/Laurel.jsx';
 import {
@@ -21,6 +22,7 @@ import {
   shortRestPatch,
   updateSheet,
 } from '../lib/characters.js';
+import { absoluteTabs } from '../lib/campaignTabs.jsx';
 import { rollD20 } from '../lib/encounters.js';
 import { downloadTextFile, slugify } from '../lib/markdownExport.js';
 import { useCampaignAccess } from '../lib/useCampaignAccess.js';
@@ -281,7 +283,7 @@ export function CharacterSheetScreen() {
         <div className="character-sheet-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
           <p className="error-text">{campaignError || error}</p>
           <div style={{ marginTop: '1rem' }}>
-            <BackButton to={rosterPath} label="Roster" />
+            <BackButton to={rosterPath} label="Party" />
           </div>
         </div>
       </div>
@@ -306,7 +308,7 @@ export function CharacterSheetScreen() {
         <div className="character-sheet-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
           <p>That character sheet doesn't exist here.</p>
           <div style={{ marginTop: '1rem' }}>
-            <BackButton to={rosterPath} label="Roster" />
+            <BackButton to={rosterPath} label="Party" />
           </div>
         </div>
       </div>
@@ -327,7 +329,7 @@ export function CharacterSheetScreen() {
   return (
     <div className="character-sheet-screen screen-enter">
       <div className="character-sheet-shell">
-        <BackButton to={rosterPath} label="Roster" />
+        <BackButton to={rosterPath} label="Party" />
 
         <div className="character-sheet-plate corner-frame">
           {editable && !editing && <DeleteButton onConfirm={handleDelete} label={sheet.name} />}
@@ -783,6 +785,11 @@ export function CharacterSheetScreen() {
           )}
         </div>
       </div>
+      {/* The same tab bar as the rest of the campaign — a player's two main
+          screens are this sheet and Combat, so switching shouldn't mean
+          backing out to the Party list first. Party stays highlighted
+          (this sheet lives under it). */}
+      <BottomTabDock tabs={absoluteTabs(campaignId, isDM)} />
     </div>
   );
 }

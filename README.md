@@ -1,4 +1,4 @@
-# Codex
+# Dungeon Buddy
 
 A browser PWA companion for running and playing a full D&D campaign —
 world-building and bestiary tools for the DM, character sheets and notes
@@ -71,7 +71,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `005_live_play.sql`, and onward as new ones
+   (`001_core.sql` → `006_player_initiative.sql`, and onward as new ones
    land). Together they create `profiles`, `campaigns`,
    `campaign_members`, `encyclopedia_entries`, `bestiary_entries`,
    `notes`, `character_sheets`, `character_conditions`, `encounters`,

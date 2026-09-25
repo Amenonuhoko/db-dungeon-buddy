@@ -1,4 +1,4 @@
-# The Codex — Project Bible
+# Dungeon Buddy — Project Bible
 
 This is the reference document for this project. Read it before making a
 product, design, or architecture decision — it exists so every future
@@ -6,9 +6,12 @@ session (human or Claude) picks up the same intent instead of re-deriving
 it. Update it whenever a decision here changes; it should always describe
 the app as it actually is/should be, not just as it started.
 
-Working name: **Codex** (a nod to Warframe's own in-game Codex — this app
-*is* the table's encyclopedia, bestiary, and character archive in one
-place). Easy to rename later; it isn't wired into anything structural.
+Name: **Dungeon Buddy** (renamed from the working name "Codex" in
+2026-09). The one place the old name survives on purpose is
+`localStorage` keys (`codex.guest`, `codex.guest.campaigns`,
+`codex.guest.content.*`, `codex.theme`) — renaming them would silently
+orphan every offline player's saved campaigns, and nobody ever sees them.
+New keys use a `dungeonbuddy.` prefix.
 
 ## 1. Vision
 
@@ -170,9 +173,14 @@ instant the 420ms animation ends — same visual result, no side effect.
 
 ### Navigation
 
-Inside a campaign, section navigation (Encyclopedia/Notes/Bestiary/
-Characters) is a fixed bottom tab dock (`BottomTabDock.jsx`, mobile-app
-style) rather than top text tabs — see `CampaignScreen.jsx`. A left/right
+Inside a campaign, section navigation is a fixed bottom tab dock
+(`BottomTabDock.jsx`, mobile-app style) rather than top text tabs. The
+tabs, in order: **Party, Combat, Lore, Monsters, Notes** — plain words,
+in the order a table uses them (players see Party, Combat, Notes). They
+live in `lib/campaignTabs.jsx`, shared by `CampaignScreen.jsx` and the
+character sheet. Route paths keep their original names (`characters`,
+`combat`, `encyclopedia`, `bestiary`, `notes`) so old links still work;
+only the labels changed. A left/right
 touch swipe on the content area moves between the same tabs (past a 60px,
 clearly-horizontal threshold, so a scroll or a button tap-drag can't
 misfire); the dock and the swipe are two entry points into one
@@ -201,12 +209,14 @@ different scale and with its own centerpiece shape:
 
 - **A whole screen, not a tab.** It's a sibling top-level route of
   `/campaigns/:campaignId`, *not* nested under `CampaignScreen`'s
-  `Outlet` — no bottom tab dock, no DM/Player chip, no "← Campaigns"
-  chrome. It resolves its own campaign/role via `useCampaignAccess()`
+  `Outlet` — no DM/Player chip, no "← Campaigns" chrome. It *does*
+  carry the bottom tab dock (added in the ease-of-use pass, §3): a
+  player's two main screens are this sheet and Combat, and switching
+  between them shouldn't mean backing out to the Party list first. It resolves its own campaign/role via `useCampaignAccess()`
   (`lib/useCampaignAccess.js`, the same guest/account branch
   `CampaignScreen` does, factored out so this screen can opt out of the
   shared chrome without duplicating that logic badly) rather than
-  reading the Outlet context. Its own `BackButton` goes to the roster
+  reading the Outlet context. Its own `BackButton` goes to the Party roster
   (`CharactersScreen.jsx`, which now only lists cards and picks — actually
   opening one is this screen's job).
 - **The hex stat plate** (`.stat-hex` / `.stat-hex-inner` in
@@ -284,6 +294,55 @@ clears AA). The d6 pip die face (`Die.jsx`) had the exact same
 `var(--surface)`-on-gold pattern for its pip dots and got the same fix;
 its oxblood/fumble-state pip color was left alone; that's a separate,
 less clear-cut contrast question this pass didn't set out to answer.
+
+### Ease-of-use pass (2026-09) — "focus on the game"
+
+The brief: a player or DM should be able to focus on the game, not on
+working out how to do something in the app. Simplicity over options.
+The rules this pass settled on, worth keeping for anything new:
+
+- **Plain words over app vocabulary.** Tabs are Party / Combat / Lore /
+  Monsters / Notes (not Characters / Encyclopedia / Bestiary); buttons
+  say "Add Character", "New Monster", "Invite Players" (not "Hand Out a
+  Sheet"). Every Home choice carries a one-line explanation of who it's
+  for.
+- **Land where the game is.** A campaign opens on the tab you were last
+  on (per campaign, per device — `dungeonbuddy.lastTab.<id>` in
+  `localStorage`); first visit opens Party, where a player's own
+  character sits first, marked "You". Players no longer start on Notes.
+- **One obvious next step, not a menu.** The campaign hub shows your
+  campaigns as big tap targets and hides the create form behind
+  "+ New Campaign" (shown straight away only when there's nothing to
+  pick). Party cards are one tap target each — name, class, HP bar, AC,
+  conditions — with the full detail, edit, export and delete living on
+  the sheet they open. Creating a character asks only for the basics
+  (name, class, race, max HP, AC; they start at full HP); the rest goes
+  on the sheet, which opens immediately. Empty states say what to do
+  next and offer the button for it (an empty Party with no players yet
+  offers Invite Players; the example templates stay hidden until a
+  player exists to give a character to).
+- **Invite by link, not by dictation.** `InvitePanel.jsx` (the DM's
+  "Invite Players" button in the campaign header, account mode only)
+  gives a `/join?code=…` link with Copy and, where the device supports
+  it, the native Share sheet; the code is still shown as a fallback.
+  The link lands on `JoinCampaignScreen.jsx` with the code already
+  filled in ("You're Invited" — just pick a name). A visitor who's
+  already logged in joins with the account they have — that screen used
+  to bounce them to the dashboard and silently lose the code.
+  Anonymous joined-players don't get "+ New Campaign" (they can't take a
+  DM role anywhere else), and someone in offline mode can still follow
+  an invite.
+- **Nobody relays numbers.** Players roll their own initiative from
+  their own row on the Combat tab (a pulsing d20 prompts them), through
+  `set_my_initiative()` (`006_player_initiative.sql`). "Hasn't rolled"
+  is its own state (null, shown as "—"), and the DM's single **Begin
+  Combat** button rolls for anyone who still hasn't — the old separate
+  "Roll NPC Initiative" step is gone. The list scrolls the current
+  combatant into view as the turn moves.
+- **Floating controls never cover content.** Every centered screen
+  (Home, log in, join, offline setup, reset) has bottom room for the
+  dice button, and the campaign header keeps its role chip clear of the
+  theme toggle.
 
 ## 4. Identity & roles
 
@@ -479,10 +538,11 @@ unfiltered list "just for this one view."
 real player gets — no screen should grant it blanket "you're a guest,
 here's DM powers" access.** Encyclopedia and Bestiary don't just
 read-only gate on `isDM` — they don't exist for a player at all.
-`tabsForRole()` in `CampaignScreen.jsx` drops both tabs from the bottom
-dock for anyone who isn't DM, `CampaignIndexRedirect` sends a player to
-`notes` instead of `encyclopedia`, and `RequireDM` guards both routes
-directly (bounces to `notes`) in case a player lands on one anyway —
+`tabsForRole()` in `lib/campaignTabs.jsx` drops both tabs from the bottom
+dock for anyone who isn't DM, `CampaignIndexRedirect` only ever restores
+a remembered tab the role is allowed to see (falling back to Party), and
+`RequireDM` guards both routes directly (bounces to Party) in case a
+player lands on one anyway —
 stale link, browser back/forward, hand-typed URL. This is a UI-visibility
 promise, not a data-security boundary; RLS is what actually protects the
 rows if a real account calls the API directly. CharactersScreen used to
@@ -760,6 +820,16 @@ Deliberately left for later (§8 Phase 5): structured inventory/currency
 text) and an assisted level-up flow (instead of hand-editing
 `class_and_level`) — real gaps, but neither blocks running a session.
 
+Built (`006_player_initiative.sql`): `encounter_combatants.initiative`
+becomes nullable, default null ("hasn't rolled"), and
+`set_my_initiative(combatant_id, initiative)` — a security-definer
+function that lets a player set initiative on a combatant row only if
+it's their own character, and touches nothing else on the row. RLS is
+row-level, not column-level, so opening an UPDATE policy to players
+would have let them edit the whole row; the narrow function is the safe
+shape. Before 006 runs, the app still works (new PCs just default to 0,
+the old way) and a player's roll attempt says the migration is needed.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
@@ -853,7 +923,7 @@ screen is built, per the rule above:
     after a password-reset link has landed someone on `/reset-password`
     already authenticated.
   - `/campaigns/:id` (and everything nested under it — Encyclopedia,
-    Notes, Bestiary, Characters, Combat, reached via the bottom tab dock, not
+    Party, Combat, Lore, Monsters, Notes, reached via the bottom tab dock, not
     stack navigation) → back to `/dashboard`, labeled "Campaigns". One
     `BackButton` above the swipeable tab content covers every tab.
   - `/dashboard` has no back arrow — it's the authenticated root. Its

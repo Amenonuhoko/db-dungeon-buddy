@@ -21,8 +21,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg}'],
       },
       manifest: {
-        name: 'Codex — D&D Campaign Companion',
-        short_name: 'Codex',
+        name: 'Dungeon Buddy — D&D Campaign Companion',
+        short_name: 'Dungeon Buddy',
         description: 'A companion app for running and playing a full D&D campaign.',
         theme_color: '#0b0a08',
         background_color: '#0b0a08',
