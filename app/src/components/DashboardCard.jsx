@@ -1,3 +1,4 @@
+import { CampaignCardArt } from './CampaignCardArt.jsx';
 import { Portrait } from './Portrait.jsx';
 import { timeAgo } from '../lib/dashboard.js';
 
@@ -16,6 +17,7 @@ export function DashboardCard({ campaign, info, onOpen }) {
 
   return (
     <div className={`panel dash-card${fight?.myTurn ? ' my-turn' : ''}`}>
+      <CampaignCardArt scene={info?.scene} live={info?.scene?.live} />
       <button type="button" className="dash-card-head" onClick={() => onOpen(base)}>
         <span className="campaign-card-name">{campaign.name}</span>
         <span aria-hidden="true" className="campaign-card-arrow">

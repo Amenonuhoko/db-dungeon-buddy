@@ -27,7 +27,7 @@ export async function loadDashboard(campaigns, myId) {
   if (!ids.length || !myId) return {};
   const since = new Date(Date.now() - 30 * DAY).toISOString();
 
-  const [sheets, encounters, messages, notes, members] = await Promise.all([
+  const [sheets, encounters, messages, notes, members, scenes] = await Promise.all([
     settle(
       q(
         supabase
@@ -69,6 +69,19 @@ export async function loadDashboard(campaigns, myId) {
       ),
     ),
     settle(q(supabase.from('campaign_members').select('campaign_id, role').in('campaign_id', ids))),
+    // Enough to show "the world" on each card, not run it: whichever
+    // scene the DM is live on, or the one they touched last. `catch(()
+    // => null)`'d by `settle` same as everything else — a backend that
+    // predates 015 (Scenes) just shows no art.
+    settle(
+      q(
+        supabase
+          .from('scenes')
+          .select('campaign_id, active, background_path, mood, updated_at')
+          .in('campaign_id', ids)
+          .order('updated_at', { ascending: false }),
+      ),
+    ),
   ]);
 
   const currentIds = (encounters || []).map((e) => e.current_combatant_id).filter(Boolean);
@@ -95,6 +108,10 @@ export async function loadDashboard(campaigns, myId) {
 
     const latestNote = (notes || []).find((n) => n.campaign_id === id) || null;
     const players = members ? members.filter((m) => m.campaign_id === id && m.role === 'player').length : null;
+    // Already sorted newest-first, so the active one (if any) beats a
+    // more recently touched inactive one only when we ask for it by name.
+    const campaignScenes = (scenes || []).filter((s) => s.campaign_id === id);
+    const scene = campaignScenes.find((s) => s.active) || campaignScenes[0] || null;
 
     out[id] = {
       character: character && {
@@ -116,6 +133,7 @@ export async function loadDashboard(campaigns, myId) {
       unread,
       latestNote: latestNote && { title: latestNote.title, updatedAt: latestNote.updated_at },
       players,
+      scene: scene && { backgroundPath: scene.background_path, mood: scene.mood, live: scene.active },
     };
   }
   return out;

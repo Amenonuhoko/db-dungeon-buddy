@@ -92,6 +92,25 @@ export function listScenes(status, campaignId) {
   return scenesFor(status).list(campaignId);
 }
 
+// The one scene worth showing on a campaign's card in the hub (BIBLE.md
+// §1 step 5): whichever's live, else the one touched most recently. Guest
+// campaigns aren't covered by lib/dashboard.js's batched query — this is
+// its per-card equivalent, cheap enough for localStorage and used
+// sparingly (one campaign hub, a handful of cards). Authenticated players
+// only ever get their campaign's live scene back here too (same RLS as
+// everywhere else), so this never leaks a DM's unrevealed draft.
+export function useCampaignScene(status, campaignId) {
+  const [scene, setScene] = useState(null);
+  useEffect(() => {
+    setScene(null);
+    if (!campaignId) return;
+    listScenes(status, campaignId)
+      .then((scenes) => setScene(scenes.find((s) => s.active) || scenes[0] || null))
+      .catch(() => {});
+  }, [status, campaignId]);
+  return scene;
+}
+
 export function createScene(status, campaignId, name, backgroundPath = null) {
   return scenesFor(status).create(campaignId, { name, active: false, backgroundPath, encounterId: null });
 }

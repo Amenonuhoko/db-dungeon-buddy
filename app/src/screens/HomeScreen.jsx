@@ -28,6 +28,7 @@ export function HomeScreen() {
 
   return (
     <div
+      className="home-screen"
       style={{
         minHeight: '100vh',
         display: 'grid',

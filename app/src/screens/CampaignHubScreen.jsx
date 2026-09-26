@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CampaignCardArt } from '../components/CampaignCardArt.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { DashboardCard } from '../components/DashboardCard.jsx';
 import { MyCharacters } from '../components/MyCharacters.jsx';
@@ -14,6 +15,7 @@ import {
   listMyCampaigns,
 } from '../lib/campaigns.js';
 import { loadDashboard } from '../lib/dashboard.js';
+import { useCampaignScene } from '../lib/scenes.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // The hub splits into what you're playing and what you're running
@@ -30,8 +32,10 @@ function readHubView() {
 const ROLE_LABEL = { dm: 'Dungeon Master', player: 'Player' };
 
 function CampaignRow({ campaign, onOpen }) {
+  const scene = useCampaignScene('guest', campaign.id);
   return (
     <button type="button" className="campaign-card" onClick={() => onOpen(campaign.id)}>
+      <CampaignCardArt scene={scene} live={scene?.active} />
       <span className="campaign-card-name">{campaign.name}</span>
       <span className="campaign-card-meta">
         <span className="chip chip-small">{ROLE_LABEL[campaign.role]}</span>

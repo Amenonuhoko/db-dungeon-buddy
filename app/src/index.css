@@ -6829,3 +6829,117 @@ body::after {
 .campaign-titlebar h2 {
   text-shadow: 0 1px 12px var(--surface);
 }
+
+/* --- Campaign cards: the world glimpsed on the hub -----------------------
+   BIBLE.md §1 step 5. A card's own scene bleeds through behind it, same
+   idea as CampaignBackdrop but small — a corner of the picture, mostly
+   faded back to the card's surface colour so existing text/chip colours
+   keep working over any art. See CampaignCardArt.jsx. */
+
+.campaign-card,
+.dash-card.panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.card-art-picture {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(10px) saturate(0.9);
+  opacity: 0.55;
+}
+
+.card-art-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 100% 0%, transparent 0%, var(--surface) 70%);
+}
+
+.dash-card .card-art-scrim {
+  background: radial-gradient(ellipse at 100% 0%, transparent 0%, var(--surface-raised) 70%);
+}
+
+/* Everything else in the card sits above the art layer. Excludes
+   .card-art itself — same specificity as its own `position: absolute`
+   rule above, and later in the file, so without this exclusion it wins
+   the cascade and un-absolutely-positions the art layer, collapsing it
+   to a 0×0 box and squeezing the card's real content into it. */
+.campaign-card > *:not(.card-art):not(.live-badge),
+.dash-card.panel > *:not(.card-art):not(.live-badge) {
+  position: relative;
+  z-index: 1;
+}
+
+/* A corner overlay, not inline with the name/role text (which a
+   `flex-shrink: 0` chip there used to squeeze down to one character per
+   line on anything but a very short campaign name — see
+   CampaignCardArt.jsx). */
+.live-badge {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--accent-fill) !important;
+  border-color: var(--accent-fill) !important;
+  color: var(--on-accent) !important;
+  font-weight: 800;
+}
+
+.live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--on-accent);
+  animation: live-pulse 2.4s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(194, 50, 27, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(194, 50, 27, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(194, 50, 27, 0);
+  }
+}
+
+/* --- Home: the doorway into the world -------------------------------- */
+.home-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 45% at 50% 32%, rgba(255, 150, 60, 0.22) 0%, transparent 70%);
+  animation: torch-breathe 6s ease-in-out infinite;
+}
+
+@keyframes torch-breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-screen::before {
+    animation: none;
+  }
+}

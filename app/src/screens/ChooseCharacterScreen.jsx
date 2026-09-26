@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
+import { CampaignBackdrop } from '../components/CampaignBackdrop.jsx';
 import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuilder.jsx';
 import { useCreateMode } from '../lib/createMode.js';
 import { FlowingDivider } from '../components/ornament/FlowingDivider.jsx';
@@ -23,6 +24,7 @@ import { useCampaignLive } from '../lib/live.js';
 import { useCampaignPresence } from '../lib/presence.js';
 import { bringIntoCampaign, createRosterCharacter, isMissingRoster, listRoster } from '../lib/roster.js';
 import { useCampaignAccess } from '../lib/useCampaignAccess.js';
+import { useCampaignScene } from '../lib/scenes.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // "Choose your character" — the step between joining a campaign and
@@ -46,6 +48,10 @@ export function ChooseCharacterScreen() {
   const navigate = useNavigate();
   const { status, user } = useSession();
   const { campaign, isDM, loading: campaignLoading, error: campaignError } = useCampaignAccess(campaignId);
+  // The campaign's own scene behind this screen (BIBLE.md §1 step 5) —
+  // stepping into a character should feel like stepping into that world,
+  // not a form. Guest campaigns skip this screen entirely (below).
+  const backdropScene = useCampaignScene(status, campaignId);
   const isAnonymous = Boolean(user?.is_anonymous);
   // Where the table is: the Scene for a player, the Party roster for the DM.
   const partyPath = `/campaigns/${campaignId}/${isDM ? 'characters' : 'scene'}`;
@@ -146,6 +152,7 @@ export function ChooseCharacterScreen() {
 
   return (
     <div className="choose-screen screen-enter">
+      <CampaignBackdrop scene={backdropScene} />
       <div className="choose-shell">
         <BackButton to={partyPath} label={isDM ? 'Party' : 'Scene'} />
         <h2 style={{ marginTop: '1rem' }}>{welcome ? 'Welcome to the table' : 'Choose your character'}</h2>
