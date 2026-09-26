@@ -35,6 +35,15 @@ export function ToolboxIcon() {
   );
 }
 
+export function RulerIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M3.5 16.5 L16.5 3.5 L20.5 7.5 L7.5 20.5 Z" />
+      <path d="M7 13 L9 15 M10 10 L11.5 11.5 M13 7 L15 9" />
+    </svg>
+  );
+}
+
 export function SceneButton({ label, onClick, badge, children, active }) {
   return (
     <button type="button" className={`scene-fab${active ? ' active' : ''}`} onClick={onClick} aria-label={label} title={label}>

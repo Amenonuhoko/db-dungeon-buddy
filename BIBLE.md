@@ -1485,6 +1485,25 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   and your turn flashes "Your turn!" with a vibration. No first-load or
   scene-switch replay; `prefers-reduced-motion` turns them into plain
   appear-and-vanish.
+- **Pan, zoom, grid, measuring** (Phase 6 step 2, `016_scene_grid.sql`).
+  The picture pans and zooms — pinch, mouse wheel / trackpad, drag the
+  background; double-tap or "Whole scene" resets — up to 5×, always
+  covering the view. Tokens scale by zoom^−0.6 so they stay readable
+  without swamping a zoomed map; token positions are still picture
+  fractions, so dragging works at any zoom. A background drag that moves
+  is a pan, never a tap, so it doesn't toggle the controls. The DM lays
+  a **grid** from the toolbox, fitted live over the scene ("squares
+  across" and what a square is worth): `scenes.grid_size` (a square's
+  width as a fraction of the picture's width) and `grid_feet`. With a
+  grid, the DM gets a **ruler** beside the toolbox: dragging draws a
+  line reading out whole squares × feet (`measureFeet()`, straight
+  line). The line is **never stored** — it goes out live on the
+  broadcast channel `scene:<campaign id>` (`lib/sceneLive.js`; 016's
+  `realtime.messages` policies let members listen and only the DM
+  send, with the same public-channel fallback as presence), throttled
+  to ~12/s but always ending where the finger stopped, lingers 1.5 s
+  after release, and players drop it after 4 s of silence. Only the
+  live scene's line is shared.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are
@@ -1555,7 +1574,7 @@ screen is built, per the rule above:
       end), narrate a log line. Lore, Monsters, Notes and Party move to
       the DM's menu. Honour `prefers-reduced-motion` (moments become
       simple fades).
-   2. **Pan, zoom, grid, measuring.** Pinch/wheel zoom and drag-to-pan
+   2. **Pan, zoom, grid, measuring** — done (§7, Scenes). Pinch/wheel zoom and drag-to-pan
       (token positions stay 0–1 fractions of the picture, so they're
       unaffected). A per-scene grid the DM can switch on and size
       ("one square = 5 ft", cell size in picture fractions — a new

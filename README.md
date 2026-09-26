@@ -86,7 +86,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `015_scenes.sql`, and onward as new ones
+   (`001_core.sql` → `016_scene_grid.sql`, and onward as new ones
    land). Every file is safe to re-run, so if you're not sure which ones
    an existing project has, run them all again in order. **007 matters
    for security** now that anyone with an invite link can join — see

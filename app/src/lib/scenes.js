@@ -129,6 +129,20 @@ export function openSpot(taken) {
 
 export const clamp01 = (n) => Math.min(1, Math.max(0, n));
 
+// A scene's grid, or null: { size } is one square's width as a fraction of
+// the picture's width, { feet } what a square is worth (016).
+export function gridOf(scene) {
+  return scene?.gridSize ? { size: scene.gridSize, feet: scene.gridFeet || 5 } : null;
+}
+
+// Straight-line distance between two points on the picture (0–1
+// fractions), in whole squares of the grid, in feet. `aspect` is the
+// picture's width / height, since a y-fraction is of the height.
+export function measureFeet(grid, aspect, a, b) {
+  const squares = Math.hypot(b.x - a.x, (b.y - a.y) / aspect) / grid.size;
+  return Math.round(squares) * grid.feet;
+}
+
 // ---------------------------------------------------------------------
 // The event log
 // ---------------------------------------------------------------------

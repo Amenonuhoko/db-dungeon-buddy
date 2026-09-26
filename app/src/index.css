@@ -4223,8 +4223,23 @@ button.presence-card:active {
 .scene-viewport {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.scene-viewport.measuring {
+  cursor: crosshair;
+}
+
+/* Pan and zoom: the viewport-sized layer is scaled from its top-left
+   corner (SceneStage.jsx keeps it covering the view). */
+.scene-zoom {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .scene-stage {
@@ -4243,17 +4258,17 @@ button.presence-card:active {
   pointer-events: none;
 }
 
-/* No picture yet: a dim parchment grid. */
+/* No picture yet: plain parchment (a grid, if any, is the DM's). */
 .scene-stage-blank {
-  background:
-    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 2rem 2rem,
-    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 2rem 2rem,
-    radial-gradient(circle at 50% 40%, var(--surface-glow), var(--surface));
+  background: radial-gradient(circle at 50% 40%, var(--surface-glow), var(--surface));
 }
 
 .scene-token {
   position: absolute;
   transform: translate(-50%, -50%);
+  /* Zooming in grows the map faster than the tokens, so they stay
+     readable without swamping it. */
+  scale: var(--token-scale, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4865,6 +4880,9 @@ button.presence-card:active {
   right: 1rem;
   bottom: calc(1rem + env(safe-area-inset-bottom));
   z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   animation: controls-in 200ms ease;
 }
 
@@ -5125,4 +5143,144 @@ html[data-immersive='sheet'] .dice-fab {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gold-bright);
+}
+
+/* ---- Grid and measuring (Phase 6 step 2). ---- */
+.scene-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* A dark line with a pale one beside it reads on light and dark maps. */
+  background-image:
+    linear-gradient(to right, rgba(12, 8, 6, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(12, 8, 6, 0.45) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 245, 227, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 245, 227, 0.22) 1px, transparent 1px);
+  background-position:
+    0 0,
+    0 0,
+    1px 0,
+    0 1px;
+}
+
+.scene-measure {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.scene-measure line {
+  stroke: var(--gold-bright);
+  stroke-width: 3;
+  stroke-dasharray: 8 6;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 1px #0c0806);
+}
+
+.scene-measure circle {
+  fill: var(--gold-bright);
+}
+
+.scene-measure-label {
+  position: absolute;
+  transform: translate(-50%, -160%);
+  scale: var(--token-scale, 1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #0c0806;
+  color: #f2c461;
+  border: 2px solid #f2c461;
+  font-family: var(--font-display);
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.scene-zoom-reset {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1.3rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 2px solid var(--outline);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  box-shadow: var(--lip-small);
+  cursor: pointer;
+}
+
+.scene-fab.active {
+  background: var(--gold);
+  color: var(--on-gold);
+}
+
+.scene-mode-chip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.6rem);
+  white-space: nowrap;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(12, 8, 6, 0.82);
+  color: #f2c461;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+
+.scene-grid-editor {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(94vw, 26rem);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--lip);
+  animation: controls-in 200ms ease;
+}
+
+.scene-grid-editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scene-grid-editor-row label {
+  flex: 1;
+  font-family: var(--font-display);
+}
+
+.scene-grid-editor-row strong {
+  min-width: 3rem;
+  text-align: center;
+}
+
+.scene-grid-editor input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.scene-grid-editor input[type='number'] {
+  width: 4.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
 }

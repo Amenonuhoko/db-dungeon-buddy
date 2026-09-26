@@ -6,7 +6,7 @@ import { AddCombatantForm, CombatantRow } from '../components/CombatParts.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { Portrait } from '../components/Portrait.jsx';
-import { BackpackIcon, MenuIcon, MomentLayer, SceneButton, SceneSheet, ToolboxIcon } from '../components/SceneChrome.jsx';
+import { BackpackIcon, MenuIcon, MomentLayer, RulerIcon, SceneButton, SceneSheet, ToolboxIcon } from '../components/SceneChrome.jsx';
 import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
 import { SceneMenu } from '../components/SceneMenu.jsx';
 import { SceneStage } from '../components/SceneStage.jsx';
@@ -45,6 +45,7 @@ import {
 } from '../lib/encounters.js';
 import { useCampaignLive } from '../lib/live.js';
 import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
+import { useSceneBroadcast } from '../lib/sceneLive.js';
 import {
   addToken,
   clearEvents,
@@ -52,6 +53,7 @@ import {
   conditionEventText,
   createScene,
   explainArtError,
+  gridOf,
   hpEventText,
   listEvents,
   listScenes,
@@ -104,8 +106,11 @@ function bandOf(pct) {
 }
 
 function describeError(err) {
-  if (sceneMissing(err)) return SCENE_MIGRATION_HINT;
   const msg = err?.message || '';
+  if (/grid_(size|feet)/.test(msg)) {
+    return 'The grid needs the latest database update — whoever runs the backend should run db/migrations/016_scene_grid.sql (see README).';
+  }
+  if (sceneMissing(err)) return SCENE_MIGRATION_HINT;
   if (err?.code === 'PGRST202' || /set_my_initiative/.test(msg) || /null value in column "initiative"/.test(msg)) {
     return 'Players rolling their own initiative needs db/migrations/006_player_initiative.sql run in Supabase first.';
   }
@@ -148,6 +153,8 @@ export function SceneScreen() {
   const [selection, setSelection] = useState({ sceneId: null, key: null });
   const [controls, setControls] = useState(true);
   const [controlsPoke, setControlsPoke] = useState(0);
+  const [measuring, setMeasuring] = useState(false);
+  const [gridDraft, setGridDraft] = useState(null); // the DM adjusting the grid
   const pokeControls = () => {
     setControls(true);
     setControlsPoke((n) => n + 1);
@@ -341,7 +348,7 @@ export function SceneScreen() {
   // A player's controls fade after a few seconds untouched (never while a
   // sheet or token is open). The floating theme toggle and dice button
   // follow along through <html data-immersive> (index.css).
-  const busy = Boolean(panel || selected);
+  const busy = Boolean(panel || selected || gridDraft);
   useEffect(() => {
     if (isDM || !controls || busy) return undefined;
     const t = window.setTimeout(() => setControls(false), CONTROLS_MS);
@@ -355,6 +362,41 @@ export function SceneScreen() {
       delete root.dataset.immersive;
     };
   }, [controls, busy]);
+
+  // ---- Measuring ----------------------------------------------------------------
+
+  // The DM's line goes out live to the table (lib/sceneLive.js), a few
+  // times a second at most — always ending on where the finger stopped —
+  // and nothing is stored. Players show the latest line for this scene
+  // until the DM clears it (or it goes quiet).
+  const [heardLine, setHeardLine] = useState(null);
+  const heardTimer = useRef(null);
+  const sendToTable = useSceneBroadcast(live, campaignId, ['measure'], (event, payload) => {
+    if (event !== 'measure') return;
+    window.clearTimeout(heardTimer.current);
+    setHeardLine(payload?.line ? payload : null);
+    if (payload?.line) heardTimer.current = window.setTimeout(() => setHeardLine(null), 4000);
+  });
+  const outgoing = useRef({ at: 0, timer: null, line: null });
+  function shareLine(line) {
+    if (!live || !scene?.active) return;
+    const o = outgoing.current;
+    o.line = line;
+    window.clearTimeout(o.timer);
+    const wait = line ? Math.max(0, 80 - (Date.now() - o.at)) : 0;
+    o.timer = window.setTimeout(() => {
+      o.at = Date.now();
+      sendToTable('measure', { sceneId: scene.id, line: o.line });
+    }, wait);
+  }
+  const shownGrid = gridDraft || gridOf(scene);
+  const heard = heardLine && heardLine.sceneId === scene?.id ? heardLine.line : null;
+
+  function saveGrid(grid) {
+    act(() => updateScene(status, campaignId, scene.id, grid ? { gridSize: grid.size, gridFeet: grid.feet } : { gridSize: null }));
+    setGridDraft(null);
+    if (!grid) setMeasuring(false);
+  }
 
   // ---- Moments ----------------------------------------------------------------
 
@@ -710,6 +752,10 @@ export function SceneScreen() {
         selectedKey={selectedKey}
         showInfo={controls}
         moments={tokenMoments}
+        grid={shownGrid}
+        measuring={isDM && measuring && Boolean(shownGrid)}
+        measure={heard}
+        onMeasure={shareLine}
         onSelect={(key) => {
           setSelectedKey(key);
           pokeControls();
@@ -770,6 +816,12 @@ export function SceneScreen() {
           )}
 
           <div className="scene-bottom">
+            {isDM && measuring && gridOf(scene) && <span className="scene-mode-chip">Drag across the scene to measure</span>}
+            {isDM && gridOf(scene) && (
+              <SceneButton label={measuring ? 'Stop measuring' : 'Measure'} active={measuring} onClick={() => setMeasuring((m) => !m)}>
+                <RulerIcon />
+              </SceneButton>
+            )}
             {isDM ? (
               <SceneButton label="DM toolbox" onClick={() => openPanel('toolbox')}>
                 <ToolboxIcon />
@@ -781,6 +833,17 @@ export function SceneScreen() {
             )}
           </div>
         </>
+      )}
+
+      {gridDraft && isDM && scene && (
+        <GridEditor
+          draft={gridDraft}
+          hasGrid={Boolean(gridOf(scene))}
+          onChange={setGridDraft}
+          onSave={() => saveGrid(gridDraft)}
+          onRemove={() => saveGrid(null)}
+          onCancel={() => setGridDraft(null)}
+        />
       )}
 
       {error && (
@@ -896,6 +959,28 @@ export function SceneScreen() {
                   />
                 )}
               </section>
+
+              {scene && (
+                <section>
+                  <h4>Grid</h4>
+                  <p className="hint-text" style={{ margin: 0 }}>
+                    {gridOf(scene)
+                      ? `Squares of ${gridOf(scene).feet} ft. Measure with the ruler beside the toolbox — the table sees the line as you draw it.`
+                      : 'Lay a grid over the picture to measure distances in feet.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-small"
+                    style={{ alignSelf: 'flex-start' }}
+                    onClick={() => {
+                      setGridDraft(gridOf(scene) || { size: 0.05, feet: 5 });
+                      closePanel();
+                    }}
+                  >
+                    {gridOf(scene) ? 'Adjust the Grid' : 'Set Up a Grid'}
+                  </button>
+                </section>
+              )}
 
               {scene && (
                 <section>
@@ -1288,6 +1373,53 @@ function TokenPanel({
           <ConfirmButton className="btn btn-ghost btn-small" confirmLabel="Tap again to remove" onConfirm={onRemoveWalkOn}>
             Remove
           </ConfirmButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Fitting the grid to the picture, live over the scene: how many squares
+// run across it, and what one is worth.
+function GridEditor({ draft, hasGrid, onChange, onSave, onRemove, onCancel }) {
+  const across = Math.round((1 / draft.size) * 4) / 4;
+  const setAcross = (n) => onChange({ ...draft, size: 1 / Math.min(100, Math.max(2, n)) });
+  return (
+    <div className="scene-grid-editor" role="dialog" aria-label="Grid">
+      <div className="scene-grid-editor-row">
+        <label htmlFor="gridAcross">Squares across</label>
+        <button type="button" className="btn btn-ghost btn-small" onClick={() => setAcross(across - 0.25)} aria-label="Fewer squares">
+          −
+        </button>
+        <strong>{across}</strong>
+        <button type="button" className="btn btn-ghost btn-small" onClick={() => setAcross(across + 0.25)} aria-label="More squares">
+          +
+        </button>
+      </div>
+      <input id="gridAcross" type="range" min="4" max="60" step="0.25" value={across} onChange={(e) => setAcross(Number(e.target.value))} />
+      <div className="scene-grid-editor-row">
+        <label htmlFor="gridFeet">One square is</label>
+        <input
+          id="gridFeet"
+          type="number"
+          min="1"
+          max="100"
+          value={draft.feet}
+          onChange={(e) => onChange({ ...draft, feet: Math.min(100, Math.max(1, Math.round(Number(e.target.value)) || 5)) })}
+        />
+        <span>ft</span>
+      </div>
+      <div className="scene-grid-editor-row">
+        <button type="button" className="btn btn-primary btn-small" onClick={onSave}>
+          Save Grid
+        </button>
+        <button type="button" className="btn btn-ghost btn-small" onClick={onCancel}>
+          Cancel
+        </button>
+        {hasGrid && (
+          <button type="button" className="btn btn-ghost btn-small" onClick={onRemove}>
+            Remove
+          </button>
         )}
       </div>
     </div>
