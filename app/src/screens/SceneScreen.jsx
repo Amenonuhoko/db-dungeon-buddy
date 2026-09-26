@@ -3,10 +3,11 @@ import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom
 import { AnnouncePanel } from '../components/AnnouncePanel.jsx';
 import { Backpack } from '../components/Backpack.jsx';
 import { CampaignSettings } from '../components/CampaignSettings.jsx';
-import { AddCombatantForm, CombatantRow } from '../components/CombatParts.jsx';
+import { AddCombatantForm, CombatantRow, ConditionPicker } from '../components/CombatParts.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { LookupPanel } from '../components/LookupPanel.jsx';
+import { PartyGlance } from '../components/PartyGlance.jsx';
 import { Portrait } from '../components/Portrait.jsx';
 import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet, SelectIcon } from '../components/SceneChrome.jsx';
 import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
@@ -106,7 +107,7 @@ const LIVE_TABLES = [
 // Players' controls tuck themselves away after this long untouched; the
 // DM's stay until dismissed (they're running the table).
 const CONTROLS_MS = 5000;
-const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox', 'scene', 'mood', 'announce', 'lookup', 'fight'];
+const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox', 'scene', 'mood', 'party', 'announce', 'lookup', 'fight'];
 const MENU_CHILDREN = ['talk', 'log', 'campaign', 'invite'];
 
 const HEALTH_PCT = { Healthy: 100, Wounded: 75, Bloodied: 50, 'Near death': 25, Down: 0 };
@@ -117,6 +118,9 @@ function bandOf(pct) {
 
 function describeError(err) {
   const msg = err?.message || '';
+  if (/timers|dm_only|creature_id|'size'/.test(msg)) {
+    return 'That needs the latest database update — whoever runs the backend should run db/migrations/018_tokens_for_the_dm.sql (see README).';
+  }
   if (/grid_(size|feet)/.test(msg)) {
     return 'The grid needs the latest database update — whoever runs the backend should run db/migrations/016_scene_grid.sql (see README).';
   }
@@ -389,13 +393,14 @@ export function SceneScreen() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.immersive = busy ? 'sheet' : controls ? 'controls' : 'clean';
+    // The group bar sits where the dice would, so they step aside too.
+    root.dataset.immersive = busy || picking ? 'sheet' : controls ? 'controls' : 'clean';
     if (isDM) root.dataset.dm = '';
     return () => {
       delete root.dataset.immersive;
       delete root.dataset.dm;
     };
-  }, [controls, busy, isDM]);
+  }, [controls, busy, isDM, picking]);
 
   // ---- Measuring ----------------------------------------------------------------
 
@@ -713,8 +718,24 @@ export function SceneScreen() {
     const patch = stepTurn(fightHere, ordered, direction);
     if (Object.keys(patch).length === 0) return;
     act(async () => {
-      await updateEncounter(status, campaignId, fightHere.id, patch);
-      if (direction > 0 && patch.round > (fightHere.round ?? 1)) await note(`Round ${patch.round} begins.`);
+      const newRound = direction > 0 && patch.round > (fightHere.round ?? 1);
+      // Conditions whose time is up come off as the new round starts.
+      const timers = fightHere.timers || [];
+      const expired = newRound ? timers.filter((t) => t.until <= patch.round) : [];
+      await updateEncounter(status, campaignId, fightHere.id, expired.length ? { ...patch, timers: timers.filter((t) => !expired.includes(t)) } : patch);
+      if (newRound) await note(`Round ${patch.round} begins.`);
+      for (const t of expired) {
+        const view = views.find((v) => timerKey(v) === t.key);
+        if (!view) continue;
+        if (view.kind === 'pc') {
+          const row = (conditionsByCharacter[view.sheet.id] || []).find((c) => c.label === t.label);
+          if (row) await removeCondition(status, campaignId, row.id);
+        } else {
+          const latest = combatantsById[view.combatant.id];
+          await updateCombatant(status, campaignId, latest.id, { conditions: (latest.conditions || []).filter((c) => c !== t.label) });
+        }
+        await note(conditionEventText(view.name, t.label, false));
+      }
     });
   }
 
@@ -766,23 +787,27 @@ export function SceneScreen() {
   }
 
   // HP and conditions: a PC's live on their sheet, a monster's on its row.
-  function applyHp(view, amount) {
+  // Damage (negative) or healing for one token or several — a Fireball on
+  // four goblins is one tap. Tokens with no HP (a walk-on, a monster
+  // that hasn't joined a fight) are skipped.
+  async function hpWrite(view, amount) {
     if (view.kind === 'pc') {
       const sheet = view.sheet;
       const patch = hpPatch(sheet, amount);
-      act(async () => {
-        await updateSheet(status, campaignId, sheet.id, patch);
-        await note(hpEventText(sheet.name, sheet.currentHp ?? 0, patch.currentHp, sheet.maxHp));
-      });
-    } else {
+      await updateSheet(status, campaignId, sheet.id, patch);
+      await note(hpEventText(sheet.name, sheet.currentHp ?? 0, patch.currentHp, sheet.maxHp));
+    } else if (view.combatant) {
       const c = view.combatant;
       const patch = combatantHpPatch(c, amount);
-      act(async () => {
-        await updateCombatant(status, campaignId, c.id, patch);
-        await note(hpEventText(c.name, c.currentHp ?? 0, patch.currentHp, c.maxHp));
-      });
+      await updateCombatant(status, campaignId, c.id, patch);
+      await note(hpEventText(c.name, c.currentHp ?? 0, patch.currentHp, c.maxHp));
     }
   }
+  const applyHp = (view, amount) => act(() => hpWrite(view, amount));
+  const applyHpMany = (targets, amount) =>
+    act(async () => {
+      for (const v of targets) await hpWrite(v, amount);
+    });
 
   function setInitiative(combatant, value) {
     act(() =>
@@ -790,16 +815,50 @@ export function SceneScreen() {
     );
   }
 
-  function addConditionTo(view, label) {
+  // Conditions, optionally for so many rounds: the timer lives on the
+  // encounter (018: encounters.timers) and step() takes it off again.
+  const timerKey = (view) => (view.kind === 'pc' ? `pc:${view.sheet.id}` : view.combatant ? `c:${view.combatant.id}` : null);
+
+  async function conditionWrite(view, label) {
+    if (view.kind === 'pc') {
+      if ((conditionsByCharacter[view.sheet.id] || []).some((c) => c.label === label)) return false;
+      await addCondition(status, campaignId, { characterId: view.sheet.id, label, note: '', visibleToParty: true });
+    } else if (view.combatant) {
+      if ((view.combatant.conditions || []).includes(label)) return false;
+      await updateCombatant(status, campaignId, view.combatant.id, { conditions: [...(view.combatant.conditions || []), label] });
+    } else {
+      return false;
+    }
+    await note(conditionEventText(view.name, label, true));
+    return true;
+  }
+
+  async function addTimers(targets, label, rounds) {
+    if (!rounds || !fightHere) return;
+    const until = (fightHere.round ?? 1) + rounds;
+    const added = targets.map(timerKey).filter(Boolean).map((key) => ({ key, label, until }));
+    if (added.length === 0) return;
+    const kept = (fightHere.timers || []).filter((t) => !added.some((a) => a.key === t.key && a.label === t.label));
+    await updateEncounter(status, campaignId, fightHere.id, { timers: [...kept, ...added] });
+  }
+
+  const addConditionTo = (view, label, rounds) =>
     act(async () => {
-      if (view.kind === 'pc') {
-        await addCondition(status, campaignId, { characterId: view.sheet.id, label, note: '', visibleToParty: true });
-      } else {
-        const next = [...new Set([...(view.combatant.conditions || []), label])];
-        await updateCombatant(status, campaignId, view.combatant.id, { conditions: next });
-      }
-      await note(conditionEventText(view.name, label, true));
+      await conditionWrite(view, label);
+      await addTimers([view], label, rounds);
     });
+
+  const addConditionMany = (targets, label, rounds) =>
+    act(async () => {
+      for (const v of targets) await conditionWrite(v, label);
+      await addTimers(targets, label, rounds);
+    });
+
+  // Rounds left on each of a token's timed conditions: { label: rounds }.
+  function timersOf(view) {
+    const key = timerKey(view);
+    if (!fightHere || !key) return {};
+    return Object.fromEntries((fightHere.timers || []).filter((t) => t.key === key).map((t) => [t.label, t.until - (fightHere.round ?? 1)]));
   }
 
   function removeConditionFrom(view, condition) {
@@ -960,6 +1019,7 @@ export function SceneScreen() {
     toolbox: 'More',
     scene: 'Scene',
     mood: 'Mood',
+    party: 'Party at a glance',
     announce: 'Announce',
     lookup: 'Look up',
     fight: 'Fight',
@@ -1079,6 +1139,10 @@ export function SceneScreen() {
           {isDM && picking && (
             <GroupBar
               count={picked.size}
+              canHurt={pickedViews.some((v) => v.kind === 'pc' || v.combatant)}
+              onHp={(amount) => applyHpMany(pickedViews, amount)}
+              onCondition={(label, rounds) => addConditionMany(pickedViews, label, rounds)}
+              fightOn={Boolean(fightHere)}
               anyHidden={pickedViews.some((v) => v.dmOnly)}
               onParty={() => setPicked(views.filter((v) => v.kind === 'pc' && !v.hidden).map((v) => v.key))}
               onArrange={arrange}
@@ -1131,7 +1195,8 @@ export function SceneScreen() {
             onInitiative={(value) => setInitiative(selected.combatant, value)}
             onRollInitiative={() => setInitiative(selected.combatant, rollInitiative(selected.combatant.dexModifier))}
             onRemoveFromFight={() => removeFromFight(selected.combatant)}
-            onAddCondition={(label) => addConditionTo(selected, label)}
+            onAddCondition={(label, rounds) => addConditionTo(selected, label, rounds)}
+            timers={timersOf(selected)}
             onRemoveCondition={(c) => removeConditionFrom(selected, c)}
             onSetHidden={(hidden) => setPcHidden(selected, hidden)}
             onRemoveWalkOn={() => removeWalkOn(selected)}
@@ -1227,6 +1292,17 @@ export function SceneScreen() {
               lore={lore}
               handoutDraft={handoutDraft}
               onSend={announce}
+            />
+          )}
+
+          {panel === 'party' && isDM && (
+            <PartyGlance
+              party={views.filter((v) => v.kind === 'pc').map((v) => ({ key: v.key, sheet: v.sheet }))}
+              conditionsByCharacter={conditionsByCharacter}
+              onOpen={(key) => {
+                closePanel();
+                setSelectedKey(key);
+              }}
             />
           )}
 
@@ -1597,6 +1673,7 @@ function TokenPanel({
   onRemoveWalkOn,
   onReveal,
   onSize,
+  timers,
 }) {
   const sheet = view.sheet;
   const token = view.kind !== 'pc';
@@ -1618,6 +1695,7 @@ function TokenPanel({
           onRemove={onRemoveFromFight}
           onAddCondition={onAddCondition}
           onRemoveCondition={onRemoveCondition}
+          timers={timers}
         />
       ) : (
         <Panel className="scene-token-card">
@@ -1743,7 +1821,12 @@ function GridEditor({ draft, hasGrid, onChange, onSave, onRemove, onCancel }) {
 
 // The DM's picked tokens: the whole party in one tap, a marching order,
 // reveal what's hidden. Tapping the map walks them there.
-function GroupBar({ count, anyHidden, onParty, onArrange, onReveal, onClear }) {
+function GroupBar({ count, canHurt, fightOn, onHp, onCondition, anyHidden, onParty, onArrange, onReveal, onClear }) {
+  const [amount, setAmount] = useState('');
+  const hit = (sign) => {
+    onHp((Math.abs(Number(amount)) || 1) * sign);
+    setAmount('');
+  };
   return (
     <div className="group-bar" role="toolbar" aria-label="Picked tokens">
       <p className="group-bar-hint">
@@ -1770,6 +1853,26 @@ function GroupBar({ count, anyHidden, onParty, onArrange, onReveal, onClear }) {
           </button>
         )}
       </div>
+      {count > 0 && canHurt && (
+        <div className="group-bar-row">
+          <input
+            type="number"
+            min="1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="8"
+            className="hp-adjust-input"
+            aria-label="Amount for everyone picked"
+          />
+          <button type="button" className="btn btn-danger btn-small" onClick={() => hit(-1)}>
+            Damage all
+          </button>
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => hit(1)}>
+            Heal all
+          </button>
+          <ConditionPicker onPick={onCondition} existing={[]} timed={fightOn} />
+        </div>
+      )}
     </div>
   );
 }

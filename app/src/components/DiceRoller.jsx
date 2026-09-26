@@ -64,6 +64,9 @@ export function DiceRoller() {
   const [history, setHistory] = useState([]);
   const [bumpSides, setBumpSides] = useState(null);
   const [rolling, setRolling] = useState(false);
+  // A secret roll (the DM's hidden Stealth, a save behind the screen)
+  // stays on this device instead of going to the table's log.
+  const [secret, setSecret] = useState(false);
   const bumpTimeout = useRef(null);
   const rollTimeout = useRef(null);
   const fabRef = useRef(null);
@@ -127,7 +130,7 @@ export function DiceRoller() {
     const safeSides = Math.min(Math.max(Number(sides) || 2, 2), 1000);
     const result = rollDice(safeCount, safeSides, effectiveModifier);
     addRoll(result);
-    if (sharedCampaignId) {
+    if (sharedCampaignId && !secret) {
       // Fire-and-forget: the roll already happened and is on screen; a
       // failed log (offline, migration not run yet) shouldn't block it.
       logRoll(sharedCampaignId, {
@@ -181,8 +184,14 @@ export function DiceRoller() {
             </div>
             <p className="hint-text" style={{ textAlign: 'center', marginTop: '0.5rem' }}>
               Tap a die again to roll more of it — three taps on d6 makes 3d6.
-              {sharedCampaignId && ' Rolls here are shared with the table.'}
+              {sharedCampaignId && (secret ? ' This roll stays with you.' : ' Rolls here are shared with the table.')}
             </p>
+            {sharedCampaignId && (
+              <label className="dice-secret">
+                <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} />
+                Secret roll — only I see it
+              </label>
+            )}
 
             <form onSubmit={handleRoll} className="dice-roll-row">
               <input

@@ -23,6 +23,7 @@ export function CombatantRow({
   onRemove,
   onAddCondition,
   onRemoveCondition,
+  timers,
 }) {
   const [delta, setDelta] = useState('');
 
@@ -134,6 +135,12 @@ export function CombatantRow({
               {conditionItems.map((c) => (
                 <span key={c.key} className="condition-chip">
                   {c.label}
+                  {timers?.[c.label] > 0 && (
+                    <small className="condition-timer" title={`${timers[c.label]} more round${timers[c.label] === 1 ? '' : 's'}`}>
+                      {' '}
+                      ⧗{timers[c.label]}
+                    </small>
+                  )}
                   {isDM && (
                     <button
                       type="button"
@@ -146,7 +153,7 @@ export function CombatantRow({
                   )}
                 </span>
               ))}
-              {isDM && <ConditionPicker onPick={onAddCondition} existing={conditionItems.map((c) => c.label)} />}
+              {isDM && <ConditionPicker onPick={onAddCondition} existing={conditionItems.map((c) => c.label)} timed />}
             </div>
           )}
 
@@ -185,50 +192,79 @@ function Pips({ count, kind }) {
   );
 }
 
-function ConditionPicker({ onPick, existing }) {
+// A condition to add, and (in a fight) how long it lasts — it falls off
+// by itself when that many rounds have passed.
+const DURATIONS = [
+  { value: '', label: 'until removed' },
+  { value: '1', label: '1 round' },
+  { value: '2', label: '2 rounds' },
+  { value: '3', label: '3 rounds' },
+  { value: '10', label: '1 minute' },
+  { value: '100', label: '10 minutes' },
+];
+
+export function ConditionPicker({ onPick, existing, timed }) {
   const [custom, setCustom] = useState(null);
+  const [rounds, setRounds] = useState('');
+  const pick = (label) => onPick(label, rounds ? Number(rounds) : null);
+
+  const duration = timed && (
+    <select className="condition-select" value={rounds} onChange={(e) => setRounds(e.target.value)} aria-label="How long it lasts">
+      {DURATIONS.map((d) => (
+        <option key={d.value} value={d.value}>
+          {d.label}
+        </option>
+      ))}
+    </select>
+  );
 
   if (custom !== null) {
     return (
-      <form
-        className="condition-custom"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (custom.trim()) onPick(custom.trim().slice(0, 120));
-          setCustom(null);
-        }}
-      >
-        <input
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          placeholder="Hexed…"
-          autoFocus
-          aria-label="Custom condition"
-          onBlur={() => !custom.trim() && setCustom(null)}
-        />
-      </form>
+      <span className="condition-picker">
+        <form
+          className="condition-custom"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (custom.trim()) pick(custom.trim().slice(0, 120));
+            setCustom(null);
+          }}
+        >
+          <input
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            placeholder="Hexed…"
+            autoFocus
+            aria-label="Custom condition"
+            onBlur={() => !custom.trim() && setCustom(null)}
+          />
+        </form>
+        {duration}
+      </span>
     );
   }
 
   return (
-    <select
-      className="condition-select"
-      value=""
-      aria-label="Add a condition"
-      onChange={(e) => {
-        const value = e.target.value;
-        if (value === '__custom') setCustom('');
-        else if (value) onPick(value);
-      }}
-    >
-      <option value="">+ Condition</option>
-      {STANDARD_CONDITIONS.filter((c) => !existing.includes(c)).map((c) => (
-        <option key={c} value={c}>
-          {c}
-        </option>
-      ))}
-      <option value="__custom">Custom…</option>
-    </select>
+    <span className="condition-picker">
+      <select
+        className="condition-select"
+        value=""
+        aria-label="Add a condition"
+        onChange={(e) => {
+          const value = e.target.value;
+          if (value === '__custom') setCustom('');
+          else if (value) pick(value);
+        }}
+      >
+        <option value="">+ Condition</option>
+        {STANDARD_CONDITIONS.filter((c) => !existing.includes(c)).map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+        <option value="__custom">Custom…</option>
+      </select>
+      {duration}
+    </span>
   );
 }
 

@@ -6275,3 +6275,125 @@ html[data-immersive][data-dm] .dice-panel {
 html[data-immersive][data-dm] .dice-fab {
   transition: bottom 200ms ease;
 }
+
+.dice-secret {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.dice-secret input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+/* ---- Party at a glance (the DM's quick bar). ---- */
+.glance {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.glance-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.glance-row.down {
+  border-color: var(--oxblood);
+}
+
+.glance-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.glance-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.glance-down {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--oxblood);
+}
+
+.glance-hp {
+  margin: 0;
+}
+
+.glance-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.glance-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 2.4rem);
+  gap: 0.2rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.glance-stats small {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--gold-bright);
+  letter-spacing: 0.05em;
+}
+
+.condition-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.condition-timer {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.group-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Seven buttons on a phone: a little tighter. */
+.quick-bar-item {
+  min-width: 2.85rem;
+  padding-inline: 0.25rem;
+}
+
+@media (min-width: 420px) {
+  .quick-bar-item {
+    min-width: 3.3rem;
+    padding-inline: 0.4rem;
+  }
+}

@@ -72,6 +72,17 @@ function MoodIcon() {
   );
 }
 
+function PartyIcon() {
+  return (
+    <svg {...icon}>
+      <circle cx="8" cy="8" r="3" />
+      <circle cx="16.5" cy="9" r="2.5" />
+      <path d="M2.5 19 C3 15.5 5.3 13.5 8 13.5 C10.7 13.5 13 15.5 13.5 19" />
+      <path d="M14 14.2 C14.8 13.6 15.6 13.4 16.5 13.4 C19 13.4 20.8 15.2 21.3 18" />
+    </svg>
+  );
+}
+
 function AnnounceIcon() {
   return (
     <svg {...icon}>
@@ -105,6 +116,7 @@ function FightIcon() {
 const QUICK = [
   { id: 'scene', label: 'Scene', Icon: SceneIcon },
   { id: 'mood', label: 'Mood', Icon: MoodIcon },
+  { id: 'party', label: 'Party', Icon: PartyIcon },
   { id: 'announce', label: 'Announce', Icon: AnnounceIcon },
   { id: 'lookup', label: 'Look up', Icon: LookupIcon },
   { id: 'fight', label: 'Fight', Icon: FightIcon },

@@ -1569,6 +1569,18 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
     Hidden ones stay out of the turn order, so it can't give them away.
   - **Ping** — the DM holds a finger on the map: a ripple there on every
     screen (broadcast like the measuring line, never stored).
+- **The DM's eyes** (also 018). A **Party** sheet on the quick bar:
+  every character's HP, AC, passive Perception (10 + WIS — sheets don't
+  track skill proficiency), speed, conditions and whether they're
+  dying, tap to open. A monster's token shows its **stat block** — the
+  combatant (or placed token) remembers its Bestiary entry. With tokens
+  picked, the group bar can **damage, heal or add a condition to all of
+  them** (a Fireball on four goblins is one tap; tokens with no HP are
+  skipped). Conditions can be **timed** — 1, 2, 3 rounds, a minute,
+  ten minutes: the timer lives on the encounter (`encounters.timers`),
+  shows as ⧗ on the chip, and when a new round starts expired ones come
+  off with a log line. The dice roller has a **secret roll** switch in
+  a shared campaign — that roll stays on your device.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are
