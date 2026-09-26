@@ -44,6 +44,23 @@ two very different surfaces, not just two permission levels:
   pushed live. The DM prepares and runs scenes on the same Scene tab
   the players see — a prep scene stays invisible to players until the
   DM shows it.
+- **The companion principle (2026-09, planned — §8 Phase 6).** The app
+  is the table's companion and does only that. **Minimalist in design,
+  maximalist in visual aid**: as little chrome as possible, as much help
+  *seeing* the scene as possible. A player's screen is the scene, full
+  screen, and nothing else. Two things sit behind it:
+  - **The backpack** — everything about *your* character: the full sheet
+    (stats, HP, spells, death saves, resources), your own inventory, and
+    the party stash.
+  - **The menu** — everything about *the table*: Talk (chat and
+    whispers), the log, change character, leave the campaign, back to
+    your campaigns.
+  Controls hide by default. A tap shows them for a few seconds, like a
+  video player; while hidden the picture and tokens stand alone — no
+  HP rings, turn marker or condition tags. **Moments still play and
+  fade**: a hit, a heal, a condition landing, a newcomer arriving, a
+  caption from the log, and "Your turn!" (with a vibration) animate over
+  the clean scene for a couple of seconds, then disappear.
 - Works standing at a table on a phone, or on a laptop running the show.
   Installable (PWA), and usable offline for anything that doesn't need
   live sync (see §6).
@@ -1485,7 +1502,44 @@ screen is built, per the rule above:
    rolls). Party, Lore, Monsters and Notes are DM-only; Talk and Stash
    moved onto the Scene. To use it on a deployed backend, run
    `db/migrations/015_scenes.sql`.
-6. **Polish**: offline sync queue, guest→account migration, campaign
+6. **The companion** — planned, not started (§1, "The companion
+   principle"). Four steps, each shipped and verified before the next:
+   1. **Full-screen shell + live action moments.** The scene fills the
+      screen for players and the DM, with no campaign header, tab dock or
+      panels. Tap to show controls: a **backpack** button (the sheet,
+      your inventory and the party stash, as one sheet sliding up over
+      the scene) and a **menu** button (Talk with an unread badge, the
+      log, change character, leave, back to campaigns). While controls
+      show, tokens show their HP, turn and conditions; tapping a token
+      opens its combat panel as before. **Moments:** damage flashes
+      red with the number floating up (players see a monster's band
+      change, not numbers), healing glows green, a condition's name pops
+      onto the token, newcomers fade in, the fallen dim, and each new
+      log line appears as a caption that fades. "Your turn!" flashes
+      full-screen with `navigator.vibrate`. Moments come from comparing
+      each refetch with the last one, so they play the same on every
+      device and need no new tables. The **DM's toolbox** is a drawer
+      over the same scene: scene picker, show to players, edit scene
+      (picture, walk-ons), the fight (start, add, begin, next turn,
+      end), narrate a log line. Lore, Monsters, Notes and Party move to
+      the DM's menu. Honour `prefers-reduced-motion` (moments become
+      simple fades).
+   2. **Pan, zoom, grid, measuring.** Pinch/wheel zoom and drag-to-pan
+      (token positions stay 0–1 fractions of the picture, so they're
+      unaffected). A per-scene grid the DM can switch on and size
+      ("one square = 5 ft", cell size in picture fractions — a new
+      column on `scenes`). A measuring line that reads out distance in
+      feet — **DM only**, shown to everyone while it's held.
+   3. **Spell areas and markers — DM only.** Circles, cones and lines
+      (size in feet, using the grid scale) and markers (trap, door,
+      loot, a custom label), visible to everyone until the DM clears
+      them. Needs its own table (`scene_marks`, one row per shape, same
+      live-scene-only read rule as tokens).
+   4. **Atmosphere.** Per-scene mood the DM sets: night, fog, rain,
+      firelight flicker, and darkness with **fog of war** the DM reveals
+      by painting (revealed areas stored like the personal board's
+      strokes, in picture fractions). CSS/canvas overlays, no video.
+7. **Polish**: offline sync queue, guest→account migration, campaign
    invite-flow UI beyond the raw code field, tagging (see §7 — needs
    scoping first), structured inventory/currency (a real item list with
    weight/gold instead of `character_sheets.equipment`'s one freeform
