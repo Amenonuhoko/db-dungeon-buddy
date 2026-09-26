@@ -1729,6 +1729,15 @@ screen is built, per the rule above:
    bonus instead of hand-editing `class_and_level` text) — the last two
    explicitly scoped out of Phase 4 (§7) as real but non-combat-blocking
    gaps.
+8. **A journal in the backpack** (to do, not scoped yet). A private,
+   freeform place for a player's own notes — "the innkeeper flinched
+   when I said the name," a running who's-who, whatever they don't want
+   to lose between sessions. A new tab alongside Carrying/Stash/Met,
+   theirs alone (not shared with the party the way Stash and Notes are);
+   needs its own migration (a `journal_entries` table, or a single
+   freeform column on `character_sheets` if one entry per character is
+   enough) and a guest-mode local store. Scope it — one entry vs. many,
+   whether the DM can ever see it — before building.
 
 ## 9. Conventions
 
