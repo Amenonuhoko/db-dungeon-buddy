@@ -1608,6 +1608,29 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
     tokens in the area, ready for "Damage all".
   - While a map tool or the ruler is in hand, taps go through tokens
     and marks to the map beneath.
+- **NPCs** (`020_npcs.sql`). Standard fare first, room to grow in a
+  pinch:
+  - **Archetypes** (`lib/npcs.js`) — commoner, innkeeper, merchant,
+    blacksmith, farmer, guard, captain, noble, priest, sage, mage,
+    scout, spy, knight, bandit, thug, cultist. Each has an emblem
+    (`NpcEmblem`, a glyph on a coloured disc) and SRD-like AC/HP/Dex.
+    People → NPCs → tap one to drop a nameless token ("Guard 2") onto
+    the scene: a `scene_tokens` row with just `archetype` set.
+  - **The cast** — `npcs` rows: name (with a Suggest-a-Name button),
+    archetype, a public one-line look, attitude (friendly / neutral /
+    wary / hostile, shown as the token's ring colour), optional Bestiary
+    stat block that overrides the archetype's stats, and `met`. Placed
+    tokens point at them by `npc_id`. A nameless token's panel has
+    **Make Them Somebody**, which turns it into a cast member in place.
+  - **Who we've met** — players can read only `met` NPCs (RLS). An NPC
+    becomes met when the DM ticks it, or when its token is shown on the
+    live scene (placed visible, revealed, or pushed with the scene).
+    Players tap the token to see its card; the backpack's **Met** tab
+    lists them all.
+  - **Fights** — Start a Fight enlists monsters plus hostile NPCs and
+    the generic foes (bandit, thug, cultist); anyone else can **Join the
+    Fight** from their token panel. Stats come from the stat block, else
+    the NPC's own numbers, else the archetype.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { PartyStash } from './PartyStash.jsx';
 import { Portrait } from './Portrait.jsx';
+import { NpcCard } from './Npc.jsx';
 import { SheetInventory } from './SheetInventory.jsx';
 
 // Everything about *your* character, behind one button on the scene: who
 // you are (and the full sheet, one tap further), what you carry, and the
 // party's shared stash.
-export function Backpack({ character, conditions, status, campaignId, characterNames, onOpenSheet, onFindCharacter, findLabel, onPatch }) {
+export function Backpack({ character, conditions, status, campaignId, characterNames, onOpenSheet, onFindCharacter, findLabel, onPatch, met = [] }) {
   const [tab, setTab] = useState(character ? 'me' : 'stash');
   const pct = character?.maxHp ? Math.max(0, Math.min(100, ((character.currentHp ?? 0) / character.maxHp) * 100)) : null;
   const band = pct == null || pct > 50 ? 'ok' : pct > 25 ? 'warn' : 'danger';
@@ -25,7 +26,10 @@ export function Backpack({ character, conditions, status, campaignId, characterN
           </>
         )}
         <button type="button" role="tab" aria-selected={tab === 'stash'} className={tab === 'stash' ? 'active' : ''} onClick={() => setTab('stash')}>
-          Party Stash
+          Stash
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'met'} className={tab === 'met' ? 'active' : ''} onClick={() => setTab('met')}>
+          Met
         </button>
       </div>
 
@@ -79,6 +83,21 @@ export function Backpack({ character, conditions, status, campaignId, characterN
       {character && tab === 'items' && <SheetInventory sheet={character} editable onPatch={onPatch} />}
 
       {tab === 'stash' && <PartyStash status={status} campaignId={campaignId} characterNames={characterNames} />}
+
+      {tab === 'met' &&
+        (met.length === 0 ? (
+          <p className="hint-text">Nobody yet — the people you meet on your travels gather here.</p>
+        ) : (
+          <ul className="npc-list">
+            {[...met]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((n) => (
+                <li key={n.id}>
+                  <NpcCard npc={n} />
+                </li>
+              ))}
+          </ul>
+        ))}
     </div>
   );
 }

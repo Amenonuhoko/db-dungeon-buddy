@@ -86,7 +86,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `019_fog_and_marks.sql`, and onward as new ones
+   (`001_core.sql` → `020_npcs.sql`, and onward as new ones
    land). Every file is safe to re-run, so if you're not sure which ones
    an existing project has, run them all again in order. **007 matters
    for security** now that anyone with an invite link can join — see
@@ -95,7 +95,7 @@ data lives only in that browser's `localStorage`.
    `notes`, `character_sheets`, `character_conditions`, `encounters`,
    `encounter_combatants`, `dice_rolls`, `messages`, `party_items`,
    `party_coins`, `roster_characters`, `character_details`, `join_attempts`,
-   `boards`, `scenes`, `scene_tokens` and `scene_events`, plus the private
+   `boards`, `scenes`, `scene_tokens`, `scene_events`, `scene_marks` and `npcs`, plus the private
    `portraits` (014) and `scenes` (015) storage buckets, with the
    triggers and RLS policies documented inline — see the comments in each
    file for what it does and why. New content types get their own

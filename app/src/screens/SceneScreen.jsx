@@ -8,6 +8,7 @@ import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { LookupPanel } from '../components/LookupPanel.jsx';
 import { MapSections, MapToolBar, MarkPanel } from '../components/MapTools.jsx';
+import { NpcCard, NpcEmblem, NpcPanel } from '../components/Npc.jsx';
 import { PartyGlance } from '../components/PartyGlance.jsx';
 import { Portrait } from '../components/Portrait.jsx';
 import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet, SelectIcon } from '../components/SceneChrome.jsx';
@@ -56,6 +57,7 @@ import { fogOf, inFog, insideArea, isArea, MAX_FOG_STROKES } from '../lib/mapmar
 import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
 import { moodOf } from '../lib/mood.js';
 import { listNotes } from '../lib/notes.js';
+import { archetypeOf, ATTITUDES, createNpc, listNpcs, removeNpc, updateNpc } from '../lib/npcs.js';
 import { useSceneBroadcast } from '../lib/sceneLive.js';
 import {
   addMark,
@@ -126,6 +128,9 @@ function bandOf(pct) {
 
 function describeError(err) {
   const msg = err?.message || '';
+  if (/npcs|npc_id|archetype/.test(msg)) {
+    return 'NPCs need the latest database update — whoever runs the backend should run db/migrations/020_npcs.sql (see README).';
+  }
   if (/scene_marks|'fog'|"fog"/.test(msg)) {
     return 'The map tools need the latest database update — whoever runs the backend should run db/migrations/019_fog_and_marks.sql (see README).';
   }
@@ -188,6 +193,8 @@ export function SceneScreen() {
   const [pickedState, setPickedState] = useState({ sceneId: null, keys: [] });
   const [pings, setPings] = useState([]);
   const [marks, setMarks] = useState([]);
+  const [npcs, setNpcs] = useState([]);
+  const [peopleTab, setPeopleTab] = useState('party');
   const [mapTool, setMapTool] = useState(null); // the DM painting fog or placing a mark
   const [markId, setMarkId] = useState(null);
   const pokeControls = () => {
@@ -218,7 +225,7 @@ export function SceneScreen() {
       listConditions(status, campaignId),
       listEvents(status, campaignId),
     ]);
-    const [bestiary, log, people, entries, dmNotes, drawn] = await Promise.all([
+    const [bestiary, log, people, entries, dmNotes, drawn, cast] = await Promise.all([
       isDM ? listCreatures(status, campaignId).catch(() => []) : [],
       live ? listRolls(campaignId).catch(() => []) : [],
       live ? listCampaignMembers(campaignId).catch(() => []) : [],
@@ -226,6 +233,7 @@ export function SceneScreen() {
       isDM ? listNotes(status, campaignId).catch(() => []) : [],
       // Before 019 there are no marks yet — the scene still works.
       listMarks(status, campaignId).catch(() => []),
+      listNpcs(status, campaignId).catch(() => []),
     ]);
     setScenes(sc);
     setTokens(tk);
@@ -238,6 +246,7 @@ export function SceneScreen() {
     setLore(entries);
     setNotes(dmNotes);
     setMarks(drawn);
+    setNpcs(cast);
     setRolls(log);
     setMembers(people);
   }, [status, campaignId, isDM, live]);
@@ -352,6 +361,7 @@ export function SceneScreen() {
     });
   });
   const creaturesById = Object.fromEntries(creatures.map((c) => [c.id, c]));
+  const npcsById = Object.fromEntries(npcs.map((n) => [n.id, n]));
   for (const row of sceneTokens) {
     if (row.characterId) continue;
     // Not revealed yet: the DM's alone (RLS already keeps it from players
@@ -359,8 +369,20 @@ export function SceneScreen() {
     if (row.dmOnly && !isDM) continue;
     const combatant = row.combatantId ? combatantsById[row.combatantId] : null;
     if (row.combatantId && !combatant) continue;
-    const creature = creaturesById[combatant?.creatureId || row.creatureId] || null;
-    const extra = { size: row.size || 1, dmOnly: Boolean(row.dmOnly), creature };
+    const npc = row.npcId ? npcsById[row.npcId] || null : null;
+    const creature = creaturesById[combatant?.creatureId || row.creatureId || npc?.creatureId] || null;
+    // An NPC — named (a cast member) or standard fare ("a guard") — wears
+    // its archetype's emblem and, if named, an attitude ring.
+    const archetype = npc?.archetype || row.archetype || (row.npcId ? 'commoner' : null);
+    const extra = {
+      size: row.size || 1,
+      dmOnly: Boolean(row.dmOnly),
+      creature,
+      npc,
+      archetype,
+      emblem: archetype,
+      attitude: npc?.attitude || null,
+    };
     if (combatant) {
       const exact = combatant.maxHp ? Math.max(0, Math.min(100, ((combatant.currentHp ?? 0) / combatant.maxHp) * 100)) : null;
       const pct = exact == null ? null : isDM ? exact : HEALTH_PCT[healthDescriptor(combatant.currentHp, combatant.maxHp)] ?? null;
@@ -387,14 +409,14 @@ export function SceneScreen() {
         ...extra,
         key: row.id,
         kind: row.creatureId ? 'monster' : 'npc',
-        name: row.label || 'Someone',
+        name: npc?.name || row.label || (row.npcId ? 'Someone' : archetype ? archetypeOf(archetype).name : 'Someone'),
         x: row.x,
         y: row.y,
         row,
         hpPct: null,
         conditions: [],
         draggable: isDM,
-        ariaLabel: row.label || 'Someone',
+        ariaLabel: npc?.name || row.label || 'Someone',
       });
     }
   }
@@ -649,6 +671,7 @@ export function SceneScreen() {
     if (showNow && !target.active) {
       await act(async () => {
         await pushScene(status, campaignId, target.id);
+        await markMet(tokens.filter((t) => t.sceneId === target.id && t.npcId && !t.dmOnly).map((t) => t.npcId));
         await logEvent(status, campaignId, { sceneId: target.id, kind: 'auto', text: `The scene changes: ${target.name}.` }).catch(() => {});
       });
     }
@@ -713,7 +736,7 @@ export function SceneScreen() {
           }),
         ),
       );
-      for (const v of views.filter((x) => x.kind === 'monster' && !x.combatant && !x.dmOnly)) await enlist(v, created.id);
+      for (const v of views.filter((x) => !x.combatant && !x.dmOnly && (x.kind === 'monster' || isFoe(x)))) await enlist(v, created.id);
       await note(`${name || 'A fight'} breaks out — roll for initiative!`);
     });
   }
@@ -984,24 +1007,86 @@ export function SceneScreen() {
     closePanel();
   }
 
-  function addWalkOn(label, hidden = false) {
-    return act(async () => {
-      await addToken(status, campaignId, {
-        sceneId: scene.id,
-        label,
-        ...(hidden ? { dmOnly: true } : {}),
-        ...openSpot(views.map((v) => ({ x: v.x, y: v.y }))),
-      });
-      if (!hidden) await note(`${label} appears.`);
+  // ---- NPCs (020) -----------------------------------------------------------
+
+  // Who fights when a fight starts: hostile named NPCs, and standard fare
+  // that's there to cause trouble.
+  const FOES = ['bandit', 'thug', 'cultist'];
+  const isFoe = (v) => v.kind === 'npc' && (v.npc ? v.npc.attitude === 'hostile' : FOES.includes(v.archetype));
+
+  // Takes NPCs or their ids — one saved a moment ago isn't loaded yet.
+  const markMet = async (list) => {
+    const seen = new Set();
+    for (const item of list) {
+      const n = typeof item === 'string' ? npcsById[item] : item;
+      if (!n || n.met || seen.has(n.id)) continue;
+      seen.add(n.id);
+      await updateNpc(status, campaignId, n.id, { met: true });
+    }
+  };
+
+  // Standard fare: "a guard" on the scene in one tap.
+  function quickPlace(a) {
+    closePanel();
+    act(async () => {
+      const same = views.filter((v) => v.archetype === a.id && !v.npc).length;
+      const label = same ? `${a.name} ${same + 1}` : a.name;
+      await addToken(status, campaignId, { sceneId: scene.id, label, archetype: a.id, ...openSpot(views.map((v) => ({ x: v.x, y: v.y }))) });
+      await note(`${/^[aeiou]/i.test(a.name) ? 'An' : 'A'} ${a.name.toLowerCase()} appears.`);
     });
   }
 
-  // A monster placed from the Bestiary before (or outside) a fight joins
-  // one with its stats: a combatant is made and its token points at it.
+  function placeNpc(npc) {
+    closePanel();
+    act(async () => {
+      await addToken(status, campaignId, { sceneId: scene.id, npcId: npc.id, ...openSpot(views.map((v) => ({ x: v.x, y: v.y }))) });
+      if (scene.active) {
+        await markMet([npc]);
+        await note(`${npc.name} appears.`);
+      }
+    });
+  }
+
+  async function saveNpc(existing, fields) {
+    let saved = null;
+    const ok = await act(async () => {
+      saved = existing ? await updateNpc(status, campaignId, existing.id, fields) : await createNpc(status, campaignId, fields);
+    });
+    return ok ? saved : null;
+  }
+
+  function deleteNpc(npc) {
+    act(async () => {
+      if (status === 'guest') {
+        await Promise.all(tokens.filter((t) => t.npcId === npc.id).map((t) => removeToken(status, campaignId, t.id)));
+      }
+      await removeNpc(status, campaignId, npc.id);
+    });
+  }
+
+  // "A guard" becomes somebody: a cast member with this token's name.
+  function makeSomebody(view) {
+    act(async () => {
+      const created = await createNpc(status, campaignId, { name: view.name, archetype: view.archetype || 'commoner', met: Boolean(scene?.active) });
+      await updateToken(status, campaignId, view.row.id, { npcId: created.id });
+    });
+  }
+
+  const setAttitude = (view, attitude) => act(() => updateNpc(status, campaignId, view.npc.id, { attitude }));
+
+  function joinFight(view) {
+    act(() => enlist(view, fightHere.id));
+  }
+
+  // A monster or NPC on the scene joins a fight: a combatant is made and
+  // its token points at it. Stats come from a linked Bestiary entry
+  // first, then a named NPC's own, then its archetype's.
   async function enlist(view, encounterId) {
     const c = view.creature;
-    const dex = abilityMod(c?.abilities?.dex);
-    const hp = c?.hitPoints ?? null;
+    const a = view.archetype ? archetypeOf(view.archetype) : null;
+    const dex = c ? abilityMod(c.abilities?.dex) : view.npc ? (view.npc.dexMod ?? 0) : (a?.dex ?? 0);
+    const hp = c ? (c.hitPoints ?? null) : view.npc ? (view.npc.maxHp ?? null) : (a?.hp ?? null);
+    const ac = c ? (c.armorClass ?? null) : view.npc ? (view.npc.armorClass ?? null) : (a?.ac ?? null);
     const created = await addCombatant(status, campaignId, {
       encounterId,
       name: view.name,
@@ -1009,7 +1094,7 @@ export function SceneScreen() {
       characterId: null,
       dexModifier: dex,
       initiative: rollInitiative(dex),
-      armorClass: c?.armorClass ?? null,
+      armorClass: ac,
       maxHp: hp,
       currentHp: hp,
       ...(c ? { creatureId: c.id } : {}),
@@ -1046,6 +1131,7 @@ export function SceneScreen() {
     const list = targets.filter((v) => v.kind !== 'pc' && v.dmOnly === revealed);
     if (list.length === 0) return;
     act(async () => {
+      if (revealed && scene?.active) await markMet(list.filter((v) => v.npc).map((v) => v.npc));
       for (const v of list) {
         await updateToken(status, campaignId, v.row.id, { dmOnly: !revealed });
         if (revealed && fightHere && !v.combatant && v.kind === 'monster') await enlist(v, fightHere.id);
@@ -1116,7 +1202,7 @@ export function SceneScreen() {
     mark: openMark?.label || 'Mark',
     scene: 'Scene',
     mood: 'Mood',
-    party: 'Party at a glance',
+    party: 'People',
     announce: 'Announce',
     lookup: 'Look up',
     fight: 'Fight',
@@ -1324,6 +1410,14 @@ export function SceneScreen() {
             onRemoveWalkOn={() => removeWalkOn(selected)}
             onReveal={(revealed) => setRevealed([selected], revealed)}
             onSize={(size) => setSize(selected, size)}
+            onAttitude={(attitude) => setAttitude(selected, attitude)}
+            onMakeSomebody={() => makeSomebody(selected)}
+            onJoinFight={fightHere && !selected.combatant && selected.kind === 'npc' ? () => joinFight(selected) : null}
+            onEditNpc={() => {
+              setSelectedKey(null);
+              setPeopleTab('npcs');
+              openPanel('party');
+            }}
           />
         </SceneSheet>
       )}
@@ -1391,6 +1485,7 @@ export function SceneScreen() {
               onFindCharacter={findCharacter}
               findLabel={isGuest ? (myCharacter ? null : 'Create My Character') : myCharacter ? 'Change Character' : 'Choose a Character'}
               onPatch={(patch) => act(() => updateSheet(status, campaignId, myCharacter.id, patch))}
+              met={npcs.filter((n) => n.met)}
             />
           )}
 
@@ -1418,14 +1513,38 @@ export function SceneScreen() {
           )}
 
           {panel === 'party' && isDM && (
-            <PartyGlance
-              party={views.filter((v) => v.kind === 'pc').map((v) => ({ key: v.key, sheet: v.sheet }))}
-              conditionsByCharacter={conditionsByCharacter}
-              onOpen={(key) => {
-                closePanel();
-                setSelectedKey(key);
-              }}
-            />
+            <div className="people">
+              <div className="party-views" role="tablist" aria-label="People">
+                {[
+                  ['party', 'Party'],
+                  ['npcs', 'NPCs'],
+                ].map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={peopleTab === id} className={peopleTab === id ? 'active' : ''} onClick={() => setPeopleTab(id)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {peopleTab === 'party' ? (
+                <PartyGlance
+                  party={views.filter((v) => v.kind === 'pc').map((v) => ({ key: v.key, sheet: v.sheet }))}
+                  conditionsByCharacter={conditionsByCharacter}
+                  onOpen={(key) => {
+                    closePanel();
+                    setSelectedKey(key);
+                  }}
+                />
+              ) : (
+                <NpcPanel
+                  npcs={npcs}
+                  creatures={creatures}
+                  hasScene={Boolean(scene)}
+                  onQuickPlace={quickPlace}
+                  onPlace={placeNpc}
+                  onSave={saveNpc}
+                  onRemove={deleteNpc}
+                />
+              )}
+            </div>
           )}
 
           {panel === 'lookup' && isDM && (
@@ -1493,7 +1612,6 @@ export function SceneScreen() {
                     onRename={(name) => act(() => updateScene(status, campaignId, scene.id, { name }))}
                     onBackdrop={(id) => act(() => setSceneBackdrop(status, campaignId, scene, id))}
                     onChanged={() => refresh().catch(() => {})}
-                    onAddWalkOn={addWalkOn}
                     onDelete={() =>
                       act(async () => {
                         await removeScene(status, campaignId, scene);
@@ -1551,10 +1669,8 @@ export function SceneScreen() {
 
 // -----------------------------------------------------------------------
 
-function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged, onAddWalkOn, onDelete }) {
+function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged, onDelete }) {
   const [name, setName] = useState(scene.name);
-  const [walkOn, setWalkOn] = useState('');
-  const [walkOnHidden, setWalkOnHidden] = useState(false);
   const [busy, setBusy] = useState(false);
   const [artError, setArtError] = useState(null);
   const fileRef = useRef(null);
@@ -1633,27 +1749,8 @@ function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged
       </div>
       {artError && <p className="error-text">{artError}</p>}
 
-      <form
-        className="scene-tools-row"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (walkOn.trim() && (await onAddWalkOn(walkOn.trim().slice(0, 120), walkOnHidden))) setWalkOn('');
-        }}
-      >
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="walkOn">Add someone to the scene</label>
-          <input id="walkOn" value={walkOn} onChange={(e) => setWalkOn(e.target.value)} placeholder="The barkeep" maxLength={120} />
-        </div>
-        <button className="btn btn-ghost btn-small" type="submit" disabled={!walkOn.trim()}>
-          Add
-        </button>
-      </form>
-      <label className="lookup-check">
-        <input type="checkbox" checked={walkOnHidden} onChange={(e) => setWalkOnHidden(e.target.checked)} />
-        Hidden until I reveal them
-      </label>
       <p className="hint-text" style={{ margin: 0 }}>
-        For someone who might fight, start a fight and add them from the Bestiary instead — they get HP and initiative.
+        People on the scene — a guard, the innkeeper, someone with a name — come from People → NPCs; monsters from Look up.
       </p>
 
       <div className="scene-tools-row" style={{ justifyContent: 'flex-end' }}>
@@ -1806,6 +1903,10 @@ function TokenPanel({
   onReveal,
   onSize,
   timers,
+  onAttitude,
+  onMakeSomebody,
+  onJoinFight,
+  onEditNpc,
 }) {
   const sheet = view.sheet;
   const token = view.kind !== 'pc';
@@ -1830,6 +1931,17 @@ function TokenPanel({
           timers={timers}
         />
       ) : (
+        view.npc ? (
+          <NpcCard npc={view.npc} />
+        ) : view.archetype ? (
+          <div className="npc-card">
+            <NpcEmblem archetype={view.archetype} size="md" />
+            <div className="npc-card-text">
+              <strong>{view.name}</strong>
+              <span className="npc-card-role">{archetypeOf(view.archetype).name}</span>
+            </div>
+          </div>
+        ) : (
         <Panel className="scene-token-card">
           <Portrait path={view.portraitPath} name={view.name} size="md" />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1859,6 +1971,23 @@ function TokenPanel({
             )}
           </div>
         </Panel>
+        )
+      )}
+      {isDM && view.npc && (
+        <div className="preset-grid" role="radiogroup" aria-label="Attitude">
+          {ATTITUDES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={view.npc.attitude === t.id}
+              className={`preset-chip npc-attitude-chip-${t.id}${view.npc.attitude === t.id ? ' active' : ''}`}
+              onClick={() => onAttitude(t.id)}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
       )}
       {isDM && view.dmOnly && <p className="scene-token-hidden-note">Hidden — only you can see this. Reveal it when the table should.</p>}
       {isDM && view.creature && <StatBlock creature={view.creature} />}
@@ -1887,6 +2016,21 @@ function TokenPanel({
         {isDM && view.kind === 'pc' && !inFight && (
           <button type="button" className="btn btn-ghost btn-small" onClick={() => onSetHidden(!view.hidden)}>
             {view.hidden ? 'Put Back on the Scene' : 'Take Off This Scene'}
+          </button>
+        )}
+        {isDM && onJoinFight && (
+          <button type="button" className="btn btn-primary btn-small" onClick={onJoinFight}>
+            Join the Fight
+          </button>
+        )}
+        {isDM && view.archetype && !view.npc && (
+          <button type="button" className="btn btn-ghost btn-small" onClick={onMakeSomebody} title="Give them a place in the cast">
+            Make Them Somebody
+          </button>
+        )}
+        {isDM && view.npc && (
+          <button type="button" className="btn btn-ghost btn-small" onClick={onEditNpc}>
+            Edit NPC
           </button>
         )}
         {isDM && token && (

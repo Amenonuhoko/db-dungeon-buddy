@@ -6554,3 +6554,192 @@ html[data-immersive][data-dm] .dice-fab {
   line-height: 1.45;
   font-size: 0.9rem;
 }
+
+/* ---- NPCs (020). ---- */
+.npc-emblem {
+  background: radial-gradient(circle at 35% 30%, hsl(var(--npc-hue, 30) 45% 50%), hsl(var(--npc-hue, 30) 45% 24%));
+  color: #fff5e3;
+}
+
+.npc-emblem svg {
+  width: 62%;
+  height: 62%;
+}
+
+/* A named NPC's ring shows how they feel about the party. */
+.scene-token.attitude-friendly .npc-emblem {
+  border-color: #7fae55;
+}
+
+.scene-token.attitude-neutral .npc-emblem {
+  border-color: #cdb99b;
+}
+
+.scene-token.attitude-wary .npc-emblem {
+  border-color: #e8b43c;
+}
+
+.scene-token.attitude-hostile .npc-emblem {
+  border-color: #e8492e;
+}
+
+.npc-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.npc-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.npc-card-text strong {
+  font-family: var(--font-display);
+}
+
+.npc-card-role {
+  font-size: 0.78rem;
+  color: var(--gold-bright);
+}
+
+.npc-card-look {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.npc-attitude {
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 2px solid currentColor;
+}
+
+.npc-attitude-friendly,
+.npc-attitude-chip-friendly.active {
+  color: #7fae55;
+}
+
+.npc-attitude-neutral,
+.npc-attitude-chip-neutral.active {
+  color: var(--text-dim);
+}
+
+.npc-attitude-wary,
+.npc-attitude-chip-wary.active {
+  color: #d9a441;
+}
+
+.npc-attitude-hostile,
+.npc-attitude-chip-hostile.active {
+  color: #e8492e;
+}
+
+.preset-chip[class*='npc-attitude-chip-'].active {
+  background: var(--surface);
+  border-color: currentColor;
+}
+
+.npc-panel,
+.people,
+.npc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.people .party-views {
+  margin: 0;
+}
+
+.npc-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.npc-panel h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+}
+
+.npc-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.npc-archetypes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
+  gap: 0.4rem;
+}
+
+.npc-archetype {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.2rem;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.npc-archetype.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.npc-archetype:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.npc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.npc-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.7rem;
+  border: 2px solid var(--outline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.npc-list-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.npc-name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.npc-name-row input {
+  flex: 1;
+  min-width: 0;
+}

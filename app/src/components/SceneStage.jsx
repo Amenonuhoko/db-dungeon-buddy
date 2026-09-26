@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { NpcEmblem } from './Npc.jsx';
 import { Portrait } from './Portrait.jsx';
 import { AreaLabels, SceneAreas, SceneFog, SceneMarkers } from './SceneMarks.jsx';
 import { SceneMood } from './SceneMood.jsx';
@@ -329,6 +330,7 @@ export function SceneStage({
       token.hidden && 'off-scene',
       token.mine && 'mine',
       token.dmOnly && 'dm-only',
+    token.attitude && `attitude-${token.attitude}`,
       picked?.has(token.key) && 'picked',
       token.draggable && 'draggable',
       selectedKey === token.key && 'selected',
@@ -355,7 +357,7 @@ export function SceneStage({
         aria-pressed={selectedKey === token.key}
       >
         <span className="scene-token-disc">
-          <Portrait path={token.portraitPath} name={token.name} size="sm" />
+          {token.emblem ? <NpcEmblem archetype={token.emblem} /> : <Portrait path={token.portraitPath} name={token.name} size="sm" />}
           {token.initiative != null && <span className="scene-token-init scene-info">{token.initiative}</span>}
           {token.down && (
             <span className="scene-token-down" aria-hidden="true">

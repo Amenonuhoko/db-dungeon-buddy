@@ -41,7 +41,7 @@ export function sceneMissing(error) {
 // cheap "select nothing" per migration, asking for a column it added. A
 // database a step behind the app otherwise fails in confusing ways (an
 // older migration's name in the error), so the screen says exactly which
-// files to run. Returns the first missing number (15–19) or null.
+// files to run. Returns the first missing number (15–20) or null.
 const SCHEMA_PROBES = [
   [15, 'scenes', 'id'],
   [15, 'scene_tokens', 'id'],
@@ -53,6 +53,8 @@ const SCHEMA_PROBES = [
   [18, 'encounters', 'timers'],
   [19, 'scene_marks', 'id'],
   [19, 'scenes', 'fog'],
+  [20, 'npcs', 'id'],
+  [20, 'scene_tokens', 'npc_id,archetype'],
 ];
 export const SCENE_MIGRATION_FILES = {
   15: '015_scenes.sql',
@@ -60,6 +62,7 @@ export const SCENE_MIGRATION_FILES = {
   17: '017_dm_quick_tools.sql',
   18: '018_tokens_for_the_dm.sql',
   19: '019_fog_and_marks.sql',
+  20: '020_npcs.sql',
 };
 
 const isMissing = (error) => ['42703', '42P01', 'PGRST204', 'PGRST205'].includes(error?.code) || /does not exist|could not find/i.test(error?.message || '');

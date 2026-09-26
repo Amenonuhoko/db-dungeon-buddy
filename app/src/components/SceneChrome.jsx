@@ -117,7 +117,7 @@ const QUICK = [
   { id: 'scene', label: 'Scene', Icon: SceneIcon },
   { id: 'map', label: 'Map', Icon: MapIcon },
   { id: 'mood', label: 'Mood', Icon: MoodIcon },
-  { id: 'party', label: 'Party', Icon: PartyIcon },
+  { id: 'party', label: 'People', Icon: PartyIcon },
   { id: 'announce', label: 'Announce', Icon: AnnounceIcon },
   { id: 'lookup', label: 'Look up', Icon: LookupIcon },
   { id: 'fight', label: 'Fight', Icon: FightIcon },
