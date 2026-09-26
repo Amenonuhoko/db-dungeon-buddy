@@ -25,16 +25,6 @@ export function BackpackIcon() {
   );
 }
 
-export function ToolboxIcon() {
-  return (
-    <svg {...icon}>
-      <path d="M4 10 H20 V19 C20 19.6 19.6 20 19 20 H5 C4.4 20 4 19.6 4 19 Z" />
-      <path d="M9 10 V6.5 C9 5.7 9.7 5 10.5 5 H13.5 C14.3 5 15 5.7 15 6.5 V10" />
-      <path d="M4 14 H20 M10.5 13 V15.5 M13.5 13 V15.5" />
-    </svg>
-  );
-}
-
 export function SelectIcon() {
   return (
     <svg {...icon}>
@@ -54,6 +44,16 @@ export function RulerIcon() {
 }
 
 function SceneIcon() {
+  return (
+    <svg {...icon}>
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <path d="M3.5 16 L9 11 L13 14.5 L15.5 12.5 L20.5 16.5" />
+      <circle cx="15.5" cy="9" r="1.5" />
+    </svg>
+  );
+}
+
+function MapIcon() {
   return (
     <svg {...icon}>
       <path d="M4 6.5 L9 4.5 L15 6.5 L20 4.5 V17.5 L15 19.5 L9 17.5 L4 19.5 Z" />
@@ -115,12 +115,12 @@ function FightIcon() {
 
 const QUICK = [
   { id: 'scene', label: 'Scene', Icon: SceneIcon },
+  { id: 'map', label: 'Map', Icon: MapIcon },
   { id: 'mood', label: 'Mood', Icon: MoodIcon },
   { id: 'party', label: 'Party', Icon: PartyIcon },
   { id: 'announce', label: 'Announce', Icon: AnnounceIcon },
   { id: 'lookup', label: 'Look up', Icon: LookupIcon },
   { id: 'fight', label: 'Fight', Icon: FightIcon },
-  { id: 'toolbox', label: 'More', Icon: ToolboxIcon },
 ];
 
 // The DM's quick bar: everything a DM reaches for mid-session, one tap

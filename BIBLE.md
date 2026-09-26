@@ -1506,7 +1506,8 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   live scene's line is shared.
 - **The DM's quick bar** (`017_dm_quick_tools.sql`). The principle: if
   running a session from the app is slower than not using it, the DM
-  won't. So the DM's controls are a bar of six, each opening a sheet
+  won't. So the DM's controls are a bar of seven (Scene, Map, Mood,
+  Party, Announce, Look up, Fight), each opening a sheet
   of presets over the scene — most things are two taps:
   - **Scene** — every scene as a picture tile (tap = go there), and a
     new scene from any **built-in backdrop** in one tap (eight top-down
@@ -1545,8 +1546,10 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
     as a Handout", and a link to its full tab.
   - **Fight** — start one, add combatants, or bring over a fight
     running elsewhere (turn controls stay at the top of the scene).
-  - **More** — this scene's name, backdrop or own picture, walk-ons,
-    grid, a quiet narrated line, delete. The ruler sits by the menu.
+  - **Map** — this scene's name, backdrop or own picture, walk-ons,
+    delete, the grid, and the map tools below (fog, markers, spell
+    areas). A quiet narrated line lives in Announce → Line. The ruler
+    and "Pick tokens" sit by the menu.
 - **Tokens that work for a DM** (`018_tokens_for_the_dm.sql`). Moving
   a party one token at a time was the first thing that made the app
   slower than a table, so:
@@ -1581,6 +1584,30 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   shows as ⧗ on the chip, and when a new round starts expired ones come
   off with a log line. The dice roller has a **secret roll** switch in
   a shared campaign — that roll stays on your device.
+- **Exploration visuals** (`019_fog_and_marks.sql`):
+  - **Fog of war** — Map → Cover the Map in Fog, then paint rooms open
+    (Reveal / Hide brush, three sizes). Stored as strokes on
+    `scenes.fog` (points 0–1000 across width and height, replayed in
+    order), drawn as a blurred SVG mask. The DM sees through it at half
+    strength; players see darkness, except their own tokens (which sit
+    above it). Players aren't just shown fog over things — monster and
+    NPC tokens and markers in fogged spots are left out entirely
+    (`inFog()`), and the turn order says "Something unseen" rather than
+    naming them. Spell areas stay (the party sees its own Fireball).
+  - **Markers** — door, trap (hidden by default), loot, label:
+    `scene_marks` rows, same RLS as tokens (`dm_only` = the trap no one
+    has found yet). Revealing one logs "A trap is revealed!".
+  - **Spell areas** — circle, cube, cone, line, sized in feet by the
+    grid, with presets (Fireball, Spirit Guardians, Darkness, Fog
+    Cloud, Thunderwave, Web, Burning Hands, a 30 ft breath, Cone of
+    Cold, Lightning Bolt, Wall of Fire) and a custom one. Tap to place;
+    cones and lines are aimed by dragging from where they start. Its
+    label sits off the edge (the middle is usually under a monster);
+    tapping it offers resize, turn, colour, reveal/hide, remove — and
+    **Pick Everyone Inside**, which hands the group bar exactly the
+    tokens in the area, ready for "Damage all".
+  - While a map tool or the ruler is in hand, taps go through tokens
+    and marks to the map beneath.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are
@@ -1657,16 +1684,10 @@ screen is built, per the rule above:
       ("one square = 5 ft", cell size in picture fractions — a new
       column on `scenes`). A measuring line that reads out distance in
       feet — **DM only**, shown to everyone while it's held.
-   3. **Spell areas and markers — DM only.** Circles, cones and lines
-      (size in feet, using the grid scale) and markers (trap, door,
-      loot, a custom label), visible to everyone until the DM clears
-      them. Needs its own table (`scene_marks`, one row per shape, same
-      live-scene-only read rule as tokens).
-   4. **Atmosphere** — mostly done, pulled forward into the DM's quick
-      bar (§7): per-scene mood presets and layers, torchlight and
-      darkness around the party. Still to do: **fog of war** the DM
-      reveals by painting (revealed areas stored like the personal
-      board's strokes, in picture fractions).
+   3. **Spell areas and markers — DM only** — done (§7, Exploration
+      visuals).
+   4. **Atmosphere** — done: mood presets and layers in the DM's quick
+      bar, and fog of war (§7).
    5. **Atmosphere for the rest of the app** (to do, after step 4). The
       same philosophy everywhere, not just on the scene: minimal chrome,
       rich visuals. Home, sign-in, the campaign hub, the character

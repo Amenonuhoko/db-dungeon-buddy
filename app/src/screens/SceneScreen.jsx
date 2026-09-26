@@ -7,10 +7,11 @@ import { AddCombatantForm, CombatantRow, ConditionPicker } from '../components/C
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { LookupPanel } from '../components/LookupPanel.jsx';
+import { MapSections, MapToolBar, MarkPanel } from '../components/MapTools.jsx';
 import { PartyGlance } from '../components/PartyGlance.jsx';
 import { Portrait } from '../components/Portrait.jsx';
 import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet, SelectIcon } from '../components/SceneChrome.jsx';
-import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
+import { SceneLog } from '../components/SceneLog.jsx';
 import { SceneMenu } from '../components/SceneMenu.jsx';
 import { MoodPanel, ScenePanel } from '../components/ScenePanels.jsx';
 import { SceneStage } from '../components/SceneStage.jsx';
@@ -51,11 +52,13 @@ import {
 } from '../lib/encounters.js';
 import { useCampaignLive } from '../lib/live.js';
 import { centroid, formation, FORMATIONS, shiftAll, snapToGrid } from '../lib/formations.js';
+import { fogOf, inFog, insideArea, isArea, MAX_FOG_STROKES } from '../lib/mapmarks.js';
 import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
 import { moodOf } from '../lib/mood.js';
 import { listNotes } from '../lib/notes.js';
 import { useSceneBroadcast } from '../lib/sceneLive.js';
 import {
+  addMark,
   addToken,
   clearEvents,
   clearSceneBackground,
@@ -66,6 +69,7 @@ import {
   gridOf,
   hpEventText,
   listEvents,
+  listMarks,
   listScenes,
   listTokens,
   logEvent,
@@ -73,6 +77,7 @@ import {
   partySpot,
   placeCharacter,
   pushScene,
+  removeMark,
   removeScene,
   removeToken,
   SCENE_MIGRATION_HINT,
@@ -80,6 +85,7 @@ import {
   sceneMissing,
   setSceneBackdrop,
   setSceneBackground,
+  updateMark,
   updateScene,
   updateToken,
 } from '../lib/scenes.js';
@@ -107,7 +113,7 @@ const LIVE_TABLES = [
 // Players' controls tuck themselves away after this long untouched; the
 // DM's stay until dismissed (they're running the table).
 const CONTROLS_MS = 5000;
-const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox', 'scene', 'mood', 'party', 'announce', 'lookup', 'fight'];
+const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'map', 'scene', 'mood', 'party', 'announce', 'lookup', 'fight', 'mark'];
 const MENU_CHILDREN = ['talk', 'log', 'campaign', 'invite'];
 
 const HEALTH_PCT = { Healthy: 100, Wounded: 75, Bloodied: 50, 'Near death': 25, Down: 0 };
@@ -118,6 +124,9 @@ function bandOf(pct) {
 
 function describeError(err) {
   const msg = err?.message || '';
+  if (/scene_marks|'fog'|"fog"/.test(msg)) {
+    return 'The map tools need the latest database update — whoever runs the backend should run db/migrations/019_fog_and_marks.sql (see README).';
+  }
   if (/timers|dm_only|creature_id|'size'/.test(msg)) {
     return 'That needs the latest database update — whoever runs the backend should run db/migrations/018_tokens_for_the_dm.sql (see README).';
   }
@@ -176,6 +185,9 @@ export function SceneScreen() {
   const [picking, setPicking] = useState(false);
   const [pickedState, setPickedState] = useState({ sceneId: null, keys: [] });
   const [pings, setPings] = useState([]);
+  const [marks, setMarks] = useState([]);
+  const [mapTool, setMapTool] = useState(null); // the DM painting fog or placing a mark
+  const [markId, setMarkId] = useState(null);
   const pokeControls = () => {
     setControls(true);
     setControlsPoke((n) => n + 1);
@@ -204,12 +216,14 @@ export function SceneScreen() {
       listConditions(status, campaignId),
       listEvents(status, campaignId),
     ]);
-    const [bestiary, log, people, entries, dmNotes] = await Promise.all([
+    const [bestiary, log, people, entries, dmNotes, drawn] = await Promise.all([
       isDM ? listCreatures(status, campaignId).catch(() => []) : [],
       live ? listRolls(campaignId).catch(() => []) : [],
       live ? listCampaignMembers(campaignId).catch(() => []) : [],
       isDM ? listEntries(status, campaignId).catch(() => []) : [],
       isDM ? listNotes(status, campaignId).catch(() => []) : [],
+      // Before 019 there are no marks yet — the scene still works.
+      listMarks(status, campaignId).catch(() => []),
     ]);
     setScenes(sc);
     setTokens(tk);
@@ -221,6 +235,7 @@ export function SceneScreen() {
     setCreatures(bestiary);
     setLore(entries);
     setNotes(dmNotes);
+    setMarks(drawn);
     setRolls(log);
     setMembers(people);
   }, [status, campaignId, isDM, live]);
@@ -295,6 +310,7 @@ export function SceneScreen() {
     (s) => isGuest || s.playerId || combatantFor(s.id) || sceneTokens.some((t) => t.characterId === s.id && !t.hidden),
   );
 
+  const fog = fogOf(scene);
   const views = [];
   partyOnScene.forEach((sheet, i) => {
     const row = sceneTokens.find((t) => t.characterId === sheet.id) || null;
@@ -372,6 +388,16 @@ export function SceneScreen() {
       });
     }
   }
+  // Players aren't shown what's still in the fog: monsters, NPCs and
+  // markers there are left out, not just painted over.
+  if (!isDM && fog) {
+    for (let i = views.length - 1; i >= 0; i -= 1) if (views[i].kind !== 'pc' && inFog(fog, views[i], aspect)) views.splice(i, 1);
+  }
+  const sceneMarks = scene ? marks.filter((m) => m.sceneId === scene.id && (isDM || !m.dmOnly) && (isDM || isArea(m) || !inFog(fog, m, aspect))) : [];
+  // …and the turn order doesn't name what they can't see.
+  const shownOrder = isDM ? ordered : ordered.filter((c) => c.isPc || views.some((v) => v.combatant?.id === c.id));
+  const shownCurrent = current && !shownOrder.includes(current) ? { ...current, name: 'Something unseen' } : current;
+  const openMark = sceneMarks.find((m) => m.id === markId) || null;
   const picked = new Set(pickedState.sceneId === scene?.id ? pickedState.keys.filter((k) => views.some((v) => v.key === k)) : []);
   const setPicked = (keys) => setPickedState({ sceneId: scene?.id ?? null, keys: [...keys] });
   const pickedViews = views.filter((v) => picked.has(v.key));
@@ -384,7 +410,7 @@ export function SceneScreen() {
   // A player's controls fade after a few seconds untouched (never while a
   // sheet or token is open). The floating theme toggle and dice button
   // follow along through <html data-immersive> (index.css).
-  const busy = Boolean(panel || selected || gridDraft);
+  const busy = Boolean(panel || selected || gridDraft || mapTool);
   useEffect(() => {
     if (isDM || !controls || busy) return undefined;
     const t = window.setTimeout(() => setControls(false), CONTROLS_MS);
@@ -394,13 +420,13 @@ export function SceneScreen() {
   useEffect(() => {
     const root = document.documentElement;
     // The group bar sits where the dice would, so they step aside too.
-    root.dataset.immersive = busy || picking ? 'sheet' : controls ? 'controls' : 'clean';
+    root.dataset.immersive = busy || picking || mapTool ? 'sheet' : controls ? 'controls' : 'clean';
     if (isDM) root.dataset.dm = '';
     return () => {
       delete root.dataset.immersive;
       delete root.dataset.dm;
     };
-  }, [controls, busy, isDM, picking]);
+  }, [controls, busy, isDM, picking, mapTool]);
 
   // ---- Measuring ----------------------------------------------------------------
 
@@ -888,6 +914,66 @@ export function SceneScreen() {
     });
   }
 
+  // ---- The map: fog of war, markers, spell areas (019) -------------------
+
+  function saveFog(next) {
+    if (next && next.strokes.length > MAX_FOG_STROKES) {
+      setError('That’s a lot of painting for one map — cover it again and repaint in bigger strokes.');
+      return;
+    }
+    setScenes((prev) => prev.map((x) => (x.id === scene.id ? { ...x, fog: next } : x)));
+    act(() => updateScene(status, campaignId, scene.id, { fog: next }));
+  }
+  const paintFog = (stroke) => fog && saveFog({ on: true, strokes: [...fog.strokes, stroke] });
+
+  function placeMark(spot) {
+    const { preset, hidden } = mapTool;
+    setMapTool(null);
+    act(async () => {
+      const created = await addMark(status, campaignId, {
+        sceneId: scene.id,
+        kind: preset.kind,
+        x: spot.x,
+        y: spot.y,
+        angle: spot.angle,
+        sizeFt: preset.sizeFt || 5,
+        label: preset.label || null,
+        color: preset.color || null,
+        dmOnly: hidden,
+      });
+      if (preset.kind === 'label') openPanelForMark(created.id);
+    });
+  }
+
+  function openPanelForMark(id) {
+    setMarkId(id);
+    openPanel('mark');
+  }
+
+  const changeMark = (patch) => act(() => updateMark(status, campaignId, openMark.id, patch));
+
+  function revealMark(revealed) {
+    const m = openMark;
+    act(async () => {
+      await updateMark(status, campaignId, m.id, { dmOnly: !revealed });
+      if (revealed) await note(`${m.label || (m.kind === 'trap' ? 'A trap' : m.kind === 'door' ? 'A door' : m.kind === 'loot' ? 'Something glinting' : 'Something')} is revealed!`);
+    });
+  }
+
+  function dropMark() {
+    const id = openMark.id;
+    closePanel();
+    act(() => removeMark(status, campaignId, id));
+  }
+
+  // Everyone standing in a spell area, picked — ready for "Damage all".
+  function pickInside(mark) {
+    const inside = views.filter((v) => !v.hidden && insideArea(mark, v, gridOf(scene), aspect)).map((v) => v.key);
+    setPicked(inside);
+    setPicking(true);
+    closePanel();
+  }
+
   function addWalkOn(label, hidden = false) {
     return act(async () => {
       await addToken(status, campaignId, {
@@ -1016,7 +1102,8 @@ export function SceneScreen() {
     campaign: isRealDM ? 'Campaign settings' : 'This campaign',
     invite: 'Invite players',
     backpack: 'Backpack',
-    toolbox: 'More',
+    map: 'Map',
+    mark: openMark?.label || 'Mark',
     scene: 'Scene',
     mood: 'Mood',
     party: 'Party at a glance',
@@ -1042,6 +1129,12 @@ export function SceneScreen() {
         onMeasure={shareLine}
         picked={picked}
         pings={pings}
+        marks={sceneMarks}
+        fog={fog}
+        mapTool={isDM ? mapTool : null}
+        onPaint={paintFog}
+        onPlaceMark={placeMark}
+        onMarkTap={isDM ? (m) => openPanelForMark(m.id) : null}
         onAspect={setAspect}
         onPing={isDM ? ping : null}
         onSelect={(key) => {
@@ -1124,8 +1217,8 @@ export function SceneScreen() {
           {fightHere && (
             <FightBar
               fight={fightHere}
-              ordered={ordered}
-              current={current}
+              ordered={shownOrder}
+              current={shownCurrent}
               isDM={isDM}
               myTurn={myTurn}
               myUnrolled={myUnrolled}
@@ -1136,7 +1229,9 @@ export function SceneScreen() {
             />
           )}
 
-          {isDM && picking && (
+          {isDM && mapTool && <MapToolBar tool={mapTool} onChange={setMapTool} onDone={() => setMapTool(null)} />}
+
+          {isDM && picking && !mapTool && (
             <GroupBar
               count={picked.size}
               canHurt={pickedViews.some((v) => v.kind === 'pc' || v.combatant)}
@@ -1354,7 +1449,11 @@ export function SceneScreen() {
             </div>
           )}
 
-          {panel === 'toolbox' && isDM && (
+          {panel === 'mark' && isDM && openMark && (
+            <MarkPanel key={openMark.id} mark={openMark} onChange={changeMark} onRemove={dropMark} onReveal={revealMark} onPickInside={() => pickInside(openMark)} />
+          )}
+
+          {panel === 'map' && isDM && (
             <div className="toolbox">
               {scene ? (
                 <section>
@@ -1377,7 +1476,7 @@ export function SceneScreen() {
                   />
                 </section>
               ) : (
-                <p className="hint-text">Pick or make a scene from Scene in the quick bar.</p>
+                <p className="hint-text">Pick or make a scene from Scene in the quick bar first.</p>
               )}
 
               {scene && (
@@ -1402,13 +1501,19 @@ export function SceneScreen() {
                 </section>
               )}
 
-              <section>
-                <h4>Narrate</h4>
-                <NarrateForm onPost={postLine} />
-                <p className="hint-text" style={{ margin: 0 }}>
-                  A quiet line under the scene{scene?.active ? '' : ' once this scene is live'}, kept in the log. For a big moment, use Announce.
-                </p>
-              </section>
+              {scene && (
+                <MapSections
+                  fog={fog}
+                  hasGrid={Boolean(gridOf(scene))}
+                  onFog={saveFog}
+                  onTool={(tool) => {
+                    setMapTool(tool);
+                    setPicking(false);
+                    setMeasuring(false);
+                    closePanel();
+                  }}
+                />
+              )}
             </div>
           )}
         </SceneSheet>

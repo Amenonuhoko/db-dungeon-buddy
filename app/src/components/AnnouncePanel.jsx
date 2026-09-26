@@ -14,6 +14,7 @@ export function AnnouncePanel({ campaignId, players, lore, handoutDraft, onSend 
   const [title, setTitle] = useState({ text: '', body: '' });
   const [handout, setHandout] = useState(handoutDraft || { text: '', body: '' });
   const [search, setSearch] = useState('');
+  const [line, setLine] = useState('');
   const [sent, setSent] = useState(null);
 
   async function send(announcement) {
@@ -68,6 +69,7 @@ export function AnnouncePanel({ campaignId, players, lore, handoutDraft, onSend 
           ['call', 'Call'],
           ['title', 'Title card'],
           ['handout', 'Handout'],
+          ['line', 'Line'],
         ].map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
             {label}
@@ -140,6 +142,26 @@ export function AnnouncePanel({ campaignId, players, lore, handoutDraft, onSend 
             <input value={title.body} onChange={(e) => setTitle({ ...title, body: e.target.value })} placeholder="A line beneath it (optional)" maxLength={200} aria-label="Subtitle" />
             <button type="submit" className="btn btn-primary btn-small" disabled={!title.text.trim()}>
               Show Title Card
+            </button>
+          </form>
+        </>
+      )}
+
+      {tab === 'line' && (
+        <>
+          <p className="hint-text" style={{ margin: 0 }}>
+            A quiet line — a caption under the scene, kept in the log. “The paladin casts Lay on Hands.”
+          </p>
+          <form
+            className="scene-log-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (line.trim() && (await send({ style: 'line', text: line.trim() }))) setLine('');
+            }}
+          >
+            <input value={line} onChange={(e) => setLine(e.target.value)} placeholder="What happens?" maxLength={500} aria-label="A line for the log" />
+            <button type="submit" className="btn btn-primary btn-small" disabled={!line.trim()}>
+              Post
             </button>
           </form>
         </>

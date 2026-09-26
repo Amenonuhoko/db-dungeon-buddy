@@ -21,7 +21,11 @@ const tokensFor = (status) => (status === 'guest' ? localTokens : remoteTokens);
 const localEvents = createLocalStore('scene_events');
 const localEventsKey = (campaignId) => `codex.guest.content.scene_events.${campaignId}`;
 
-export const SCENE_TABLES = ['scenes', 'scene_tokens', 'scene_events'];
+const localMarks = createLocalStore('scene_marks');
+const remoteMarks = createSupabaseStore('scene_marks');
+const marksFor = (status) => (status === 'guest' ? localMarks : remoteMarks);
+
+export const SCENE_TABLES = ['scenes', 'scene_tokens', 'scene_events', 'scene_marks'];
 
 export function sceneMissing(error) {
   const msg = error?.message || '';
@@ -64,6 +68,8 @@ export async function removeScene(status, campaignId, scene) {
   if (status === 'guest') {
     const tokens = await localTokens.list(campaignId);
     await Promise.all(tokens.filter((t) => t.sceneId === scene.id).map((t) => localTokens.remove(campaignId, t.id)));
+    const marks = await localMarks.list(campaignId);
+    await Promise.all(marks.filter((m) => m.sceneId === scene.id).map((m) => localMarks.remove(campaignId, m.id)));
   }
 }
 
@@ -148,6 +154,25 @@ export function gridOf(scene) {
 export function measureFeet(grid, aspect, a, b) {
   const squares = Math.hypot(b.x - a.x, (b.y - a.y) / aspect) / grid.size;
   return Math.round(squares) * grid.feet;
+}
+
+// ---------------------------------------------------------------------
+// Marks on the map (019): doors, traps, loot, labels, spell areas.
+// ---------------------------------------------------------------------
+export function listMarks(status, campaignId) {
+  return marksFor(status).list(campaignId);
+}
+
+export function addMark(status, campaignId, fields) {
+  return marksFor(status).create(campaignId, { angle: 0, sizeFt: 5, label: null, color: null, dmOnly: false, ...fields });
+}
+
+export function updateMark(status, campaignId, id, patch) {
+  return marksFor(status).update(campaignId, id, patch);
+}
+
+export function removeMark(status, campaignId, id) {
+  return marksFor(status).remove(campaignId, id);
 }
 
 // ---------------------------------------------------------------------

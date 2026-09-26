@@ -42,7 +42,7 @@ export function SceneMood({ mood, layer, aspect, lights, isDM }) {
           <defs>
             {/* Solid holes blurred together, so two lights side by side
                 merge instead of one's edge darkening the other. */}
-            <filter id={`${maskId}-soft`} x="-50%" y="-50%" width="200%" height="200%">
+            <filter id={`${maskId}-soft`} filterUnits="userSpaceOnUse" x="0" y="0" width="1000" height={tall}>
               <feGaussianBlur stdDeviation={radius * 0.3} />
             </filter>
             <mask id={`${maskId}-mask`}>

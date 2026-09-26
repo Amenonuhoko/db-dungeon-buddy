@@ -6397,3 +6397,154 @@ html[data-immersive][data-dm] .dice-fab {
     padding-inline: 0.4rem;
   }
 }
+
+/* ---- Map marks and fog (019). ---- */
+.scene-areas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.scene-area {
+  fill: var(--area);
+  fill-opacity: 0.32;
+  stroke: var(--area);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  animation: mood-in 400ms ease;
+}
+
+.scene-area.dm-only {
+  fill-opacity: 0.15;
+  stroke-dasharray: 8 6;
+}
+
+.scene-area.draft {
+  fill-opacity: 0.22;
+  stroke-dasharray: 6 5;
+  animation: none;
+}
+
+.scene-area-label,
+.scene-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  scale: var(--token-scale, 1);
+  z-index: 1;
+  animation: mood-in 400ms ease;
+}
+
+.scene-area-label {
+  padding: 0.1rem 0.5rem;
+  border: 2px solid var(--area);
+  border-radius: 999px;
+  background: rgba(12, 8, 6, 0.8);
+  color: #fff5e3;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scene-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.scene-marker svg {
+  width: 2rem;
+  height: 2rem;
+  padding: 0.3rem;
+  border-radius: 0.6rem;
+  background: rgba(12, 8, 6, 0.82);
+  border: 2px solid var(--gold);
+  color: #f2c461;
+  box-sizing: border-box;
+}
+
+.scene-marker-trap svg {
+  border-color: var(--oxblood);
+  color: #ff8a70;
+}
+
+.scene-marker-door svg {
+  border-color: #b8844e;
+  color: #e8c9a0;
+}
+
+.scene-marker.dm-only {
+  opacity: 0.55;
+}
+
+.scene-marker.dm-only svg {
+  border-style: dashed;
+}
+
+.scene-marker-label {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(12, 8, 6, 0.78);
+  color: #f7ecd6;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+/* The fog sits over the map, its monsters and markers — under the
+   party's own tokens, which stay visible to everyone. */
+.scene-fog {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scene-fog-dm {
+  opacity: 0.55;
+}
+
+/* Two classes, so a picked or current PC still clears the fog. */
+.scene-token.scene-token-pc {
+  z-index: 3;
+}
+
+.scene-token.dragging,
+.scene-measure,
+.scene-measure-label {
+  z-index: 5;
+}
+
+.area-dot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.15rem;
+  border-radius: 999px;
+  background: var(--area, var(--line));
+}
+
+.mark-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+/* With a map tool or the ruler in hand, a tap on a token or mark lands on
+   the map beneath — a Fireball centred on the ogre, a line from the
+   rogue. */
+.scene-viewport.tooling .scene-token,
+.scene-viewport.tooling .scene-marker,
+.scene-viewport.tooling .scene-area-label {
+  pointer-events: none;
+}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Portrait } from './Portrait.jsx';
+import { AreaLabels, SceneAreas, SceneFog, SceneMarkers } from './SceneMarks.jsx';
 import { SceneMood } from './SceneMood.jsx';
+import { isAimed } from '../lib/mapmarks.js';
 import { snapToGrid } from '../lib/formations.js';
 import { clamp01, measureFeet, useSceneArt } from '../lib/scenes.js';
 
@@ -44,6 +46,12 @@ export function SceneStage({
   onMeasure,
   onPing,
   onAspect,
+  marks,
+  fog,
+  mapTool,
+  onPaint,
+  onPlaceMark,
+  onMarkTap,
 }) {
   const art = useSceneArt(artPath);
   const viewportRef = useRef(null);
@@ -70,6 +78,8 @@ export function SceneStage({
   const gesture = useRef(null);
   const lastTap = useRef(0);
   const [ownLine, setOwnLine] = useState(null);
+  const [draftStroke, setDraftStroke] = useState(null); // fog being painted
+  const [draftMark, setDraftMark] = useState(null); // a mark being placed
 
   function clampView(v) {
     const el = viewportRef.current;
@@ -137,7 +147,7 @@ export function SceneStage({
   }
 
   function onViewportDown(event) {
-    if (event.target.closest('.scene-token, .scene-zoom-reset') || event.button > 0) return;
+    if (event.target.closest('.scene-token, .scene-zoom-reset, .scene-marker, .scene-area-label') || event.button > 0) return;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -150,6 +160,18 @@ export function SceneStage({
     } else if (pointers.current.size === 1) {
       const p = local(event);
       const spot = spotFor(event);
+      if (mapTool?.type === 'fog') {
+        const pts = [Math.round(spot.x * 1000), Math.round(spot.y * 1000)];
+        gesture.current = { type: 'paint', start: p, moved: true, stroke: { m: mapTool.mode, w: mapTool.width, p: pts } };
+        setDraftStroke(gesture.current.stroke);
+        return;
+      }
+      if (mapTool?.type === 'place') {
+        const draft = { ...mapTool.preset, ...round3(spot), angle: -90 };
+        gesture.current = { type: 'place', start: p, moved: true, draft };
+        setDraftMark(draft);
+        return;
+      }
       gesture.current = measuring
         ? { type: 'measure', from: round3(spot), start: p, moved: false }
         : { type: 'pan', start: p, base: viewRef.current, moved: false, spot };
@@ -184,6 +206,26 @@ export function SceneStage({
       setView(clampView({ z, x: mid.x - wx * z, y: mid.y - wy * z }));
       return;
     }
+    if (g.type === 'paint') {
+      const spot = spotFor(event);
+      const x = Math.round(spot.x * 1000);
+      const y = Math.round(spot.y * 1000);
+      const pts = g.stroke.p;
+      if (Math.hypot(x - pts[pts.length - 2], y - pts[pts.length - 1]) < 6) return;
+      g.stroke = { ...g.stroke, p: [...pts, x, y] };
+      setDraftStroke(g.stroke);
+      return;
+    }
+    if (g.type === 'place') {
+      if (!isAimed(g.draft.kind)) return;
+      const spot = spotFor(event);
+      const dx = spot.x - g.draft.x;
+      const dy = (spot.y - g.draft.y) / aspect;
+      if (Math.hypot(dx, dy) < 0.01) return;
+      g.draft = { ...g.draft, angle: Math.round((Math.atan2(dy, dx) * 180) / Math.PI) };
+      setDraftMark(g.draft);
+      return;
+    }
     if (!g.moved && Math.hypot(p.x - g.start.x, p.y - g.start.y) < DRAG_START_PX) return;
     g.moved = true;
     window.clearTimeout(holdTimer.current);
@@ -207,6 +249,16 @@ export function SceneStage({
       return;
     }
     gesture.current = null;
+    if (g?.type === 'paint') {
+      setDraftStroke(null);
+      onPaint?.(g.stroke);
+      return;
+    }
+    if (g?.type === 'place') {
+      setDraftMark(null);
+      onPlaceMark?.({ x: g.draft.x, y: g.draft.y, angle: g.draft.angle });
+      return;
+    }
     if (g?.type === 'measure' && g.moved) {
       // The line lingers a moment so the table can read it, then goes.
       window.setTimeout(() => {
@@ -258,6 +310,86 @@ export function SceneStage({
     onSelect(token.key === selectedKey ? null : token.key);
   }
 
+  function renderToken(token) {
+    // A picked group follows whichever of them is being dragged.
+    const leader = dragPos && tokens.find((t) => t.key === dragPos.key);
+    const follows = leader && token.key !== leader.key && picked?.has(leader.key) && picked.has(token.key);
+    const pos =
+      dragPos?.key === token.key
+        ? dragPos
+        : follows
+          ? { x: clamp01(token.x + dragPos.x - leader.x), y: clamp01(token.y + dragPos.y - leader.y) }
+          : token;
+    const active = moments[token.key] || [];
+    const classes = [
+      'scene-token',
+      `scene-token-${token.kind}`,
+      token.isCurrent && 'current',
+      token.down && 'down',
+      token.hidden && 'off-scene',
+      token.mine && 'mine',
+      token.dmOnly && 'dm-only',
+      picked?.has(token.key) && 'picked',
+      token.draggable && 'draggable',
+      selectedKey === token.key && 'selected',
+      (dragPos?.key === token.key || follows) && 'dragging',
+      ...active.map((m) => `moment-${m.kind}`),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return (
+      <button
+        key={token.key}
+        type="button"
+        className={classes}
+        style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%`, '--size': token.size || 1 }}
+        onPointerDown={(e) => onPointerDown(e, token)}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => onPointerUp(e, token)}
+        onPointerCancel={() => {
+          drag.current = null;
+          setDragPos(null);
+        }}
+        onClick={(e) => onClick(e, token)}
+        aria-label={token.ariaLabel}
+        aria-pressed={selectedKey === token.key}
+      >
+        <span className="scene-token-disc">
+          <Portrait path={token.portraitPath} name={token.name} size="sm" />
+          {token.initiative != null && <span className="scene-token-init scene-info">{token.initiative}</span>}
+          {token.down && (
+            <span className="scene-token-down" aria-hidden="true">
+              ✕
+            </span>
+          )}
+        </span>
+        {token.hpPct != null && (
+          <span className="scene-token-hp scene-info" aria-hidden="true">
+            <span className={`hp-track-fill hp-track-fill-${token.hpBand}`} style={{ width: `${token.hpPct}%` }} />
+          </span>
+        )}
+        <span className="scene-token-name scene-info">{token.name}</span>
+        {token.conditions.length > 0 && (
+          <span className="scene-token-conditions scene-info" aria-hidden="true">
+            {token.conditions.slice(0, 2).map((c) => (
+              <span key={c} className="scene-token-condition">
+                {c.slice(0, 4)}
+              </span>
+            ))}
+            {token.conditions.length > 2 && <span className="scene-token-condition">+{token.conditions.length - 2}</span>}
+          </span>
+        )}
+        {active
+          .filter((m) => m.text)
+          .map((m) => (
+            <span key={m.id} className={`scene-float scene-float-${m.kind}`} aria-hidden="true">
+              {m.text}
+            </span>
+          ))}
+      </button>
+    );
+  }
+
   const line = ownLine || measure;
   const feet = line && grid ? measureFeet(grid, aspect, line.from, line.to) : null;
   const tall = 1000 / aspect;
@@ -265,7 +397,7 @@ export function SceneStage({
   return (
     <div
       ref={viewportRef}
-      className={`scene-viewport${measuring ? ' measuring' : ''}`}
+      className={`scene-viewport${measuring || mapTool ? ' measuring tooling' : ''}`}
       onPointerDown={onViewportDown}
       onPointerMove={onViewportMove}
       onPointerUp={onViewportUp}
@@ -317,85 +449,12 @@ export function SceneStage({
           {(pings || []).map((p) => (
             <span key={p.id} className="scene-ping" style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }} aria-hidden="true" />
           ))}
-          {tokens.map((token) => {
-            // A picked group follows whichever of them is being dragged.
-            const leader = dragPos && tokens.find((t) => t.key === dragPos.key);
-            const follows = leader && token.key !== leader.key && picked?.has(leader.key) && picked.has(token.key);
-            const pos =
-              dragPos?.key === token.key
-                ? dragPos
-                : follows
-                  ? { x: clamp01(token.x + dragPos.x - leader.x), y: clamp01(token.y + dragPos.y - leader.y) }
-                  : token;
-            const active = moments[token.key] || [];
-            const classes = [
-              'scene-token',
-              `scene-token-${token.kind}`,
-              token.isCurrent && 'current',
-              token.down && 'down',
-              token.hidden && 'off-scene',
-              token.mine && 'mine',
-              token.dmOnly && 'dm-only',
-              picked?.has(token.key) && 'picked',
-              token.draggable && 'draggable',
-              selectedKey === token.key && 'selected',
-              (dragPos?.key === token.key || follows) && 'dragging',
-              ...active.map((m) => `moment-${m.kind}`),
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <button
-                key={token.key}
-                type="button"
-                className={classes}
-                style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%`, '--size': token.size || 1 }}
-                onPointerDown={(e) => onPointerDown(e, token)}
-                onPointerMove={onPointerMove}
-                onPointerUp={(e) => onPointerUp(e, token)}
-                onPointerCancel={() => {
-                  drag.current = null;
-                  setDragPos(null);
-                }}
-                onClick={(e) => onClick(e, token)}
-                aria-label={token.ariaLabel}
-                aria-pressed={selectedKey === token.key}
-              >
-                <span className="scene-token-disc">
-                  <Portrait path={token.portraitPath} name={token.name} size="sm" />
-                  {token.initiative != null && <span className="scene-token-init scene-info">{token.initiative}</span>}
-                  {token.down && (
-                    <span className="scene-token-down" aria-hidden="true">
-                      ✕
-                    </span>
-                  )}
-                </span>
-                {token.hpPct != null && (
-                  <span className="scene-token-hp scene-info" aria-hidden="true">
-                    <span className={`hp-track-fill hp-track-fill-${token.hpBand}`} style={{ width: `${token.hpPct}%` }} />
-                  </span>
-                )}
-                <span className="scene-token-name scene-info">{token.name}</span>
-                {token.conditions.length > 0 && (
-                  <span className="scene-token-conditions scene-info" aria-hidden="true">
-                    {token.conditions.slice(0, 2).map((c) => (
-                      <span key={c} className="scene-token-condition">
-                        {c.slice(0, 4)}
-                      </span>
-                    ))}
-                    {token.conditions.length > 2 && <span className="scene-token-condition">+{token.conditions.length - 2}</span>}
-                  </span>
-                )}
-                {active
-                  .filter((m) => m.text)
-                  .map((m) => (
-                    <span key={m.id} className={`scene-float scene-float-${m.kind}`} aria-hidden="true">
-                      {m.text}
-                    </span>
-                  ))}
-              </button>
-            );
-          })}
+          {marks && <SceneAreas marks={marks} draft={draftMark && ['circle', 'square', 'cone', 'line'].includes(draftMark.kind) ? draftMark : null} grid={grid} aspect={aspect} />}
+          {tokens.filter((t) => t.kind !== 'pc').map(renderToken)}
+          {marks && <AreaLabels marks={marks} grid={grid} aspect={aspect} onTap={onMarkTap} />}
+          {marks && <SceneMarkers marks={draftMark && !['circle', 'square', 'cone', 'line'].includes(draftMark.kind) ? [...marks, { ...draftMark, id: 'draft' }] : marks} onTap={onMarkTap} showInfo={showInfo} />}
+          {fog && <SceneFog fog={fog} draft={draftStroke} aspect={aspect} isDM={isDM} />}
+          {tokens.filter((t) => t.kind === 'pc').map(renderToken)}
           <SceneMood mood={mood} layer="over" aspect={aspect} lights={lights} isDM={isDM} />
         </div>
       </div>
