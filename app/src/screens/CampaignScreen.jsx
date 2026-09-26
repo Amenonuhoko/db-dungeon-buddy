@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { BackButton } from '../components/BackButton.jsx';
 import { BottomTabDock } from '../components/BottomTabDock.jsx';
+import { CampaignBackdrop } from '../components/CampaignBackdrop.jsx';
 import { CampaignSettings } from '../components/CampaignSettings.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { TableToasts } from '../components/TableToasts.jsx';
@@ -12,6 +13,7 @@ import { listSheets, tableName } from '../lib/characters.js';
 import { useWornCharacters } from '../lib/live.js';
 import { TABLE_THREAD, useTableTalk } from '../lib/messages.js';
 import { useCampaignPresence, usePresenceEvents } from '../lib/presence.js';
+import { listScenes } from '../lib/scenes.js';
 import { useViewAsPlayer } from '../lib/viewAs.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
@@ -134,6 +136,24 @@ export function CampaignScreen() {
     }
   }, [location.pathname, campaignId]);
 
+  // The backdrop behind the backstage screens (proof of concept, BIBLE.md
+  // §1 step 5): whichever scene the DM is running, or the most recently
+  // touched one if none is live — good enough for "this campaign feels
+  // like a tavern" without tracking it separately. Loaded once and left
+  // stale rather than subscribed to realtime; it's ambience, not state
+  // anyone's acting on here.
+  const [backdropScene, setBackdropScene] = useState(null);
+  useEffect(() => {
+    setBackdropScene(null);
+    if (status !== 'guest' && status !== 'authenticated') return;
+    listScenes(status, campaignId)
+      .then((scenes) => {
+        const pick = scenes.find((s) => s.active) || [...scenes].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0];
+        setBackdropScene(pick || null);
+      })
+      .catch(() => {});
+  }, [status, campaignId]);
+
   useEffect(() => {
     setCampaign(null);
     setError(null);
@@ -225,6 +245,7 @@ export function CampaignScreen() {
   // margin to spare.
   return (
     <div className="screen-enter" style={{ minHeight: '100vh', padding: '2.5rem 1.5rem 10rem' }}>
+      <CampaignBackdrop scene={backdropScene} />
       <div style={{ width: 'min(920px, 100%)', margin: '0 auto' }}>
         <div className="campaign-topbar">
           <BackButton to="/dashboard" label="Campaigns" />
