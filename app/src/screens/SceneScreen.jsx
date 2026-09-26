@@ -8,11 +8,12 @@ import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
 import { LookupPanel } from '../components/LookupPanel.jsx';
 import { Portrait } from '../components/Portrait.jsx';
-import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet } from '../components/SceneChrome.jsx';
+import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet, SelectIcon } from '../components/SceneChrome.jsx';
 import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
 import { SceneMenu } from '../components/SceneMenu.jsx';
 import { MoodPanel, ScenePanel } from '../components/ScenePanels.jsx';
 import { SceneStage } from '../components/SceneStage.jsx';
+import { StatBlock } from '../components/StatBlock.jsx';
 import { TablePresence } from '../components/TablePresence.jsx';
 import { TableTalk } from '../components/TableTalk.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
@@ -48,6 +49,7 @@ import {
   updateEncounter,
 } from '../lib/encounters.js';
 import { useCampaignLive } from '../lib/live.js';
+import { centroid, formation, FORMATIONS, shiftAll, snapToGrid } from '../lib/formations.js';
 import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
 import { moodOf } from '../lib/mood.js';
 import { listNotes } from '../lib/notes.js';
@@ -165,6 +167,11 @@ export function SceneScreen() {
   const [controlsPoke, setControlsPoke] = useState(0);
   const [measuring, setMeasuring] = useState(false);
   const [gridDraft, setGridDraft] = useState(null); // the DM adjusting the grid
+  const [aspect, setAspect] = useState(4 / 3);
+  // The DM picking several tokens to move (or act on) together.
+  const [picking, setPicking] = useState(false);
+  const [pickedState, setPickedState] = useState({ sceneId: null, keys: [] });
+  const [pings, setPings] = useState([]);
   const pokeControls = () => {
     setControls(true);
     setControlsPoke((n) => n + 1);
@@ -314,10 +321,16 @@ export function SceneScreen() {
       ariaLabel: `${sheet.name}${mine ? ' (you)' : ''}${combatant && combatant.id === current?.id ? ', taking their turn' : ''}`,
     });
   });
+  const creaturesById = Object.fromEntries(creatures.map((c) => [c.id, c]));
   for (const row of sceneTokens) {
     if (row.characterId) continue;
+    // Not revealed yet: the DM's alone (RLS already keeps it from players
+    // online; this covers offline and the DM previewing as a player).
+    if (row.dmOnly && !isDM) continue;
     const combatant = row.combatantId ? combatantsById[row.combatantId] : null;
     if (row.combatantId && !combatant) continue;
+    const creature = creaturesById[combatant?.creatureId || row.creatureId] || null;
+    const extra = { size: row.size || 1, dmOnly: Boolean(row.dmOnly), creature };
     if (combatant) {
       const exact = combatant.maxHp ? Math.max(0, Math.min(100, ((combatant.currentHp ?? 0) / combatant.maxHp) * 100)) : null;
       const pct = exact == null ? null : isDM ? exact : HEALTH_PCT[healthDescriptor(combatant.currentHp, combatant.maxHp)] ?? null;
@@ -337,11 +350,13 @@ export function SceneScreen() {
         conditions: combatant.conditions || [],
         draggable: isDM,
         ariaLabel: `${combatant.name}${combatant.id === current?.id ? ', taking their turn' : ''}`,
+        ...extra,
       });
     } else {
       views.push({
+        ...extra,
         key: row.id,
-        kind: 'npc',
+        kind: row.creatureId ? 'monster' : 'npc',
         name: row.label || 'Someone',
         x: row.x,
         y: row.y,
@@ -353,6 +368,9 @@ export function SceneScreen() {
       });
     }
   }
+  const picked = new Set(pickedState.sceneId === scene?.id ? pickedState.keys.filter((k) => views.some((v) => v.key === k)) : []);
+  const setPicked = (keys) => setPickedState({ sceneId: scene?.id ?? null, keys: [...keys] });
+  const pickedViews = views.filter((v) => picked.has(v.key));
   const selectedKey = selection.sceneId === scene?.id ? selection.key : null;
   const setSelectedKey = (key) => setSelection({ sceneId: scene?.id ?? null, key });
   const selected = views.find((v) => v.key === selectedKey) || null;
@@ -387,7 +405,11 @@ export function SceneScreen() {
   // until the DM clears it (or it goes quiet).
   const [heardLine, setHeardLine] = useState(null);
   const heardTimer = useRef(null);
-  const sendToTable = useSceneBroadcast(live, campaignId, ['measure'], (event, payload) => {
+  const sendToTable = useSceneBroadcast(live, campaignId, ['measure', 'ping'], (event, payload) => {
+    if (event === 'ping') {
+      if (payload?.sceneId === lastSnapshot.current?.sceneId) showPing(payload);
+      return;
+    }
     if (event !== 'measure') return;
     window.clearTimeout(heardTimer.current);
     setHeardLine(payload?.line ? payload : null);
@@ -406,6 +428,18 @@ export function SceneScreen() {
     }, wait);
   }
   const shownGrid = gridDraft || gridOf(scene);
+
+  // A ping: a ripple on everyone's scene where the DM held a finger down.
+  function showPing(spot) {
+    const id = `${Date.now()}-${Math.random()}`;
+    setPings((prev) => [...prev.slice(-4), { id, x: spot.x, y: spot.y }]);
+    window.setTimeout(() => setPings((prev) => prev.filter((p) => p.id !== id)), 2200);
+  }
+  function ping(spot) {
+    showPing(spot);
+    navigator.vibrate?.(30);
+    if (live && scene?.active) sendToTable('ping', { sceneId: scene.id, x: spot.x, y: spot.y });
+  }
   const heard = heardLine && heardLine.sceneId === scene?.id ? heardLine.line : null;
 
   function saveGrid(grid) {
@@ -424,7 +458,7 @@ export function SceneScreen() {
         tokens: Object.fromEntries(
           views.map((v) => {
             const hp = v.kind === 'pc' ? (v.sheet.currentHp ?? null) : v.combatant ? (v.combatant.currentHp ?? null) : null;
-            const band = v.kind === 'monster' ? healthDescriptor(v.combatant.currentHp, v.combatant.maxHp) : null;
+            const band = v.kind === 'monster' && v.combatant ? healthDescriptor(v.combatant.currentHp, v.combatant.maxHp) : null;
             return [v.key, { hp, exact: isDM || v.kind === 'pc', band, conditions: v.conditions }];
           }),
         ),
@@ -508,20 +542,59 @@ export function SceneScreen() {
 
   // ---- Moving tokens --------------------------------------------------------
 
-  function moveToken(key, x, y) {
-    const view = views.find((v) => v.key === key);
-    if (!view || !scene) return;
-    setTokens((prev) =>
-      view.row
-        ? prev.map((t) => (t.id === view.row.id ? { ...t, x, y } : t))
-        : [...prev, { id: `pending-${key}`, sceneId: scene.id, characterId: view.sheet.id, x, y, hidden: false }],
-    );
+  // Moves [{ view, x, y }] at once — one token, or the DM's picked group.
+  function placeMany(moves) {
+    if (!scene || moves.length === 0) return;
+    setTokens((prev) => {
+      let next = prev;
+      for (const { view, x, y } of moves) {
+        next = view.row
+          ? next.map((t) => (t.id === view.row.id ? { ...t, x, y } : t))
+          : [...next, { id: `pending-${view.key}`, sceneId: scene.id, characterId: view.sheet.id, x, y, hidden: false }];
+      }
+      return next;
+    });
     act(() =>
-      view.kind === 'pc'
-        ? placeCharacter(status, campaignId, { sceneId: scene.id, characterId: view.sheet.id, x, y, asDM: isDM, existing: view.row })
-        : updateToken(status, campaignId, view.row.id, { x, y }),
+      Promise.all(
+        moves.map(({ view, x, y }) =>
+          view.kind === 'pc'
+            ? placeCharacter(status, campaignId, { sceneId: scene.id, characterId: view.sheet.id, x, y, asDM: isDM, existing: view.row })
+            : updateToken(status, campaignId, view.row.id, { x, y }),
+        ),
+      ),
     );
   }
+
+  // A dropped token; if it's one of the DM's picked group, they all move
+  // by the same amount.
+  function moveToken(key, x, y) {
+    const view = views.find((v) => v.key === key);
+    if (!view) return;
+    if (!picked.has(key) || picked.size < 2) {
+      placeMany([{ view, x, y }]);
+      return;
+    }
+    const moved = shiftAll(pickedViews, x - view.x, y - view.y);
+    placeMany(moved.map((m) => ({ view: m, x: m.key === key ? x : m.x, y: m.key === key ? y : m.y })));
+  }
+
+  // The picked group, walked to where the DM tapped — same shape, snapped.
+  function moveGroupTo(spot) {
+    if (pickedViews.length === 0) return;
+    const c = centroid(pickedViews);
+    const grid = gridOf(scene);
+    placeMany(
+      shiftAll(pickedViews, spot.x - c.x, spot.y - c.y).map((m) => ({ view: m, ...snapToGrid({ x: m.x, y: m.y }, grid, aspect, m.size || 1) })),
+    );
+  }
+
+  function arrange(kind) {
+    if (pickedViews.length === 0) return;
+    const spots = formation(kind, pickedViews.length, centroid(pickedViews), gridOf(scene), aspect);
+    placeMany(pickedViews.map((view, i) => ({ view, ...spots[i] })));
+  }
+
+  const togglePick = (key) => setPicked(picked.has(key) ? [...picked].filter((k) => k !== key) : [...picked, key]);
 
   // ---- Scenes, mood and announcements (DM) ------------------------------------
 
@@ -575,6 +648,7 @@ export function SceneScreen() {
       armorClass: creature.armorClass ?? null,
       maxHp: hp,
       currentHp: hp,
+      creatureId: creature.id,
     }));
     closePanel();
     return addToFight(entries);
@@ -598,6 +672,7 @@ export function SceneScreen() {
           }),
         ),
       );
+      for (const v of views.filter((x) => x.kind === 'monster' && !x.combatant && !x.dmOnly)) await enlist(v, created.id);
       await note(`${name || 'A fight'} breaks out — roll for initiative!`);
     });
   }
@@ -754,12 +829,77 @@ export function SceneScreen() {
     });
   }
 
-  function addWalkOn(label) {
+  function addWalkOn(label, hidden = false) {
     return act(async () => {
-      await addToken(status, campaignId, { sceneId: scene.id, label, ...openSpot(views.map((v) => ({ x: v.x, y: v.y }))) });
-      await note(`${label} appears.`);
+      await addToken(status, campaignId, {
+        sceneId: scene.id,
+        label,
+        ...(hidden ? { dmOnly: true } : {}),
+        ...openSpot(views.map((v) => ({ x: v.x, y: v.y }))),
+      });
+      if (!hidden) await note(`${label} appears.`);
     });
   }
+
+  // A monster placed from the Bestiary before (or outside) a fight joins
+  // one with its stats: a combatant is made and its token points at it.
+  async function enlist(view, encounterId) {
+    const c = view.creature;
+    const dex = abilityMod(c?.abilities?.dex);
+    const hp = c?.hitPoints ?? null;
+    const created = await addCombatant(status, campaignId, {
+      encounterId,
+      name: view.name,
+      isPc: false,
+      characterId: null,
+      dexModifier: dex,
+      initiative: rollInitiative(dex),
+      armorClass: c?.armorClass ?? null,
+      maxHp: hp,
+      currentHp: hp,
+      ...(c ? { creatureId: c.id } : {}),
+    });
+    await updateToken(status, campaignId, view.row.id, { combatantId: created.id });
+  }
+
+  // Placing monsters from the Bestiary: hidden (an ambush waiting to be
+  // revealed) or in plain sight — and straight into the fight if one's on.
+  function placeCreatures(creature, count, hidden) {
+    closePanel();
+    return act(async () => {
+      const taken = views.map((v) => ({ x: v.x, y: v.y }));
+      for (let i = 0; i < count; i += 1) {
+        const spot = openSpot(taken);
+        taken.push(spot);
+        const name = count > 1 ? `${creature.name} ${i + 1}` : creature.name;
+        const row = await addToken(status, campaignId, {
+          sceneId: scene.id,
+          label: name,
+          creatureId: creature.id,
+          ...(hidden ? { dmOnly: true } : {}),
+          ...spot,
+        });
+        if (!hidden && fightHere) await enlist({ name, creature, row }, fightHere.id);
+      }
+      if (!hidden) await note(`${count > 1 ? `${count} × ${creature.name}` : creature.name} ${count > 1 ? 'appear' : 'appears'}.`);
+    });
+  }
+
+  // Revealing (or hiding again) tokens the players can't see yet. A
+  // revealed monster joins a fight that's already on.
+  function setRevealed(targets, revealed) {
+    const list = targets.filter((v) => v.kind !== 'pc' && v.dmOnly === revealed);
+    if (list.length === 0) return;
+    act(async () => {
+      for (const v of list) {
+        await updateToken(status, campaignId, v.row.id, { dmOnly: !revealed });
+        if (revealed && fightHere && !v.combatant && v.kind === 'monster') await enlist(v, fightHere.id);
+      }
+      if (revealed) await note(list.length > 1 ? `${list.map((v) => v.name).join(', ')} appear!` : `${list[0].name} appears!`);
+    });
+  }
+
+  const setSize = (view, size) => act(() => updateToken(status, campaignId, view.row.id, { size }));
 
   function removeWalkOn(view) {
     act(() => removeToken(status, campaignId, view.row.id));
@@ -840,15 +980,24 @@ export function SceneScreen() {
         measuring={isDM && measuring && Boolean(shownGrid)}
         measure={heard}
         onMeasure={shareLine}
+        picked={picked}
+        pings={pings}
+        onAspect={setAspect}
+        onPing={isDM ? ping : null}
         onSelect={(key) => {
-          setSelectedKey(key);
+          if (picking && key) togglePick(key);
+          else setSelectedKey(key);
           pokeControls();
         }}
         onMove={(key, x, y) => {
           moveToken(key, x, y);
           pokeControls();
         }}
-        onBackground={() => (controls ? setControls(false) : pokeControls())}
+        onBackground={(spot) => {
+          if (picking && picked.size > 0) moveGroupTo(spot);
+          else if (!picking && controls) setControls(false);
+          else if (!picking) pokeControls();
+        }}
       />
 
       {!scene && (
@@ -880,8 +1029,28 @@ export function SceneScreen() {
               {previewAsPlayer && <span className="chip chip-small scene-live-chip">Player view</span>}
             </div>
             <div className="scene-top-actions">
+              {isDM && scene && (
+                <SceneButton
+                  label={picking ? 'Done picking' : 'Pick tokens'}
+                  active={picking}
+                  onClick={() => {
+                    setPicking((p) => !p);
+                    setMeasuring(false);
+                    if (picking) setPicked([]);
+                  }}
+                >
+                  <SelectIcon />
+                </SceneButton>
+              )}
               {isDM && gridOf(scene) && (
-                <SceneButton label={measuring ? 'Stop measuring' : 'Measure'} active={measuring} onClick={() => setMeasuring((m) => !m)}>
+                <SceneButton
+                  label={measuring ? 'Stop measuring' : 'Measure'}
+                  active={measuring}
+                  onClick={() => {
+                    setMeasuring((m) => !m);
+                    setPicking(false);
+                  }}
+                >
                   <RulerIcon />
                 </SceneButton>
               )}
@@ -904,6 +1073,17 @@ export function SceneScreen() {
               onStep={step}
               onEnd={endFight}
               onPick={(c) => setSelectedKey(c.isPc ? `pc:${c.characterId}` : views.find((v) => v.combatant?.id === c.id)?.key || null)}
+            />
+          )}
+
+          {isDM && picking && (
+            <GroupBar
+              count={picked.size}
+              anyHidden={pickedViews.some((v) => v.dmOnly)}
+              onParty={() => setPicked(views.filter((v) => v.kind === 'pc' && !v.hidden).map((v) => v.key))}
+              onArrange={arrange}
+              onReveal={() => setRevealed(pickedViews, true)}
+              onClear={() => setPicked([])}
             />
           )}
 
@@ -955,6 +1135,8 @@ export function SceneScreen() {
             onRemoveCondition={(c) => removeConditionFrom(selected, c)}
             onSetHidden={(hidden) => setPcHidden(selected, hidden)}
             onRemoveWalkOn={() => removeWalkOn(selected)}
+            onReveal={(revealed) => setRevealed([selected], revealed)}
+            onSize={(size) => setSize(selected, size)}
           />
         </SceneSheet>
       )}
@@ -1056,6 +1238,7 @@ export function SceneScreen() {
               fightOn={Boolean(fightHere)}
               onHandout={handOut}
               onAddToFight={addCreatureToFight}
+              onPlace={scene ? placeCreatures : null}
               onOpenTab={(tab) => navigate(tabPath(tab))}
             />
           )}
@@ -1163,6 +1346,7 @@ export function SceneScreen() {
 function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged, onAddWalkOn, onDelete }) {
   const [name, setName] = useState(scene.name);
   const [walkOn, setWalkOn] = useState('');
+  const [walkOnHidden, setWalkOnHidden] = useState(false);
   const [busy, setBusy] = useState(false);
   const [artError, setArtError] = useState(null);
   const fileRef = useRef(null);
@@ -1245,7 +1429,7 @@ function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged
         className="scene-tools-row"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (walkOn.trim() && (await onAddWalkOn(walkOn.trim().slice(0, 120)))) setWalkOn('');
+          if (walkOn.trim() && (await onAddWalkOn(walkOn.trim().slice(0, 120), walkOnHidden))) setWalkOn('');
         }}
       >
         <div className="field" style={{ flex: 1 }}>
@@ -1256,6 +1440,10 @@ function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged
           Add
         </button>
       </form>
+      <label className="lookup-check">
+        <input type="checkbox" checked={walkOnHidden} onChange={(e) => setWalkOnHidden(e.target.checked)} />
+        Hidden until I reveal them
+      </label>
       <p className="hint-text" style={{ margin: 0 }}>
         For someone who might fight, start a fight and add them from the Bestiary instead — they get HP and initiative.
       </p>
@@ -1383,6 +1571,13 @@ function FightBar({ fight, ordered, current, isDM, myTurn, myUnrolled, onBegin, 
 
 // What a tapped token opens: the full combat row while it's in the fight,
 // otherwise who they are (and, for the DM, taking them off the scene).
+const SIZES = [
+  { n: 1, name: 'Medium' },
+  { n: 2, name: 'Large' },
+  { n: 3, name: 'Huge' },
+  { n: 4, name: 'Gargantuan' },
+];
+
 function TokenPanel({
   view,
   inFight,
@@ -1400,8 +1595,11 @@ function TokenPanel({
   onRemoveCondition,
   onSetHidden,
   onRemoveWalkOn,
+  onReveal,
+  onSize,
 }) {
   const sheet = view.sheet;
+  const token = view.kind !== 'pc';
   return (
     <div className="scene-token-panel">
       {inFight ? (
@@ -1452,6 +1650,24 @@ function TokenPanel({
           </div>
         </Panel>
       )}
+      {isDM && view.dmOnly && <p className="scene-token-hidden-note">Hidden — only you can see this. Reveal it when the table should.</p>}
+      {isDM && view.creature && <StatBlock creature={view.creature} />}
+      {isDM && token && (
+        <div className="scene-token-size" role="radiogroup" aria-label="Size">
+          {SIZES.map((sz) => (
+            <button
+              key={sz.n}
+              type="button"
+              role="radio"
+              aria-checked={(view.size || 1) === sz.n}
+              className={`preset-chip${(view.size || 1) === sz.n ? ' active' : ''}`}
+              onClick={() => onSize(sz.n)}
+            >
+              {sz.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="scene-token-actions">
         {onOpenSheet && (
           <button type="button" className="btn btn-primary btn-small" onClick={onOpenSheet}>
@@ -1463,7 +1679,12 @@ function TokenPanel({
             {view.hidden ? 'Put Back on the Scene' : 'Take Off This Scene'}
           </button>
         )}
-        {isDM && view.kind === 'npc' && (
+        {isDM && token && (
+          <button type="button" className={`btn btn-small ${view.dmOnly ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onReveal(view.dmOnly)}>
+            {view.dmOnly ? 'Reveal to Players' : 'Hide from Players'}
+          </button>
+        )}
+        {isDM && token && !view.combatant && (
           <ConfirmButton className="btn btn-ghost btn-small" confirmLabel="Tap again to remove" onConfirm={onRemoveWalkOn}>
             Remove
           </ConfirmButton>
@@ -1513,6 +1734,39 @@ function GridEditor({ draft, hasGrid, onChange, onSave, onRemove, onCancel }) {
         {hasGrid && (
           <button type="button" className="btn btn-ghost btn-small" onClick={onRemove}>
             Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The DM's picked tokens: the whole party in one tap, a marching order,
+// reveal what's hidden. Tapping the map walks them there.
+function GroupBar({ count, anyHidden, onParty, onArrange, onReveal, onClear }) {
+  return (
+    <div className="group-bar" role="toolbar" aria-label="Picked tokens">
+      <p className="group-bar-hint">
+        {count === 0 ? 'Tap tokens to pick them — or pick the whole party.' : `${count} picked — tap the map to move them there, or drag one.`}
+      </p>
+      <div className="preset-grid">
+        <button type="button" className="preset-chip" onClick={onParty}>
+          Whole party
+        </button>
+        {count > 1 &&
+          FORMATIONS.map((f) => (
+            <button key={f.id} type="button" className="preset-chip" onClick={() => onArrange(f.id)}>
+              {f.name}
+            </button>
+          ))}
+        {anyHidden && (
+          <button type="button" className="preset-chip active" onClick={onReveal}>
+            Reveal
+          </button>
+        )}
+        {count > 0 && (
+          <button type="button" className="preset-chip" onClick={onClear}>
+            Clear
           </button>
         )}
       </div>

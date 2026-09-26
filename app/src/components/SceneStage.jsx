@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Portrait } from './Portrait.jsx';
 import { SceneMood } from './SceneMood.jsx';
+import { snapToGrid } from '../lib/formations.js';
 import { clamp01, measureFeet, useSceneArt } from '../lib/scenes.js';
 
 // The scene itself: the DM's picture, fitted to the screen, with everyone
@@ -13,12 +14,15 @@ import { clamp01, measureFeet, useSceneArt } from '../lib/scenes.js';
 // reset), and can carry a grid. In `measuring` mode (the DM's), dragging
 // across the picture draws a line and reads out the distance by the grid.
 // Positions are fractions of the picture, so the same scene lines up on
-// every screen at any zoom.
+// every screen at any zoom. With a grid, a dropped token snaps into its
+// squares. Tokens in `picked` move together (the DM moving the party),
+// and the DM can long-press anywhere to ping it for the whole table.
 const DRAG_START_PX = 5;
 const BLANK_RATIO = 4 / 3;
 const MAX_ZOOM = 5;
 const DOUBLE_TAP_MS = 320;
 const HOME = { z: 1, x: 0, y: 0 };
+const PING_HOLD_MS = 450;
 
 export function SceneStage({
   artPath,
@@ -32,10 +36,14 @@ export function SceneStage({
   isDM,
   measuring,
   measure,
+  picked,
+  pings,
   onSelect,
   onMove,
   onBackground,
   onMeasure,
+  onPing,
+  onAspect,
 }) {
   const art = useSceneArt(artPath);
   const viewportRef = useRef(null);
@@ -45,6 +53,10 @@ export function SceneStage({
   const [dragPos, setDragPos] = useState(null); // { key, x, y } while dragging a token
   const [ratio, setRatio] = useState({ src: null, value: BLANK_RATIO });
   const aspect = art && ratio.src === art ? ratio.value : BLANK_RATIO;
+  useEffect(() => {
+    onAspect?.(aspect);
+  }, [aspect, onAspect]);
+  const holdTimer = useRef(null);
 
   // ---- Pan and zoom -------------------------------------------------------
   // The zoom layer is the viewport's size, scaled from its top-left corner
@@ -137,9 +149,22 @@ export function SceneStage({
       startPinch();
     } else if (pointers.current.size === 1) {
       const p = local(event);
+      const spot = spotFor(event);
       gesture.current = measuring
-        ? { type: 'measure', from: round3(spotFor(event)), start: p, moved: false }
-        : { type: 'pan', start: p, base: viewRef.current, moved: false };
+        ? { type: 'measure', from: round3(spot), start: p, moved: false }
+        : { type: 'pan', start: p, base: viewRef.current, moved: false, spot };
+      window.clearTimeout(holdTimer.current);
+      if (!measuring && onPing) {
+        holdTimer.current = window.setTimeout(() => {
+          const g = gesture.current;
+          if (g?.type === 'pan' && !g.moved) {
+            g.pinged = true;
+            onPing(round3(g.spot));
+          }
+        }, PING_HOLD_MS);
+      }
+    } else {
+      window.clearTimeout(holdTimer.current);
     }
   }
 
@@ -161,6 +186,7 @@ export function SceneStage({
     }
     if (!g.moved && Math.hypot(p.x - g.start.x, p.y - g.start.y) < DRAG_START_PX) return;
     g.moved = true;
+    window.clearTimeout(holdTimer.current);
     if (g.type === 'pan') {
       setView(clampView({ z: g.base.z, x: g.base.x + p.x - g.start.x, y: g.base.y + p.y - g.start.y }));
     } else if (g.type === 'measure') {
@@ -172,6 +198,7 @@ export function SceneStage({
 
   function onViewportUp(event) {
     if (!pointers.current.delete(event.pointerId)) return;
+    window.clearTimeout(holdTimer.current);
     const g = gesture.current;
     if (g?.type === 'pinch') {
       // One finger left after a pinch carries on as a pan, never a tap.
@@ -188,11 +215,11 @@ export function SceneStage({
       }, 1500);
       return;
     }
-    if (g && !g.moved) {
+    if (g && !g.moved && !g.pinged) {
       const now = Date.now();
       if (now - lastTap.current < DOUBLE_TAP_MS && viewRef.current.z > 1) setView(HOME);
       lastTap.current = now;
-      onBackground();
+      onBackground(round3(g.spot));
     }
   }
 
@@ -216,7 +243,7 @@ export function SceneStage({
     drag.current = null;
     if (!d?.moved) return;
     justDragged.current = true;
-    const spot = round3(spotFor(event));
+    const spot = snapToGrid(round3(spotFor(event)), grid, aspect, token.size || 1);
     setDragPos(null);
     onMove(token.key, spot.x, spot.y);
   }
@@ -287,8 +314,19 @@ export function SceneStage({
               {feet} ft
             </span>
           )}
+          {(pings || []).map((p) => (
+            <span key={p.id} className="scene-ping" style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }} aria-hidden="true" />
+          ))}
           {tokens.map((token) => {
-            const pos = dragPos?.key === token.key ? dragPos : token;
+            // A picked group follows whichever of them is being dragged.
+            const leader = dragPos && tokens.find((t) => t.key === dragPos.key);
+            const follows = leader && token.key !== leader.key && picked?.has(leader.key) && picked.has(token.key);
+            const pos =
+              dragPos?.key === token.key
+                ? dragPos
+                : follows
+                  ? { x: clamp01(token.x + dragPos.x - leader.x), y: clamp01(token.y + dragPos.y - leader.y) }
+                  : token;
             const active = moments[token.key] || [];
             const classes = [
               'scene-token',
@@ -297,9 +335,11 @@ export function SceneStage({
               token.down && 'down',
               token.hidden && 'off-scene',
               token.mine && 'mine',
+              token.dmOnly && 'dm-only',
+              picked?.has(token.key) && 'picked',
               token.draggable && 'draggable',
               selectedKey === token.key && 'selected',
-              dragPos?.key === token.key && 'dragging',
+              (dragPos?.key === token.key || follows) && 'dragging',
               ...active.map((m) => `moment-${m.kind}`),
             ]
               .filter(Boolean)
@@ -309,7 +349,7 @@ export function SceneStage({
                 key={token.key}
                 type="button"
                 className={classes}
-                style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%` }}
+                style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%`, '--size': token.size || 1 }}
                 onPointerDown={(e) => onPointerDown(e, token)}
                 onPointerMove={onPointerMove}
                 onPointerUp={(e) => onPointerUp(e, token)}

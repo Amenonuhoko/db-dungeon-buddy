@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { abilityMod } from '../lib/encounters.js';
+import { StatBlock } from './StatBlock.jsx';
 
 // The DM's Look up sheet: one search across Lore, Monsters and Notes,
 // read right over the scene. From an entry: hand Lore (or a note) out to
@@ -11,11 +11,12 @@ const KINDS = [
   { id: 'note', label: 'Notes' },
 ];
 
-export function LookupPanel({ lore, creatures, notes, fightOn, onHandout, onAddToFight, onOpenTab }) {
+export function LookupPanel({ lore, creatures, notes, fightOn, onHandout, onAddToFight, onPlace, onOpenTab }) {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('all');
   const [open, setOpen] = useState(null);
   const [count, setCount] = useState(1);
+  const [hidden, setHidden] = useState(true);
 
   const items = [
     ...lore.map((e) => ({ kind: 'lore', id: e.id, title: e.title, sub: e.category, text: e.body, entry: e })),
@@ -46,41 +47,26 @@ export function LookupPanel({ lore, creatures, notes, fightOn, onHandout, onAddT
         <h3>{open.title}</h3>
         {open.kind === 'monster' ? (
           <>
-            <p className="lookup-stats">
-              {e.armorClass != null && <span className="chip chip-small">AC {e.armorClass}</span>}
-              {e.hitPoints != null && (
-                <span className="chip chip-small">
-                  HP {e.hitPoints}
-                  {e.hitDice ? ` (${e.hitDice})` : ''}
-                </span>
-              )}
-              {e.speed && <span className="chip chip-small">{e.speed}</span>}
-              {e.challengeRating && <span className="chip chip-small">CR {e.challengeRating}</span>}
-            </p>
-            {e.abilities && (
-              <div className="lookup-abilities">
-                {['str', 'dex', 'con', 'int', 'wis', 'cha'].map((k) => (
-                  <span key={k}>
-                    <small>{k.toUpperCase()}</small>
-                    {e.abilities[k] ?? 10} ({abilityMod(e.abilities[k]) >= 0 ? '+' : ''}
-                    {abilityMod(e.abilities[k])})
-                  </span>
-                ))}
-              </div>
-            )}
-            {e.traits && <Section label="Traits" text={e.traits} />}
-            {e.actions && <Section label="Actions" text={e.actions} />}
-            {e.notes && <Section label="Notes" text={e.notes} />}
-            {fightOn ? (
-              <div className="lookup-actions">
-                <label htmlFor="lookupCount">How many</label>
-                <input id="lookupCount" type="number" min="1" max="10" value={count} onChange={(ev) => setCount(Math.min(10, Math.max(1, Number(ev.target.value) || 1)))} />
+            <StatBlock creature={e} />
+            <div className="lookup-actions">
+              <label htmlFor="lookupCount">How many</label>
+              <input id="lookupCount" type="number" min="1" max="10" value={count} onChange={(ev) => setCount(Math.min(10, Math.max(1, Number(ev.target.value) || 1)))} />
+              {fightOn && (
                 <button type="button" className="btn btn-primary btn-small" onClick={() => onAddToFight(e, count)}>
                   Add to the Fight
                 </button>
+              )}
+            </div>
+            {onPlace && (
+              <div className="lookup-actions">
+                <label className="lookup-check">
+                  <input type="checkbox" checked={hidden} onChange={(ev) => setHidden(ev.target.checked)} />
+                  Hidden until I reveal them
+                </label>
+                <button type="button" className={`btn btn-small ${fightOn ? 'btn-ghost' : 'btn-primary'}`} onClick={() => onPlace(e, count, hidden)}>
+                  Place on the Scene
+                </button>
               </div>
-            ) : (
-              <p className="hint-text">Start a fight to drop {e.name} onto the scene.</p>
             )}
           </>
         ) : (
@@ -131,15 +117,6 @@ export function LookupPanel({ lore, creatures, notes, fightOn, onHandout, onAddT
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-function Section({ label, text }) {
-  return (
-    <div>
-      <p className="lookup-label">{label}</p>
-      <div className="lookup-text">{text}</div>
     </div>
   );
 }

@@ -1547,6 +1547,28 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
     running elsewhere (turn controls stay at the top of the scene).
   - **More** — this scene's name, backdrop or own picture, walk-ons,
     grid, a quiet narrated line, delete. The ruler sits by the menu.
+- **Tokens that work for a DM** (`018_tokens_for_the_dm.sql`). Moving
+  a party one token at a time was the first thing that made the app
+  slower than a table, so:
+  - **Pick tokens** (top bar) — tap tokens to pick them, or "Whole
+    party"; tap the map and the group walks there in the same shape;
+    drag any picked token and they all follow. Marching orders: single
+    file, two abreast, circle (`lib/formations.js`).
+  - **Snap to the grid** whenever a scene has one: an odd-sized token
+    sits in a square, an even-sized one on the corner between four.
+  - **Sizes** — Medium, Large, Huge, Gargantuan (`scene_tokens.size`,
+    squares across), set from a token's panel.
+  - **Hidden until revealed** — `scene_tokens.dm_only`: placed but
+    invisible to players (RLS; the DM sees it faded with a dashed edge).
+    Set up the ambush before the session, then "Reveal to Players" (or
+    Reveal on a picked group) — it arrives as a moment and a log line.
+  - **Monsters before a fight** — Look up → a monster → "Place on the
+    Scene" (how many, hidden by default) makes tokens that remember
+    their Bestiary entry (`creature_id`). Starting a fight brings every
+    revealed one in with its stats; revealing one mid-fight adds it.
+    Hidden ones stay out of the turn order, so it can't give them away.
+  - **Ping** — the DM holds a finger on the map: a ripple there on every
+    screen (broadcast like the measuring line, never stored).
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are

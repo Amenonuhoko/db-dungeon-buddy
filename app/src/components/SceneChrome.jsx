@@ -35,6 +35,15 @@ export function ToolboxIcon() {
   );
 }
 
+export function SelectIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M5 4 L5 17 L8.6 13.6 L11.2 19.5 L13.6 18.4 L11 12.6 L16 12.3 Z" />
+      <path d="M15 4 H20 V9 M20 15 V20 H15" strokeDasharray="2 2.2" />
+    </svg>
+  );
+}
+
 export function RulerIcon() {
   return (
     <svg {...icon}>

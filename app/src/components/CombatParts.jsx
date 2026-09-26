@@ -276,6 +276,7 @@ export function AddCombatantForm({ creatures, availableSheets, onAdd }) {
         // monster rolls separately, like it would at the table.
         initiative: form.initiative === '' ? rollInitiative(dex) : Number(form.initiative),
         ...(isPc ? {} : { armorClass: form.armorClass === '' ? null : Number(form.armorClass), maxHp: hp, currentHp: hp }),
+        ...(form.source.startsWith('creature:') ? { creatureId: form.source.slice(9) } : {}),
       };
     });
     setBusy(true);
