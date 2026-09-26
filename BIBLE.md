@@ -17,13 +17,32 @@ New keys use a `dungeonbuddy.` prefix.
 
 A browser-based PWA that is a full companion for running and playing a
 tabletop D&D campaign — not a dice-roller add-on, but a place a DM can
-build a world in and players can live in during a session:
+build a world in and players can live in during a session.
 
-- One app, two hats: **Dungeon Master** tools (world-building via the
-  Encyclopedia, the Bestiary, encounter/battle tracking, campaign notes)
-  and **Player** tools (character sheet, personal notes) — a player's
-  whole surface is those two, full stop; the Encyclopedia and Bestiary
-  tabs don't exist for them at all, not just locked read-only (§4/§9).
+**Repositioned 2026-09 around a visual-aid pivot.** The app splits into
+two very different surfaces, not just two permission levels:
+
+- **Player side: one screen, the Scene.** A player's entire surface is a
+  DM-uploaded background image with tokens on it showing where everyone
+  (and everything) currently is — a tavern, a forest, a dungeon room.
+  There is no separate Party roster page and no separate list-based
+  combat tracker anymore: combat *is* the scene. Tokens carry HP,
+  whose-turn-it-is, and condition badges directly on them; tapping a PC's
+  token opens their character sheet, tapping a monster token shows its
+  health band. Players can drag their own token; only the DM adds/removes
+  tokens, changes the background, or moves anyone else's. Beside the
+  scene sits a read-only, DM-curated **event log** — short lines like
+  "Goblin enters the area" or "Paladin casts Lay on Hands," some
+  auto-generated from mechanical actions, some typed by the DM. See §7
+  (Scenes) and §8 (Phase 5) for the concrete plan.
+- **DM side: everything the app already did, kept intact as backstage
+  tooling.** World-building via the Encyclopedia and Bestiary, campaign
+  notes, the personal sketch board, character sheet authoring, invite
+  codes — none of it goes away or gets simplified. It's just no longer
+  part of what a player sees or navigates; it's prep and reference
+  material for building the scenes and monsters that eventually get
+  pushed live. A DM-only "Scenes" screen (create scenes, upload
+  backgrounds, place tokens, push one active) joins that toolkit.
 - Works standing at a table on a phone, or on a laptop running the show.
   Installable (PWA), and usable offline for anything that doesn't need
   live sync (see §6).
@@ -571,12 +590,15 @@ unfiltered list "just for this one view."
 **A guest who chose Player has to get the same read/write boundary a
 real player gets — no screen should grant it blanket "you're a guest,
 here's DM powers" access.** Encyclopedia and Bestiary don't just
-read-only gate on `isDM` — they don't exist for a player at all.
-`tabsForRole()` in `lib/campaignTabs.jsx` drops both tabs from the bottom
-dock for anyone who isn't DM, `CampaignIndexRedirect` only ever restores
-a remembered tab the role is allowed to see (falling back to Party), and
-`RequireDM` guards both routes directly (bounces to Party) in case a
-player lands on one anyway —
+read-only gate on `isDM` — they don't exist for a player at all. Under
+the Scene pivot (§1/§7/§8), the same rule extends to the whole DM
+toolkit: Notes, the personal board, and the Scenes management screen are
+DM-only surfaces too, not just Encyclopedia/Bestiary — a player's tab bar
+collapses to Scene alone. `tabsForRole()` in `lib/campaignTabs.jsx` drops
+DM-only tabs from the bottom dock for anyone who isn't DM,
+`CampaignIndexRedirect` only ever restores a remembered tab the role is
+allowed to see (falling back to Scene), and `RequireDM` guards those
+routes directly (bounces to Scene) in case a player lands on one anyway —
 stale link, browser back/forward, hand-typed URL. This is a UI-visibility
 promise, not a data-security boundary; RLS is what actually protects the
 rows if a real account calls the API directly. CharactersScreen used to
@@ -1330,6 +1352,50 @@ functions the manual "New Entry" forms already use
 imported entry is indistinguishable from a hand-typed one afterward:
 same storage, same RLS, same edit/delete/export behavior.
 
+**Planned (`015_scenes.sql`, not yet built — see §1/§8 Phase 5):**
+
+- `scenes` — one row per DM-authored scene: `campaign_id`, `name`,
+  `background_path` (private Storage path, same signed-link pattern as
+  `portraits`), `active` (bool — only one scene per campaign is active at
+  a time; the DM flips this to "push" a scene live, not automatic), an
+  optional `encounter_id` FK onto the existing `encounters` table (a
+  scene can be in or out of combat), timestamps.
+- `scene_tokens` — one row per token placed on a scene: `scene_id`,
+  `campaign_id` (denormalized, RLS), an optional `combatant_id` FK onto
+  `encounter_combatants` (non-combat tokens don't need one), an optional
+  `character_id` back onto `character_sheets` (so a PC token can open its
+  sheet), normalized `x`/`y` (0–1 floats, resolution-independent, same
+  idea as the board's fixed coordinate space in §7 below), `label`,
+  `is_pc`. **HP, initiative, and conditions are never duplicated here** —
+  same rule as `encounter_combatants` vs. `character_sheets` already
+  follows: a token reads those tables live and only adds position. RLS:
+  the DM can insert/delete/move any token; a player can update only
+  their own token's `x`/`y` (a narrow RPC, mirroring
+  `set_my_initiative()` from `006_player_initiative.sql` — not direct
+  table access).
+- `scene_events` — the event-log history ("Goblin enters the area",
+  "Paladin casts Lay on Hands"): `campaign_id`, an optional `scene_id`
+  (nullable so a line survives its scene going inactive, and so the log
+  reads as one continuous campaign timeline filterable by scene rather
+  than resetting each time), `kind` (`'auto'` | `'manual'`), `text`,
+  `created_by`, `created_at`. DM-only to write (players read only, no
+  chat-style posting here — that's what Notes/table talk are for on the
+  DM's own tools). Auto entries are inserted client-side at the moment a
+  mechanical action happens (a token added/removed, HP crossing into a
+  new `healthDescriptor()` band, a condition added/removed, a new round
+  starting) — no database trigger, same pattern `dice_rolls` already
+  uses for "log this thing that just happened."
+- Storage: a scene background reuses the private-bucket + signed-URL
+  approach from `portraits.js`, new folder
+  `campaigns/<campaign>/scenes/<scene>/bg.<ext>`.
+- Screens: `SceneScreen.jsx` (the entire player surface — background,
+  draggable tokens, tap-to-open sheet/monster popover, the event log
+  drawer, round/turn controls) and `DMScenesScreen.jsx` (DM-only: create
+  scenes, upload/replace backgrounds, place tokens, push one active).
+  `CombatScreen.jsx`'s list-based tracker retires for players; its
+  non-visual logic (`stepTurn`, HP math, `STANDARD_CONDITIONS`) is
+  reused by `SceneScreen`, not reinvented.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
@@ -1340,7 +1406,9 @@ screen is built, per the rule above:
   tag vocabulary per campaign or freeform per entry, and whether it's
   browse/filter only or also drives cross-linking between entries.
 - Later, DM-quality-of-life ideas worth keeping in mind but not
-  scheduled: random encounter/loot tables, a session-log/recap feed.
+  scheduled: random encounter/loot tables, a session-log/recap feed (the
+  Scenes event log above covers the combat/scene half of this; a
+  broader session recap is still open).
 
 ## 8. Feature roadmap (phases)
 
@@ -1359,14 +1427,28 @@ screen is built, per the rule above:
    inline HP/conditions per combatant, death saves, class resources with
    short/long rests, and a shared table roll log. Full detail in §7. To
    use it on a deployed backend, run `db/migrations/005_live_play.sql`.
-5. **Polish**: offline sync queue, guest→account migration, campaign
-   invite-flow UI beyond the raw code field, session recap/log, tagging
-   (see §7 — needs scoping first), structured inventory/currency (a real
-   item list with weight/gold instead of `character_sheets.equipment`'s
-   one freeform text field), and an assisted level-up flow (recomputing
-   HP/proficiency bonus instead of hand-editing `class_and_level` text) —
-   the last two explicitly scoped out of Phase 4 (§7) as real but
-   non-combat-blocking gaps.
+5. **Scene pivot** — planned, not yet built (§1/§7). The player-facing
+   surface collapses to a single Scene view: a DM-uploaded background
+   image with tokens showing party/monster position, tokens doubling as
+   the combat tracker (HP, turn order, conditions live on the token
+   itself, retiring the separate list-based Combat tab for players), tap
+   a token to open its sheet, and a DM-curated event log
+   (auto-generated + manual lines) alongside it. Encyclopedia, Bestiary,
+   Notes, and the personal board move fully to DM-only tooling — a
+   player's tab bar becomes Scene, full stop. Rollout: schema
+   (`015_scenes.sql`) and guest-mode data layer first → background
+   upload + token placement/drag (account mode) → merge combat info onto
+   tokens and retire the list tracker → event log (auto hooks + manual
+   DM input) → collapse the player tab bar last, once the above is
+   stable, so there's no dead period with no combat UI.
+6. **Polish**: offline sync queue, guest→account migration, campaign
+   invite-flow UI beyond the raw code field, tagging (see §7 — needs
+   scoping first), structured inventory/currency (a real item list with
+   weight/gold instead of `character_sheets.equipment`'s one freeform
+   text field), and an assisted level-up flow (recomputing HP/proficiency
+   bonus instead of hand-editing `class_and_level` text) — the last two
+   explicitly scoped out of Phase 4 (§7) as real but non-combat-blocking
+   gaps.
 
 ## 9. Conventions
 
