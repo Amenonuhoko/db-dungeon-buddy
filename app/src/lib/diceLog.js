@@ -2,7 +2,7 @@ import { hasBackend, supabase } from './supabase';
 
 // The shared table roll log (BIBLE.md §7, Phase 4) — account mode only.
 // DiceRoller.jsx posts here automatically when it's opened from inside a
-// campaign; CombatScreen.jsx reads it. Guest mode keeps the roller's own
+// campaign; SceneScreen.jsx weaves it into the scene log. Guest mode keeps the roller's own
 // per-device history and nothing else — there's no table to share with.
 
 const LOG_LIMIT = 30;

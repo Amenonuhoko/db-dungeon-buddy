@@ -26,17 +26,17 @@ export function DashboardCard({ campaign, info, onOpen }) {
       <div className="dash-status">
         {fight ? (
           fight.myTurn ? (
-            <button type="button" className="chip chip-small dash-chip-hot" onClick={() => onOpen(`${base}/combat`)}>
+            <button type="button" className="chip chip-small dash-chip-hot" onClick={() => onOpen(`${base}/scene`)}>
               Your turn!
             </button>
           ) : (
-            <button type="button" className="chip chip-small dash-chip-fight" onClick={() => onOpen(`${base}/combat`)}>
+            <button type="button" className="chip chip-small dash-chip-fight" onClick={() => onOpen(`${base}/scene`)}>
               {fight.turnName ? `In combat · Round ${fight.round} · ${fight.turnName}’s turn` : 'A fight is being set up'}
             </button>
           )
         ) : null}
         {info?.unread > 0 && (
-          <button type="button" className="chip chip-small dash-chip-unread" onClick={() => onOpen(`${base}/characters?view=talk`)}>
+          <button type="button" className="chip chip-small dash-chip-unread" onClick={() => onOpen(`${base}/scene?panel=talk`)}>
             {info.unread} new {info.unread === 1 ? 'message' : 'messages'}
           </button>
         )}
@@ -76,7 +76,7 @@ export function DashboardCard({ campaign, info, onOpen }) {
           </div>
         ))}
 
-      {info?.latestNote && (
+      {isDM && info?.latestNote && (
         <button type="button" className="dash-note" onClick={() => onOpen(`${base}/notes`)}>
           Latest note: “{info.latestNote.title}” · {timeAgo(info.latestNote.updatedAt)}
         </button>

@@ -1,22 +1,18 @@
-import { BookIcon, PawIcon, QuillIcon, ShieldIcon, SwordsIcon } from '../components/ornament/TabIcons.jsx';
+import { BookIcon, MapIcon, PawIcon, QuillIcon, ShieldIcon } from '../components/ornament/TabIcons.jsx';
 
-// Encyclopedia and Bestiary are the DM's world-building tools — lore and
-// monster stats a DM authors for their own reference, not something a
-// player needs a tab for. A player's whole surface is their own Notes
-// and their own Character sheet, so those two tabs simply don't exist
-// for them (not just locked/read-only — see BIBLE.md §4/§9).
-export const DM_ONLY_TABS = ['encyclopedia', 'bestiary'];
+// A player's whole surface is the Scene (BIBLE.md §1/§4): where everyone
+// stands, the fight on the tokens themselves, the log, Talk and Stash —
+// and their own sheet, one tap away. Everything else is the DM's
+// backstage: handing out characters (Party), lore, monsters and notes.
+// Those tabs don't exist for a player at all, not just read-only.
+export const DM_ONLY_TABS = ['characters', 'encyclopedia', 'bestiary', 'notes'];
 
-// Plain words, in the order the table actually uses them: who's playing,
-// the fight, then the DM's prep material, then notes. Route paths keep
-// their original names (encyclopedia, bestiary, characters) so existing
-// links keep working — only what people read changed. A player's tabs
-// are the same list minus the DM-only ones, in the same order.
+// Route paths keep their original names (characters, encyclopedia,
+// bestiary) so existing links keep working — only what people read
+// changed.
 export const ALL_TABS = [
+  { to: 'scene', label: 'Scene', icon: <MapIcon /> },
   { to: 'characters', label: 'Party', icon: <ShieldIcon /> },
-  // Visible to players too — everyone at the table needs to see whose
-  // turn it is (BIBLE.md §8, Phase 4).
-  { to: 'combat', label: 'Combat', icon: <SwordsIcon /> },
   { to: 'encyclopedia', label: 'Lore', icon: <BookIcon /> },
   { to: 'bestiary', label: 'Monsters', icon: <PawIcon /> },
   { to: 'notes', label: 'Notes', icon: <QuillIcon /> },

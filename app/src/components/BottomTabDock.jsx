@@ -4,7 +4,9 @@ import { NavLink } from 'react-router-dom';
 // tabs (see BIBLE.md §3). Swiping left/right on the content area above
 // it (wired in CampaignScreen.jsx) moves between the same tabs — the
 // dock and the swipe are two ways into one navigation, not two systems.
+// A single tab (a player's Scene) is nowhere to go, so no dock at all.
 export function BottomTabDock({ tabs }) {
+  if (tabs.length < 2) return null;
   return (
     <nav className="tab-dock" aria-label="Campaign sections">
       {tabs.map((tab) => (

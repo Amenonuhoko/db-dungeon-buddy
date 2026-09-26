@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { CharacterBuilder, CreateModeSwitch } from '../components/CharacterBuilder.jsx';
 import { useCreateMode } from '../lib/createMode.js';
 import { ExampleGallery } from '../components/ExampleGallery.jsx';
-import { PartyStash } from '../components/PartyStash.jsx';
 import { Portrait } from '../components/Portrait.jsx';
 import { QuickCharacterFields } from '../components/QuickCharacterFields.jsx';
-import { TablePresence } from '../components/TablePresence.jsx';
-import { TableTalk } from '../components/TableTalk.jsx';
 import { Panel } from '../components/ornament/Panel.jsx';
 import { DownloadIcon } from '../components/ornament/UtilityIcons.jsx';
 import {
@@ -31,8 +28,10 @@ import { useCampaignLive } from '../lib/live.js';
 import { downloadTextFile } from '../lib/markdownExport.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-// The Party roster: add a character, and one tappable card per
-// character (delete and per-sheet export live on the sheet itself). Actually reading or editing one sheet is a whole
+// The Party roster — the DM's backstage for characters (and where an
+// offline player creates theirs): add a character, and one tappable card
+// per character (delete and per-sheet export live on the sheet itself).
+// Who's at the table, Talk and the Stash moved to the Scene. Actually reading or editing one sheet is a whole
 // screen of its own — see CharacterSheetScreen.jsx / BIBLE.md §3/§9 —
 // this list's job is picking which one, not showing it in full.
 const BLANK_FORM = {
@@ -54,7 +53,7 @@ const BLANK_FORM = {
 const POOL = 'pool';
 
 export function CharactersScreen() {
-  const { campaignId, isDM, isGuest, openInvite, presence, talk, worn, previewAsPlayer } = useOutletContext();
+  const { campaignId, isDM, isGuest, openInvite, presence, worn, previewAsPlayer } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
 
@@ -63,17 +62,6 @@ export function CharactersScreen() {
   const [members, setMembers] = useState([]);
   const players = members.filter((m) => m.role === 'player');
   const live = status === 'authenticated';
-  // Which part of the Party page is showing — in the URL, so a message
-  // toast or a tap on someone in "At the table" can open a conversation.
-  const [params, setParams] = useSearchParams();
-  const view = ['stash', 'talk'].includes(params.get('view')) && (live || params.get('view') === 'stash') ? params.get('view') : 'characters';
-  const thread = params.get('thread');
-  const showView = (next, nextThread = null) => {
-    const p = {};
-    if (next !== 'characters') p.view = next;
-    if (nextThread) p.thread = nextThread;
-    setParams(p, { replace: true });
-  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -224,46 +212,8 @@ export function CharactersScreen() {
     </div>
   );
 
-  const unreadTalk = talk?.totalUnread || 0;
-
   return (
     <div>
-      {live && presence && (
-        <TablePresence
-          members={members}
-          online={onlinePlayers}
-          ready={presence.ready}
-          myId={user?.id}
-          worn={worn}
-          onWhisper={talk?.status === 'unavailable' ? null : (userId) => showView('talk', userId)}
-        />
-      )}
-
-      <div className="party-views" role="tablist" aria-label="Party">
-        <button type="button" role="tab" aria-selected={view === 'characters'} className={view === 'characters' ? 'active' : ''} onClick={() => showView('characters')}>
-          Characters
-        </button>
-        <button type="button" role="tab" aria-selected={view === 'stash'} className={view === 'stash' ? 'active' : ''} onClick={() => showView('stash')}>
-          Stash
-        </button>
-        {live && (
-          <button type="button" role="tab" aria-selected={view === 'talk'} className={view === 'talk' ? 'active' : ''} onClick={() => showView('talk')}>
-            Talk
-            {unreadTalk > 0 && <span className="party-views-badge">{unreadTalk > 9 ? '9+' : unreadTalk}</span>}
-          </button>
-        )}
-      </div>
-
-      {view === 'stash' && (
-        <PartyStash status={status} campaignId={campaignId} characterNames={sheets.map((sheet) => sheet.name)} />
-      )}
-
-      {view === 'talk' && talk && (
-        <TableTalk talk={talk} members={members} online={onlinePlayers} worn={worn} thread={thread} onThread={(t) => showView('talk', t)} />
-      )}
-
-      {view === 'characters' && (
-        <>
           {error && <p className="error-text" style={{ marginBottom: '1rem' }}>{error}</p>}
 
           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
@@ -427,8 +377,6 @@ export function CharactersScreen() {
               />
             ))}
           </div>
-        </>
-      )}
     </div>
   );
 }

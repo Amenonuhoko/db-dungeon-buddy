@@ -11,13 +11,13 @@ import { CampaignIndexRedirect, CampaignScreen, RequireDM } from './screens/Camp
 import { CharacterSheetScreen } from './screens/CharacterSheetScreen.jsx';
 import { CharactersScreen } from './screens/CharactersScreen.jsx';
 import { ChooseCharacterScreen } from './screens/ChooseCharacterScreen.jsx';
-import { CombatScreen } from './screens/CombatScreen.jsx';
 import { EncyclopediaScreen } from './screens/EncyclopediaScreen.jsx';
 import { GuestRoleScreen } from './screens/GuestRoleScreen.jsx';
 import { HomeScreen } from './screens/HomeScreen.jsx';
 import { JoinCampaignScreen } from './screens/JoinCampaignScreen.jsx';
 import { NotesScreen } from './screens/NotesScreen.jsx';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen.jsx';
+import { SceneScreen } from './screens/SceneScreen.jsx';
 
 function RequireSession({ children }) {
   const { status } = useSession();
@@ -97,7 +97,15 @@ function Routed() {
             </RequireDM>
           }
         />
-        <Route path="notes" element={<NotesScreen />} />
+        <Route path="scene" element={<SceneScreen />} />
+        <Route
+          path="notes"
+          element={
+            <RequireDM>
+              <NotesScreen />
+            </RequireDM>
+          }
+        />
         <Route
           path="bestiary"
           element={
@@ -106,8 +114,11 @@ function Routed() {
             </RequireDM>
           }
         />
+        {/* Not DM-guarded: an offline player creates their character
+            here (the Scene links to it). It's just not in their tab dock. */}
         <Route path="characters" element={<CharactersScreen />} />
-        <Route path="combat" element={<CombatScreen />} />
+        {/* The fight lives on the Scene now — old links land there. */}
+        <Route path="combat" element={<Navigate to="../scene" replace />} />
       </Route>
       {/* Deliberately a sibling of the campaign shell above, not nested
           under its Outlet — a character sheet is a whole-screen affair of

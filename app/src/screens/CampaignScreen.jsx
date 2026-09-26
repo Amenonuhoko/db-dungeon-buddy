@@ -16,8 +16,7 @@ import { useViewAsPlayer } from '../lib/viewAs.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
 // Reopening a campaign lands on whichever tab you were last on (per
-// campaign, per device) — mid-fight, that's Combat, not a detour
-// through a default tab. First visit lands on Party.
+// campaign, per device). First visit lands on the Scene.
 const lastTabKey = (campaignId) => `dungeonbuddy.lastTab.${campaignId}`;
 
 function readLastTab(campaignId) {
@@ -72,7 +71,7 @@ export function CampaignScreen() {
   // `false` until the campaign loads is a harmless default (the swipe
   // handlers just won't fire yet, same as while loading today).
   // A DM can preview the campaign as a player (lib/viewAs.js): the
-  // player tabs, Party and flows, with the database still treating them
+  // player's Scene and flows, with the database still treating them
   // as the DM. isRealDM keeps campaign management (invite, settings)
   // working either way.
   const [viewAsPlayer, setViewAsPlayer] = useViewAsPlayer(campaignId);
@@ -85,10 +84,10 @@ export function CampaignScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // --- The live table (account mode): who's here, and Table Talk. Held
-  // here, once per campaign, so the Party page, the tab badge and the
+  // here, once per campaign, so the Scene, the tab badge and the
   // toasts all share one view of it. See lib/presence.js, lib/messages.js.
   const live = status === 'authenticated' && Boolean(campaign);
-  const currentTab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`))?.to || 'characters';
+  const currentTab = ALL_TABS.find((t) => location.pathname.endsWith(`/${t.to}`))?.to || 'scene';
   const me = useMemo(
     () => (user ? { userId: user.id, name: user.user_metadata?.display_name || 'Adventurer', role: campaign?.role } : null),
     [user, campaign?.role],
@@ -121,7 +120,7 @@ export function CampaignScreen() {
       kind: 'message',
       title: thread === TABLE_THREAD ? `${from} to the table` : `${from} whispered to you`,
       body: message.body.length > 90 ? `${message.body.slice(0, 90)}…` : message.body,
-      onOpen: () => navigate(`/campaigns/${campaignId}/characters?view=talk&thread=${thread}`),
+      onOpen: () => navigate(`/campaigns/${campaignId}/scene?panel=talk&thread=${thread}`),
     });
   });
 
@@ -131,7 +130,7 @@ export function CampaignScreen() {
     try {
       localStorage.setItem(lastTabKey(campaignId), tab.to);
     } catch {
-      // Private mode / storage blocked — just lands on Party next time.
+      // Private mode / storage blocked — just lands on the Scene next time.
     }
   }, [location.pathname, campaignId]);
 
@@ -306,7 +305,7 @@ export function CampaignScreen() {
       </div>
 
       <TableToasts toasts={toasts} onDismiss={dismissToast} />
-      <BottomTabDock tabs={tabs.map((t) => (t.to === 'characters' && talk.totalUnread ? { ...t, badge: talk.totalUnread } : t))} />
+      <BottomTabDock tabs={tabs.map((t) => (t.to === 'scene' && talk.totalUnread ? { ...t, badge: talk.totalUnread } : t))} />
     </div>
   );
 }
@@ -316,10 +315,10 @@ export function CampaignIndexRedirect() {
   const { isDM } = useOutletContext();
   const last = readLastTab(campaignId);
   const allowed = tabsForRole(isDM).some((t) => t.to === last);
-  return <Navigate to={`/campaigns/${campaignId}/${allowed ? last : 'characters'}`} replace />;
+  return <Navigate to={`/campaigns/${campaignId}/${allowed ? last : 'scene'}`} replace />;
 }
 
-// Guards the two DM-only tabs (Encyclopedia, Bestiary) against a player
+// Guards the DM-only tabs (Lore, Monsters, Notes) against a player
 // landing on them directly — a stale link, browser back/forward, or a
 // hand-typed URL, since they're not reachable from the tab dock at all
 // once tabsForRole() drops them for a player. Not a security boundary
@@ -328,6 +327,6 @@ export function CampaignIndexRedirect() {
 export function RequireDM({ children }) {
   const { campaignId } = useParams();
   const { isDM } = useOutletContext();
-  if (!isDM) return <Navigate to={`/campaigns/${campaignId}/characters`} replace />;
+  if (!isDM) return <Navigate to={`/campaigns/${campaignId}/scene`} replace />;
   return children;
 }
