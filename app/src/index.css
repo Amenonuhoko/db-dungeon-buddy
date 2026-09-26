@@ -6548,3 +6548,9 @@ html[data-immersive][data-dm] .dice-fab {
 .scene-viewport.tooling .scene-area-label {
   pointer-events: none;
 }
+
+.scene-schema-gap {
+  cursor: default;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}

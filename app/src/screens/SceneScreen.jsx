@@ -80,6 +80,8 @@ import {
   removeMark,
   removeScene,
   removeToken,
+  SCENE_MIGRATION_FILES,
+  missingSceneMigration,
   SCENE_MIGRATION_HINT,
   SCENE_TABLES,
   sceneMissing,
@@ -239,6 +241,14 @@ export function SceneScreen() {
     setRolls(log);
     setMembers(people);
   }, [status, campaignId, isDM, live]);
+
+  // Online, check first that the database has every scene migration —
+  // if not, one clear message naming the files beats a confusing error.
+  const [schemaGap, setSchemaGap] = useState(null);
+  useEffect(() => {
+    if (!live) return;
+    missingSceneMigration().then(setSchemaGap);
+  }, [live]);
 
   useEffect(() => {
     setLoading(true);
@@ -1269,10 +1279,27 @@ export function SceneScreen() {
         />
       )}
 
-      {error && (
-        <p className="scene-error" role="alert" onClick={() => setError(null)}>
-          {error}
-        </p>
+      {schemaGap ? (
+        <div className="scene-error scene-schema-gap" role="alert">
+          {isRealDM ? (
+            <>
+              <strong>Your database is behind this version of the app.</strong> In the Supabase SQL editor, run{' '}
+              {Object.entries(SCENE_MIGRATION_FILES)
+                .filter(([n]) => Number(n) >= schemaGap)
+                .map(([, file]) => file)
+                .join(', ')}{' '}
+              — in that order, one at a time (each is safe to run again). Then reload.
+            </>
+          ) : (
+            <>The table's database needs an update before scenes work — ask your DM (whoever runs the backend) to run the latest migrations.</>
+          )}
+        </div>
+      ) : (
+        error && (
+          <p className="scene-error" role="alert" onClick={() => setError(null)}>
+            {error}
+          </p>
+        )
       )}
 
       {selected && (

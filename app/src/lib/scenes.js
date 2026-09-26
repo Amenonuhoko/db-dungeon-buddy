@@ -37,6 +37,48 @@ export function sceneMissing(error) {
   );
 }
 
+// Which scene migration the connected database is missing, if any: one
+// cheap "select nothing" per migration, asking for a column it added. A
+// database a step behind the app otherwise fails in confusing ways (an
+// older migration's name in the error), so the screen says exactly which
+// files to run. Returns the first missing number (15–19) or null.
+const SCHEMA_PROBES = [
+  [15, 'scenes', 'id'],
+  [15, 'scene_tokens', 'id'],
+  [15, 'scene_events', 'id'],
+  [16, 'scenes', 'grid_size'],
+  [17, 'scenes', 'mood'],
+  [17, 'scene_events', 'style,to_user'],
+  [18, 'scene_tokens', 'dm_only,size,creature_id'],
+  [18, 'encounters', 'timers'],
+  [19, 'scene_marks', 'id'],
+  [19, 'scenes', 'fog'],
+];
+export const SCENE_MIGRATION_FILES = {
+  15: '015_scenes.sql',
+  16: '016_scene_grid.sql',
+  17: '017_dm_quick_tools.sql',
+  18: '018_tokens_for_the_dm.sql',
+  19: '019_fog_and_marks.sql',
+};
+
+const isMissing = (error) => ['42703', '42P01', 'PGRST204', 'PGRST205'].includes(error?.code) || /does not exist|could not find/i.test(error?.message || '');
+
+export async function missingSceneMigration() {
+  const results = await Promise.all(
+    SCHEMA_PROBES.map(async ([n, table, columns]) => {
+      try {
+        const { error } = await supabase.from(table).select(columns).limit(0);
+        return error && isMissing(error) ? n : null;
+      } catch {
+        return null; // offline or unreachable — not a schema problem
+      }
+    }),
+  );
+  const gaps = results.filter(Boolean);
+  return gaps.length ? Math.min(...gaps) : null;
+}
+
 export const SCENE_MIGRATION_HINT =
   'Scenes need the latest database update — whoever runs the backend should run db/migrations/015_scenes.sql (see README).';
 
