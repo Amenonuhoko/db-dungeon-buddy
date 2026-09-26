@@ -177,6 +177,43 @@ export function CampaignScreen() {
   // Guest campaigns are device-local — there's no one to invite to them.
   const canInvite = isRealDM && Boolean(campaign.invite_code);
 
+  const outletContext = {
+    campaignId,
+    campaign,
+    role: isDM ? 'dm' : 'player',
+    isDM,
+    isRealDM,
+    previewAsPlayer,
+    setViewAsPlayer,
+    isGuest: status === 'guest',
+    presence,
+    talk,
+    worn,
+    canInvite,
+    resetInvite: async () => {
+      const code = await regenerateInviteCode(campaign.id);
+      setCampaign((prev) => ({ ...prev, invite_code: code }));
+    },
+    onCampaignUpdated: setCampaign,
+    openInvite: canInvite
+      ? () => {
+          setInviteOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      : null,
+  };
+
+  // The Scene is the whole screen (BIBLE.md §1, "The companion
+  // principle"): no header, tabs or padding — it brings its own menu.
+  if (location.pathname.endsWith('/scene')) {
+    return (
+      <>
+        <Outlet context={outletContext} />
+        <TableToasts toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
   // Bottom padding has to clear the taller of the two fixed overlays
   // that float over every tab here — the global dice-fab (App.jsx),
   // parked at bottom:5.5rem + 52px tall, needs ~140px of clearance from
@@ -257,10 +294,7 @@ export function CampaignScreen() {
               code={campaign.invite_code}
               campaignName={campaign.name}
               onClose={() => setInviteOpen(false)}
-              onReset={async () => {
-                const code = await regenerateInviteCode(campaign.id);
-                setCampaign((prev) => ({ ...prev, invite_code: code }));
-              }}
+              onReset={outletContext.resetInvite}
             />
           </div>
         )}
@@ -283,24 +317,7 @@ export function CampaignScreen() {
           onTouchStart={swipeHandlers.onTouchStart}
           onTouchEnd={swipeHandlers.onTouchEnd}
         >
-          <Outlet
-            context={{
-              campaignId,
-              role: isDM ? 'dm' : 'player',
-              isDM,
-              previewAsPlayer,
-              isGuest: status === 'guest',
-              presence,
-              talk,
-              worn,
-              openInvite: canInvite
-                ? () => {
-                    setInviteOpen(true);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                : null,
-            }}
-          />
+          <Outlet context={outletContext} />
         </div>
       </div>
 

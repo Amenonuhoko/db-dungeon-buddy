@@ -7,39 +7,14 @@ import { ConfirmButton } from './ConfirmButton.jsx';
 // from an earlier scene carry its name, so scrolling back reads like a
 // session recap. Only the DM writes here or clears it.
 export function SceneLog({ events, rolls, scenesById, currentSceneId, isDM, onPost, onClear }) {
-  const [draft, setDraft] = useState('');
-  const [posting, setPosting] = useState(false);
-
   const items = [
     ...events.map((e) => ({ ...e, type: 'event' })),
     ...rolls.map((r) => ({ ...r, type: 'roll' })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  async function post(event) {
-    event.preventDefault();
-    if (!draft.trim() || posting) return;
-    setPosting(true);
-    const ok = await onPost(draft.trim());
-    setPosting(false);
-    if (ok) setDraft('');
-  }
-
   return (
     <div className="scene-log">
-      {isDM && (
-        <form className="scene-log-form" onSubmit={post}>
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="What happens? “The paladin casts Lay on Hands”"
-            maxLength={500}
-            aria-label="Add a line to the log"
-          />
-          <button className="btn btn-primary btn-small" type="submit" disabled={!draft.trim() || posting}>
-            Post
-          </button>
-        </form>
-      )}
+      {isDM && <NarrateForm onPost={onPost} />}
 
       {items.length === 0 ? (
         <p className="hint-text" style={{ marginTop: '0.75rem' }}>
@@ -88,5 +63,36 @@ export function SceneLog({ events, rolls, scenesById, currentSceneId, isDM, onPo
         </div>
       )}
     </div>
+  );
+}
+
+// The DM's narration: one line into the log, shown to the table as a
+// caption over the scene.
+export function NarrateForm({ onPost }) {
+  const [draft, setDraft] = useState('');
+  const [posting, setPosting] = useState(false);
+
+  async function post(event) {
+    event.preventDefault();
+    if (!draft.trim() || posting) return;
+    setPosting(true);
+    const ok = await onPost(draft.trim());
+    setPosting(false);
+    if (ok) setDraft('');
+  }
+
+  return (
+    <form className="scene-log-form" onSubmit={post}>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="What happens? “The paladin casts Lay on Hands”"
+        maxLength={500}
+        aria-label="Add a line to the log"
+      />
+      <button className="btn btn-primary btn-small" type="submit" disabled={!draft.trim() || posting}>
+        Post
+      </button>
+    </form>
   );
 }

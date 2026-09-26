@@ -1431,13 +1431,15 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   quantized to its Healthy/Wounded/Bloodied/Near death band for
   players, exact for the DM) and condition tags; tapping one opens the
   old combat row — initiative, damage/heal, death saves, conditions. A
-  strip of names under the fight header is the turn order; the DM's
-  view follows the turn, opening whoever's up. Ending the fight clears
+  strip of names under the fight header is the turn order (the DM's
+  view used to auto-open whoever was up; once the scene went full
+  screen that meant a sheet covering the picture every turn, so the
+  turn spotlight moment does that job now). Ending the fight clears
   its monster tokens. A fight still open from the old list tracker, or
   started on another scene, can be moved here ("Run It on This
   Scene").
-- **The DM's scenes.** A picker (live one marked), + New Scene, Show to
-  Players, and Edit Scene (rename, picture, add a walk-on, delete).
+- **The DM's scenes** live in the toolbox: a picker (live one marked),
+  + New Scene, Show to Players, rename, picture, add a walk-on, delete.
   Viewing a scene doesn't show it — `?scene=` in the URL is only the
   DM's own view.
 - **The log** weaves `scene_events` with the table's dice rolls, newest
@@ -1449,18 +1451,46 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   appearing, a PC taken off or put back. The DM adds narrative lines
   ("Mira casts Lay on Hands"); players read. Offline, lines keep their
   stored order (same-millisecond lines don't shuffle).
-- **Around the scene**, as tabs below it: Log, Talk (with who's at the
-  table — moved here from Party) and the party Stash (also moved). A
-  player's header is their own character: My Sheet, Change, or Choose
-  a Character (Create My Character offline, which opens Party — the
-  route stays reachable even though it's no longer in a player's dock).
+- **Full screen** (Phase 6 step 1, below): the scene route escapes
+  CampaignScreen's header, padding and dock (it renders just the
+  outlet and the toasts). The picture is fitted to the viewport at its
+  own shape (`--scene-ratio`, read from the image). Controls — title,
+  the fight bar, a **menu** button (top right, with Talk's unread
+  badge) and a **backpack** button (bottom right; the DM gets a
+  **toolbox** instead) — show on a tap and, for players, hide again
+  after 5 s untouched (never while a sheet or token is open); the DM's
+  stay until dismissed. While hidden, token names, HP, initiative,
+  conditions and the turn ring fade out (`.scene-info`). `<html
+  data-immersive="controls|clean|sheet">` lets the global chrome
+  follow: the floating theme toggle is hidden on the scene (theme moved
+  into the menu — `applyTheme()` now announces changes so every toggle
+  agrees), and the dice button shows only with the controls.
+- **Sheets** slide up over the scene (`SceneSheet`): a tapped token's
+  combat panel; the **backpack** (`Backpack.jsx` — your character with
+  Open Full Sheet, what you carry via `SheetInventory`, the party
+  Stash); the **menu** (`SceneMenu.jsx` — Talk with who's at the table,
+  What happened (the log), change character, this campaign / campaign
+  settings (leave lives there), invite, view as player, all campaigns,
+  light/dark; the DM's also has Party, Lore, Monsters, Notes); and the
+  DM's **toolbox** (scene, fight, narrate). Which sheet is open is
+  `?panel=` in the URL, so a message toast or the hub's unread chip can
+  open Talk directly.
+- **Moments** (`lib/moments.js`): each render reduces the scene to a
+  snapshot (per-token HP, band, conditions; whose turn; log lines and
+  rolls), and every change against the previous snapshot becomes a
+  moment: an arrival fades in, a hit shakes red with "−6" floating up
+  (a monster's band for players — "Bloodied" — never its numbers), a
+  heal glows green, a new condition pops its name, the turn gets a gold
+  spotlight, new log lines and rolls become captions over the scene,
+  and your turn flashes "Your turn!" with a vibration. No first-load or
+  scene-switch replay; `prefers-reduced-motion` turns them into plain
+  appear-and-vanish.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
-  DM; a player has only Scene, so their dock is hidden (a one-button
-  dock is nowhere to go). Notes and the personal board are DM-only now
-  (`RequireDM`); message toasts and the hub's chips open the Scene's
-  Talk; the sheet's and Choose screen's back buttons return a player to
-  the Scene. Offline, a guest *player* sees that the DM runs the scene
-  on their own device.
+  DM (the dock shows on the backstage tabs; on the scene the menu gets
+  there); a player has only the Scene. Notes and the personal board are
+  DM-only (`RequireDM`); the sheet's and Choose screen's back buttons
+  return a player to the Scene. Offline, a guest *player* sees that the
+  DM runs the scene on their own device.
 
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
@@ -1502,9 +1532,10 @@ screen is built, per the rule above:
    rolls). Party, Lore, Monsters and Notes are DM-only; Talk and Stash
    moved onto the Scene. To use it on a deployed backend, run
    `db/migrations/015_scenes.sql`.
-6. **The companion** — planned, not started (§1, "The companion
-   principle"). Four steps, each shipped and verified before the next:
-   1. **Full-screen shell + live action moments.** The scene fills the
+6. **The companion** — in progress (§1, "The companion principle").
+   Four steps, each shipped and verified before the next:
+   1. **Full-screen shell + live action moments** — done (§7, Scenes).
+      The scene fills the
       screen for players and the DM, with no campaign header, tab dock or
       panels. Tap to show controls: a **backpack** button (the sheet,
       your inventory and the party stash, as one sheet sliding up over
@@ -1539,6 +1570,16 @@ screen is built, per the rule above:
       firelight flicker, and darkness with **fog of war** the DM reveals
       by painting (revealed areas stored like the personal board's
       strokes, in picture fractions). CSS/canvas overlays, no video.
+   5. **Atmosphere for the rest of the app** (to do, after step 4). The
+      same philosophy everywhere, not just on the scene: minimal chrome,
+      rich visuals. Home, sign-in, the campaign hub, the character
+      sheet (backpack), Choose Character, and the DM's backstage
+      screens (Party, Lore, Monsters, Notes) get the scene's treatment:
+      one clear thing per screen, controls out of the way until needed,
+      and mood — ambient backgrounds, gentle motion, the campaign's live
+      scene picture bleeding through behind the hub card and the sheet.
+      Scope it screen by screen before building; keep every screen
+      usable with `prefers-reduced-motion`.
 7. **Polish**: offline sync queue, guest→account migration, campaign
    invite-flow UI beyond the raw code field, tagging (see §7 — needs
    scoping first), structured inventory/currency (a real item list with

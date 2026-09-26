@@ -118,10 +118,10 @@ export function partySpot(index, count) {
 // Where a newcomer (a monster, a walk-on) appears: the first free spot in
 // rows across the top, so nobody lands on top of anyone already there.
 export function openSpot(taken) {
-  for (const y of [0.22, 0.36, 0.1, 0.5]) {
-    for (let i = 1; i <= 6; i += 1) {
-      const x = Math.round((i / 7) * 1000) / 1000;
-      if (taken.every((t) => Math.hypot(t.x - x, (t.y - y) * 0.75) > 0.09)) return { x, y };
+  for (const y of [0.2, 0.34, 0.48, 0.08, 0.62]) {
+    for (let i = 1; i <= 4; i += 1) {
+      const x = i / 5;
+      if (taken.every((t) => Math.hypot(t.x - x, (t.y - y) * 0.75) > 0.12)) return { x, y };
     }
   }
   return { x: 0.5, y: 0.5 };

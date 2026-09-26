@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Backpack } from '../components/Backpack.jsx';
+import { CampaignSettings } from '../components/CampaignSettings.jsx';
 import { AddCombatantForm, CombatantRow } from '../components/CombatParts.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
-import { PartyStash } from '../components/PartyStash.jsx';
+import { InvitePanel } from '../components/InvitePanel.jsx';
 import { Portrait } from '../components/Portrait.jsx';
-import { SceneLog } from '../components/SceneLog.jsx';
+import { BackpackIcon, MenuIcon, MomentLayer, SceneButton, SceneSheet, ToolboxIcon } from '../components/SceneChrome.jsx';
+import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
+import { SceneMenu } from '../components/SceneMenu.jsx';
 import { SceneStage } from '../components/SceneStage.jsx';
 import { TablePresence } from '../components/TablePresence.jsx';
 import { TableTalk } from '../components/TableTalk.jsx';
@@ -40,6 +44,7 @@ import {
   updateEncounter,
 } from '../lib/encounters.js';
 import { useCampaignLive } from '../lib/live.js';
+import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
 import {
   addToken,
   clearEvents,
@@ -67,12 +72,15 @@ import {
 } from '../lib/scenes.js';
 import { useSession } from '../lib/SessionContext.jsx';
 
-// The Scene — a player's whole surface (BIBLE.md §1/§7): the picture the
-// DM has pushed to the table, everyone standing on it, and the log of what
-// happened. There's no separate combat list: during a fight the tokens
-// *are* the tracker (turn glow, initiative, health, conditions), and
-// tapping one opens its full combat controls. The DM uses the same screen
-// to prepare scenes the players can't see yet, then shows one.
+// The Scene — a player's whole surface (BIBLE.md §1, "The companion
+// principle"): the picture the DM has pushed to the table, full screen,
+// with everyone standing on it. Controls hide until a tap: the menu (the
+// table — Talk, the log, the campaign) and the backpack (your character —
+// sheet, what you carry, the party stash). While hidden, only moments
+// break through: hits, heals, conditions, arrivals, captions, "Your
+// turn!". During a fight the tokens *are* the tracker, and tapping one
+// opens its combat controls. The DM runs the same screen with a toolbox
+// instead of a backpack, preparing scenes the players can't see yet.
 
 const LIVE_TABLES = [
   ...SCENE_TABLES,
@@ -82,6 +90,12 @@ const LIVE_TABLES = [
   'character_conditions',
   'dice_rolls',
 ];
+
+// Players' controls tuck themselves away after this long untouched; the
+// DM's stay until dismissed (they're running the table).
+const CONTROLS_MS = 5000;
+const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox'];
+const MENU_CHILDREN = ['talk', 'log', 'campaign', 'invite'];
 
 const HEALTH_PCT = { Healthy: 100, Wounded: 75, Bloodied: 50, 'Near death': 25, Down: 0 };
 
@@ -99,7 +113,21 @@ function describeError(err) {
 }
 
 export function SceneScreen() {
-  const { campaignId, isDM, isGuest, previewAsPlayer, presence, talk, worn } = useOutletContext();
+  const {
+    campaignId,
+    campaign,
+    isDM,
+    isRealDM,
+    isGuest,
+    previewAsPlayer,
+    setViewAsPlayer,
+    presence,
+    talk,
+    worn,
+    canInvite,
+    resetInvite,
+    onCampaignUpdated,
+  } = useOutletContext();
   const { status, user } = useSession();
   const navigate = useNavigate();
   const live = status === 'authenticated';
@@ -118,7 +146,12 @@ export function SceneScreen() {
   const [error, setError] = useState(null);
   // The open token, remembered per scene so switching scenes closes it.
   const [selection, setSelection] = useState({ sceneId: null, key: null });
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [controls, setControls] = useState(true);
+  const [controlsPoke, setControlsPoke] = useState(0);
+  const pokeControls = () => {
+    setControls(true);
+    setControlsPoke((n) => n + 1);
+  };
 
   const [params, setParams] = useSearchParams();
   const setParam = (key, value) => {
@@ -128,7 +161,9 @@ export function SceneScreen() {
     if (key === 'panel') next.delete('thread');
     setParams(next, { replace: true });
   };
-  const panel = ['talk', 'stash'].includes(params.get('panel')) && (params.get('panel') === 'stash' || live) ? params.get('panel') : 'log';
+  const panel = PANELS.includes(params.get('panel')) && (params.get('panel') !== 'talk' || live) ? params.get('panel') : null;
+  const openPanel = (name) => setParam('panel', name);
+  const closePanel = () => setParam('panel', null);
   const thread = params.get('thread');
 
   const refresh = useCallback(async () => {
@@ -301,14 +336,78 @@ export function SceneScreen() {
   const setSelectedKey = (key) => setSelection({ sceneId: scene?.id ?? null, key });
   const selected = views.find((v) => v.key === selectedKey) || null;
 
-  // Whoever's up gets opened for the DM as the turn moves — the controls
-  // for this turn's creature, without hunting for its token.
-  const currentKey = views.find((v) => v.isCurrent)?.key || null;
-  const lastCurrent = useRef(null);
+  // ---- Controls ---------------------------------------------------------------
+
+  // A player's controls fade after a few seconds untouched (never while a
+  // sheet or token is open). The floating theme toggle and dice button
+  // follow along through <html data-immersive> (index.css).
+  const busy = Boolean(panel || selected);
   useEffect(() => {
-    if (isDM && currentKey && currentKey !== lastCurrent.current) setSelection({ sceneId: scene?.id ?? null, key: currentKey });
-    lastCurrent.current = currentKey;
-  }, [isDM, currentKey, scene?.id]);
+    if (isDM || !controls || busy) return undefined;
+    const t = window.setTimeout(() => setControls(false), CONTROLS_MS);
+    return () => window.clearTimeout(t);
+  }, [isDM, controls, busy, controlsPoke]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.immersive = busy ? 'sheet' : controls ? 'controls' : 'clean';
+    return () => {
+      delete root.dataset.immersive;
+    };
+  }, [controls, busy]);
+
+  // ---- Moments ----------------------------------------------------------------
+
+  // What's on screen, reduced to what moments care about. Compared with
+  // the previous one after every refetch (lib/moments.js).
+  const snapshotKey = scene
+    ? JSON.stringify({
+        sceneId: scene.id,
+        tokens: Object.fromEntries(
+          views.map((v) => {
+            const hp = v.kind === 'pc' ? (v.sheet.currentHp ?? null) : v.combatant ? (v.combatant.currentHp ?? null) : null;
+            const band = v.kind === 'monster' ? healthDescriptor(v.combatant.currentHp, v.combatant.maxHp) : null;
+            return [v.key, { hp, exact: isDM || v.kind === 'pc', band, conditions: v.conditions }];
+          }),
+        ),
+        currentKey: views.find((v) => v.isCurrent)?.key || null,
+        mineCurrent: Boolean(myTurn),
+        lines: [
+          ...events.map((e) => ({ id: `e:${e.id}`, text: e.text, at: e.createdAt })),
+          ...rolls.map((r) => ({ id: `r:${r.id}`, text: `${r.displayName} rolled ${r.expression}: ${r.total}`, at: r.createdAt })),
+        ].sort((a, b) => b.at.localeCompare(a.at)),
+      })
+    : '';
+  const lastSnapshot = useRef(null);
+  const momentSeq = useRef(0);
+  const [tokenMoments, setTokenMoments] = useState({});
+  const [captions, setCaptions] = useState([]);
+  const [yourTurn, setYourTurn] = useState(0);
+
+  useEffect(() => {
+    const next = snapshotKey ? JSON.parse(snapshotKey) : null;
+    const diff = diffMoments(lastSnapshot.current, next);
+    lastSnapshot.current = next;
+    for (const m of diff.tokens) {
+      const id = (momentSeq.current += 1);
+      setTokenMoments((prev) => ({ ...prev, [m.key]: [...(prev[m.key] || []), { ...m, id }] }));
+      window.setTimeout(() => {
+        setTokenMoments((prev) => ({ ...prev, [m.key]: (prev[m.key] || []).filter((x) => x.id !== id) }));
+      }, MOMENT_MS);
+    }
+    for (const text of diff.captions) {
+      const id = (momentSeq.current += 1);
+      setCaptions((prev) => [...prev.slice(-2), { id, text }]);
+      window.setTimeout(() => setCaptions((prev) => prev.filter((c) => c.id !== id)), CAPTION_MS);
+    }
+    if (diff.yourTurn) {
+      const id = (momentSeq.current += 1);
+      setYourTurn(id);
+      navigator.vibrate?.([120, 60, 120]);
+      window.setTimeout(() => setYourTurn((cur) => (cur === id ? 0 : cur)), MOMENT_MS + 400);
+    }
+  }, [snapshotKey]);
+
 
   // ---- Logging --------------------------------------------------------------
 
@@ -556,86 +655,103 @@ export function SceneScreen() {
 
   // ---- Render -----------------------------------------------------------------
 
-  if (loading) return <p>Setting the scene…</p>;
+  if (loading) return <div className="scene-loading">Setting the scene…</div>;
 
   const sheetPath = (sheet) => `/campaigns/${campaignId}/characters/${sheet.id}`;
+  const tabPath = (tab) => `/campaigns/${campaignId}/${tab}`;
   const unreadTalk = talk?.totalUnread || 0;
+  const findCharacter = () => navigate(isGuest ? tabPath('characters') : `/campaigns/${campaignId}/choose`);
+
+  const menuItems = [
+    live && { key: 'talk', label: 'Talk', badge: unreadTalk, onClick: () => openPanel('talk') },
+    { key: 'log', label: 'What happened', onClick: () => openPanel('log') },
+    ...(isDM
+      ? [
+          { key: 'party', label: 'Party', onClick: () => navigate(tabPath('characters')) },
+          { key: 'lore', label: 'Lore', onClick: () => navigate(tabPath('encyclopedia')) },
+          { key: 'monsters', label: 'Monsters', onClick: () => navigate(tabPath('bestiary')) },
+          { key: 'notes', label: 'Notes', onClick: () => navigate(tabPath('notes')) },
+          canInvite && { key: 'invite', label: 'Invite players', onClick: () => openPanel('invite') },
+        ]
+      : [
+          !isGuest && !isRealDM && {
+            key: 'choose',
+            label: myCharacter ? 'Change character' : 'Choose a character',
+            onClick: findCharacter,
+          },
+        ]),
+    { key: 'campaign', label: isRealDM ? 'Campaign settings' : 'This campaign', onClick: () => openPanel('campaign') },
+    isRealDM && {
+      key: 'view-as',
+      label: previewAsPlayer ? 'Back to DM view' : 'View as a player',
+      onClick: () => {
+        setViewAsPlayer(!previewAsPlayer);
+        closePanel();
+      },
+    },
+    { key: 'home', label: 'All campaigns', onClick: () => navigate('/dashboard') },
+  ].filter(Boolean);
+
+  const panelTitles = {
+    menu: campaign?.name || 'Menu',
+    talk: 'Talk',
+    log: 'What happened',
+    campaign: isRealDM ? 'Campaign settings' : 'This campaign',
+    invite: 'Invite players',
+    backpack: 'Backpack',
+    toolbox: 'DM toolbox',
+  };
 
   return (
-    <div className="scene-screen">
-      {error && <p className="error-text">{error}</p>}
+    <div className={`scene-screen${controls ? ' controls' : ''}`}>
+      <SceneStage
+        artPath={scene?.backgroundPath ?? null}
+        tokens={views}
+        selectedKey={selectedKey}
+        showInfo={controls}
+        moments={tokenMoments}
+        onSelect={(key) => {
+          setSelectedKey(key);
+          pokeControls();
+        }}
+        onMove={(key, x, y) => {
+          moveToken(key, x, y);
+          pokeControls();
+        }}
+        onBackground={() => (controls ? setControls(false) : pokeControls())}
+      />
 
-      {!isDM && (
-        <div className="scene-me">
-          {myCharacter ? (
-            <button type="button" className="btn btn-ghost btn-small scene-me-sheet" onClick={() => navigate(sheetPath(myCharacter))}>
-              <Portrait path={myCharacter.portraitPath} name={myCharacter.name} size="sm" />
-              <span>{myCharacter.name} — My Sheet</span>
-            </button>
-          ) : isGuest ? (
-            <button type="button" className="btn btn-primary btn-small" onClick={() => navigate(`/campaigns/${campaignId}/characters`)}>
-              Create My Character
-            </button>
-          ) : (
-            <button type="button" className="btn btn-primary btn-small" onClick={() => navigate(`/campaigns/${campaignId}/choose`)}>
-              Choose a Character
-            </button>
-          )}
-          {!isGuest && myCharacter && (
-            <button type="button" className="btn btn-ghost btn-small" onClick={() => navigate(`/campaigns/${campaignId}/choose`)}>
-              Change
+      {!scene && (
+        <div className="scene-empty">
+          <h2>{isDM ? 'Set the scene' : 'No scene yet'}</h2>
+          <p>
+            {isDM
+              ? 'Make a scene — the tavern, the forest road, the dungeon room — give it a picture, then show it to your players.'
+              : isGuest
+                ? 'In offline play the DM runs the scene on their own device.'
+                : 'When the DM shows a scene, it appears here.'}
+          </p>
+          {isDM && (
+            <button type="button" className="btn btn-primary" onClick={() => openPanel('toolbox')}>
+              Open the Toolbox
             </button>
           )}
         </div>
       )}
 
-      {isDM && (
-        <SceneBar
-          scenes={orderedScenes}
-          scene={scene}
-          toolsOpen={toolsOpen}
-          onPick={(id) => setParam('scene', id)}
-          onNew={newScene}
-          onShow={showScene}
-          onToggleTools={() => setToolsOpen((o) => !o)}
-        />
-      )}
+      <MomentLayer captions={captions} yourTurn={yourTurn} />
 
-      {isDM && scene && toolsOpen && (
-        <SceneTools
-          key={scene.id}
-          scene={scene}
-          status={status}
-          campaignId={campaignId}
-          onRename={(name) => act(() => updateScene(status, campaignId, scene.id, { name }))}
-          onChanged={() => refresh().catch(() => {})}
-          onAddWalkOn={addWalkOn}
-          onDelete={() =>
-            act(async () => {
-              await removeScene(status, campaignId, scene);
-              setParam('scene', null);
-              setToolsOpen(false);
-            })
-          }
-        />
-      )}
-
-      {!scene ? (
-        <Panel corners topRule style={{ textAlign: 'center' }}>
-          <h3 style={{ fontSize: '1.05rem' }}>{isDM ? 'Set the Scene' : 'No Scene Yet'}</h3>
-          <p style={{ marginTop: '0.5rem' }}>
-            {isDM
-              ? 'Make a scene — the tavern, the forest road, the dungeon room — give it a picture, then show it to your players. They’ll see where everyone stands, live.'
-              : isGuest
-                ? 'In offline play the DM runs the scene on their own device.'
-                : 'When the DM shows a scene, it appears here — where everyone stands, and what’s happening.'}
-          </p>
-        </Panel>
-      ) : (
+      {controls && (
         <>
-          <div className="scene-title">
-            <h3>{scene.name}</h3>
-            {isDM && (scene.active ? <span className="chip chip-small scene-live-chip">Live</span> : <span className="chip chip-small">Only you can see this</span>)}
+          <div className="scene-top">
+            <div className="scene-top-title">
+              <h1>{scene?.name || campaign?.name}</h1>
+              {isDM && scene && (scene.active ? <span className="chip chip-small scene-live-chip">Live</span> : <span className="chip chip-small">Only you can see this</span>)}
+              {previewAsPlayer && <span className="chip chip-small scene-live-chip">Player view</span>}
+            </div>
+            <SceneButton label="Menu" badge={unreadTalk} onClick={() => openPanel('menu')}>
+              <MenuIcon />
+            </SceneButton>
           </div>
 
           {fightHere && (
@@ -653,119 +769,185 @@ export function SceneScreen() {
             />
           )}
 
-          <SceneStage artPath={scene.backgroundPath} tokens={views} selectedKey={selectedKey} onSelect={setSelectedKey} onMove={moveToken} />
-
-          {views.some((v) => v.draggable) && (
-            <p className="hint-text scene-hint">{isDM ? 'Drag tokens to place them; tap one to open it.' : 'Drag your token to move; tap anyone to see them.'}</p>
-          )}
-
-          {selected && (
-            <TokenPanel
-              view={selected}
-              inFight={Boolean(fightHere && selected.combatant && selected.combatant.encounterId === fightHere.id)}
-              isCurrent={selected.isCurrent}
-              isDM={isDM}
-              pcConditions={selected.kind === 'pc' ? conditionsByCharacter[selected.sheet.id] || [] : null}
-              canEditHp={isDM || (selected.kind === 'pc' && ownsSheet(selected.sheet))}
-              canEditInitiative={isDM || (selected.kind === 'pc' && isMyCharacter(selected.sheet))}
-              onClose={() => setSelectedKey(null)}
-              onOpenSheet={selected.kind === 'pc' ? () => navigate(sheetPath(selected.sheet)) : null}
-              onHp={(amount) => applyHp(selected, amount)}
-              onInitiative={(value) => setInitiative(selected.combatant, value)}
-              onRollInitiative={() => setInitiative(selected.combatant, rollInitiative(selected.combatant.dexModifier))}
-              onRemoveFromFight={() => removeFromFight(selected.combatant)}
-              onAddCondition={(label) => addConditionTo(selected, label)}
-              onRemoveCondition={(c) => removeConditionFrom(selected, c)}
-              onSetHidden={(hidden) => setPcHidden(selected, hidden)}
-              onRemoveWalkOn={() => removeWalkOn(selected)}
-            />
-          )}
-
-          {isDM && !fightHere && !fightElsewhere && <StartFight onStart={startFight} />}
-          {isDM && fightElsewhere && (
-            <Panel className="scene-fight-elsewhere">
-              <p>
-                <strong>{fightElsewhere.name}</strong> is still going
-                {scenes.some((s) => s.encounterId === fightElsewhere.id)
-                  ? ` on “${scenes.find((s) => s.encounterId === fightElsewhere.id).name}”`
-                  : ''}
-                .
-              </p>
-              <button type="button" className="btn btn-primary btn-small" onClick={bringFightHere}>
-                Run It on This Scene
-              </button>
-            </Panel>
-          )}
-          {isDM && fightHere && (
-            <AddCombatantForm
-              creatures={creatures}
-              availableSheets={sheets.filter((s) => !ordered.some((c) => c.characterId === s.id))}
-              onAdd={addToFight}
-            />
-          )}
+          <div className="scene-bottom">
+            {isDM ? (
+              <SceneButton label="DM toolbox" onClick={() => openPanel('toolbox')}>
+                <ToolboxIcon />
+              </SceneButton>
+            ) : (
+              <SceneButton label="Backpack" onClick={() => openPanel('backpack')}>
+                <BackpackIcon />
+              </SceneButton>
+            )}
+          </div>
         </>
       )}
 
-      <div className="party-views scene-panels" role="tablist" aria-label="Table">
-        <button type="button" role="tab" aria-selected={panel === 'log'} className={panel === 'log' ? 'active' : ''} onClick={() => setParam('panel', null)}>
-          Log
-        </button>
-        {live && (
-          <button type="button" role="tab" aria-selected={panel === 'talk'} className={panel === 'talk' ? 'active' : ''} onClick={() => setParam('panel', 'talk')}>
-            Talk
-            {unreadTalk > 0 && <span className="party-views-badge">{unreadTalk > 9 ? '9+' : unreadTalk}</span>}
-          </button>
-        )}
-        <button type="button" role="tab" aria-selected={panel === 'stash'} className={panel === 'stash' ? 'active' : ''} onClick={() => setParam('panel', 'stash')}>
-          Stash
-        </button>
-      </div>
+      {error && (
+        <p className="scene-error" role="alert" onClick={() => setError(null)}>
+          {error}
+        </p>
+      )}
 
-      {panel === 'log' && (
-        <Panel>
-          <SceneLog
-            events={events}
-            rolls={rolls}
-            scenesById={scenesById}
-            currentSceneId={scene?.id ?? null}
+      {selected && (
+        <SceneSheet title={selected.name} onClose={() => setSelectedKey(null)}>
+          <TokenPanel
+            view={selected}
+            inFight={Boolean(fightHere && selected.combatant && selected.combatant.encounterId === fightHere.id)}
+            isCurrent={selected.isCurrent}
             isDM={isDM}
-            onPost={postLine}
-            onClear={clearLog}
+            pcConditions={selected.kind === 'pc' ? conditionsByCharacter[selected.sheet.id] || [] : null}
+            canEditHp={isDM || (selected.kind === 'pc' && ownsSheet(selected.sheet))}
+            canEditInitiative={isDM || (selected.kind === 'pc' && isMyCharacter(selected.sheet))}
+            onOpenSheet={selected.kind === 'pc' ? () => navigate(sheetPath(selected.sheet)) : null}
+            onHp={(amount) => applyHp(selected, amount)}
+            onInitiative={(value) => setInitiative(selected.combatant, value)}
+            onRollInitiative={() => setInitiative(selected.combatant, rollInitiative(selected.combatant.dexModifier))}
+            onRemoveFromFight={() => removeFromFight(selected.combatant)}
+            onAddCondition={(label) => addConditionTo(selected, label)}
+            onRemoveCondition={(c) => removeConditionFrom(selected, c)}
+            onSetHidden={(hidden) => setPcHidden(selected, hidden)}
+            onRemoveWalkOn={() => removeWalkOn(selected)}
           />
-        </Panel>
+        </SceneSheet>
       )}
 
-      {panel === 'talk' && talk && (
-        <>
-          {presence && (
-            <TablePresence
-              members={members}
-              online={presence.online || {}}
-              ready={presence.ready}
-              myId={user?.id}
-              worn={worn}
-              onWhisper={talk.status === 'unavailable' ? null : (userId) => setParams({ panel: 'talk', thread: userId }, { replace: true })}
+      {panel && (
+        <SceneSheet title={panelTitles[panel]} onClose={closePanel} onBack={MENU_CHILDREN.includes(panel) ? () => openPanel('menu') : undefined}>
+          {panel === 'menu' && <SceneMenu items={menuItems} />}
+
+          {panel === 'talk' && talk && (
+            <>
+              {presence && (
+                <TablePresence
+                  members={members}
+                  online={presence.online || {}}
+                  ready={presence.ready}
+                  myId={user?.id}
+                  worn={worn}
+                  onWhisper={talk.status === 'unavailable' ? null : (userId) => setParams({ panel: 'talk', thread: userId }, { replace: true })}
+                />
+              )}
+              <TableTalk
+                talk={talk}
+                members={members}
+                online={presence?.online || {}}
+                worn={worn}
+                thread={thread}
+                onThread={(t) => setParams({ panel: 'talk', ...(t ? { thread: t } : {}) }, { replace: true })}
+              />
+            </>
+          )}
+
+          {panel === 'log' && (
+            <SceneLog
+              events={events}
+              rolls={rolls}
+              scenesById={scenesById}
+              currentSceneId={scene?.id ?? null}
+              isDM={isDM}
+              onPost={postLine}
+              onClear={clearLog}
             />
           )}
-          <TableTalk
-            talk={talk}
-            members={members}
-            online={presence?.online || {}}
-            worn={worn}
-            thread={thread}
-            onThread={(t) => setParams({ panel: 'talk', ...(t ? { thread: t } : {}) }, { replace: true })}
-          />
-        </>
-      )}
 
-      {panel === 'stash' && <PartyStash status={status} campaignId={campaignId} characterNames={sheets.map((s) => s.name)} />}
+          {panel === 'campaign' && campaign && (
+            <CampaignSettings campaign={campaign} isDM={isRealDM} isGuest={isGuest} onUpdated={onCampaignUpdated} onClose={closePanel} />
+          )}
+
+          {panel === 'invite' && canInvite && (
+            <InvitePanel code={campaign.invite_code} campaignName={campaign.name} onClose={closePanel} onReset={resetInvite} />
+          )}
+
+          {panel === 'backpack' && (
+            <Backpack
+              character={myCharacter}
+              conditions={myCharacter ? conditionsByCharacter[myCharacter.id] || [] : []}
+              status={status}
+              campaignId={campaignId}
+              characterNames={sheets.map((s) => s.name)}
+              onOpenSheet={() => navigate(sheetPath(myCharacter))}
+              onFindCharacter={findCharacter}
+              findLabel={isGuest ? (myCharacter ? null : 'Create My Character') : myCharacter ? 'Change Character' : 'Choose a Character'}
+              onPatch={(patch) => act(() => updateSheet(status, campaignId, myCharacter.id, patch))}
+            />
+          )}
+
+          {panel === 'toolbox' && isDM && (
+            <div className="toolbox">
+              <section>
+                <h4>Scene</h4>
+                <SceneBar scenes={orderedScenes} scene={scene} onPick={(id) => setParam('scene', id)} onNew={newScene} onShow={showScene} />
+                {scene && (
+                  <SceneTools
+                    key={scene.id}
+                    scene={scene}
+                    status={status}
+                    campaignId={campaignId}
+                    onRename={(name) => act(() => updateScene(status, campaignId, scene.id, { name }))}
+                    onChanged={() => refresh().catch(() => {})}
+                    onAddWalkOn={addWalkOn}
+                    onDelete={() =>
+                      act(async () => {
+                        await removeScene(status, campaignId, scene);
+                        setParam('scene', null);
+                      })
+                    }
+                  />
+                )}
+              </section>
+
+              {scene && (
+                <section>
+                  <h4>Fight</h4>
+                  {fightHere ? (
+                    <>
+                      <p className="hint-text" style={{ margin: 0 }}>
+                        <strong>{fightHere.name}</strong> — turn controls sit at the top of the scene; tap a token for its HP, initiative and conditions.
+                      </p>
+                      <AddCombatantForm
+                        creatures={creatures}
+                        availableSheets={sheets.filter((s) => !ordered.some((c) => c.characterId === s.id))}
+                        onAdd={addToFight}
+                      />
+                    </>
+                  ) : fightElsewhere ? (
+                    <div className="scene-fight-elsewhere">
+                      <p>
+                        <strong>{fightElsewhere.name}</strong> is still going
+                        {scenes.some((s) => s.encounterId === fightElsewhere.id)
+                          ? ` on “${scenes.find((s) => s.encounterId === fightElsewhere.id).name}”`
+                          : ''}
+                        .
+                      </p>
+                      <button type="button" className="btn btn-primary btn-small" onClick={bringFightHere}>
+                        Run It on This Scene
+                      </button>
+                    </div>
+                  ) : (
+                    <StartFight onStart={startFight} />
+                  )}
+                </section>
+              )}
+
+              <section>
+                <h4>Narrate</h4>
+                <NarrateForm onPost={postLine} />
+                <p className="hint-text" style={{ margin: 0 }}>
+                  Lines appear over the scene for everyone{scene?.active ? '' : ' once this scene is live'}, and stay in the log.
+                </p>
+              </section>
+            </div>
+          )}
+        </SceneSheet>
+      )}
     </div>
   );
 }
 
 // -----------------------------------------------------------------------
 
-function SceneBar({ scenes, scene, toolsOpen, onPick, onNew, onShow, onToggleTools }) {
+function SceneBar({ scenes, scene, onPick, onNew, onShow }) {
   const [naming, setNaming] = useState(null);
 
   async function submit(event) {
@@ -809,11 +991,6 @@ function SceneBar({ scenes, scene, toolsOpen, onPick, onNew, onShow, onToggleToo
           Show to Players
         </button>
       )}
-      {scene && (
-        <button className="btn btn-ghost btn-small" type="button" onClick={onToggleTools} aria-expanded={toolsOpen}>
-          {toolsOpen ? 'Done' : 'Edit Scene'}
-        </button>
-      )}
     </div>
   );
 }
@@ -855,7 +1032,7 @@ function SceneTools({ scene, status, campaignId, onRename, onChanged, onAddWalkO
   }
 
   return (
-    <Panel className="scene-tools">
+    <div className="scene-tools">
       <form
         className="scene-tools-row"
         onSubmit={(e) => {
@@ -909,7 +1086,7 @@ function SceneTools({ scene, status, campaignId, onRename, onChanged, onAddWalkO
           Delete Scene
         </ConfirmButton>
       </div>
-    </Panel>
+    </div>
   );
 }
 
@@ -1035,7 +1212,6 @@ function TokenPanel({
   pcConditions,
   canEditHp,
   canEditInitiative,
-  onClose,
   onOpenSheet,
   onHp,
   onInitiative,
@@ -1113,9 +1289,6 @@ function TokenPanel({
             Remove
           </ConfirmButton>
         )}
-        <button type="button" className="btn btn-ghost btn-small" onClick={onClose}>
-          Close
-        </button>
       </div>
     </div>
   );
