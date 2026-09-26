@@ -283,7 +283,7 @@ export function CharacterSheetScreen() {
       // The picture first: once the sheet is gone, nobody may delete it.
       await deletePortraitFile(sheet.portraitPath);
       await removeSheet(status, campaignId, sheet.id);
-      navigate(`/campaigns/${campaignId}/characters`);
+      navigate(rosterPath);
     } catch (err) {
       setActionError(describeWriteError(err));
     }
@@ -325,7 +325,9 @@ export function CharacterSheetScreen() {
     downloadTextFile(`${slugify(sheet.name)}.md`, sheetToMarkdown(sheet, sheetConditions));
   }
 
-  const rosterPath = `/campaigns/${campaignId}/characters`;
+  // Back to where the table is: the Scene for a player, Party for the DM.
+  const rosterPath = `/campaigns/${campaignId}/${isDM ? 'characters' : 'scene'}`;
+  const rosterLabel = isDM ? 'Party' : 'Scene';
 
   if (campaignError || error) {
     return (
@@ -333,7 +335,7 @@ export function CharacterSheetScreen() {
         <div className="character-sheet-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
           <p className="error-text">{campaignError || error}</p>
           <div style={{ marginTop: '1rem' }}>
-            <BackButton to={rosterPath} label="Party" />
+            <BackButton to={rosterPath} label={rosterLabel} />
           </div>
         </div>
       </div>
@@ -358,7 +360,7 @@ export function CharacterSheetScreen() {
         <div className="character-sheet-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
           <p>That character sheet doesn't exist here.</p>
           <div style={{ marginTop: '1rem' }}>
-            <BackButton to={rosterPath} label="Party" />
+            <BackButton to={rosterPath} label={rosterLabel} />
           </div>
         </div>
       </div>
@@ -385,7 +387,7 @@ export function CharacterSheetScreen() {
   return (
     <div className="character-sheet-screen screen-enter">
       <div className="character-sheet-shell">
-        <BackButton to={rosterPath} label="Party" />
+        <BackButton to={rosterPath} label={rosterLabel} />
 
         {status === 'authenticated' && !editing && (
           <SheetWearerBar

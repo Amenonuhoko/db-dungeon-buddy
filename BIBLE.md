@@ -17,13 +17,50 @@ New keys use a `dungeonbuddy.` prefix.
 
 A browser-based PWA that is a full companion for running and playing a
 tabletop D&D campaign — not a dice-roller add-on, but a place a DM can
-build a world in and players can live in during a session:
+build a world in and players can live in during a session.
 
-- One app, two hats: **Dungeon Master** tools (world-building via the
-  Encyclopedia, the Bestiary, encounter/battle tracking, campaign notes)
-  and **Player** tools (character sheet, personal notes) — a player's
-  whole surface is those two, full stop; the Encyclopedia and Bestiary
-  tabs don't exist for them at all, not just locked read-only (§4/§9).
+**Repositioned 2026-09 around a visual-aid pivot.** The app splits into
+two very different surfaces, not just two permission levels:
+
+- **Player side: one screen, the Scene.** A player's entire surface is a
+  DM-uploaded background image with tokens on it showing where everyone
+  (and everything) currently is — a tavern, a forest, a dungeon room.
+  There is no separate Party roster page and no separate list-based
+  combat tracker anymore: combat *is* the scene. Tokens carry HP,
+  whose-turn-it-is, and condition badges directly on them; tapping a PC's
+  token opens their character sheet, tapping a monster token shows its
+  health band. Players can drag their own token; only the DM adds/removes
+  tokens, changes the background, or moves anyone else's. Beside the
+  scene sits a read-only, DM-curated **event log** — short lines like
+  "Goblin enters the area" or "Paladin casts Lay on Hands," some
+  auto-generated from mechanical actions, some typed by the DM. See §7
+  (Scenes) and §8 (Phase 5) for the concrete plan.
+- **DM side: everything the app already did, kept intact as backstage
+  tooling.** World-building via the Encyclopedia and Bestiary, campaign
+  notes, the personal sketch board, character sheet authoring, invite
+  codes — none of it goes away or gets simplified. It's just no longer
+  part of what a player sees or navigates; it's prep and reference
+  material for building the scenes and monsters that eventually get
+  pushed live. The DM prepares and runs scenes on the same Scene tab
+  the players see — a prep scene stays invisible to players until the
+  DM shows it.
+- **The companion principle (2026-09, planned — §8 Phase 6).** The app
+  is the table's companion and does only that. **Minimalist in design,
+  maximalist in visual aid**: as little chrome as possible, as much help
+  *seeing* the scene as possible. A player's screen is the scene, full
+  screen, and nothing else. Two things sit behind it:
+  - **The backpack** — everything about *your* character: the full sheet
+    (stats, HP, spells, death saves, resources), your own inventory, and
+    the party stash.
+  - **The menu** — everything about *the table*: Talk (chat and
+    whispers), the log, change character, leave the campaign, back to
+    your campaigns.
+  Controls hide by default. A tap shows them for a few seconds, like a
+  video player; while hidden the picture and tokens stand alone — no
+  HP rings, turn marker or condition tags. **Moments still play and
+  fade**: a hit, a heal, a condition landing, a newcomer arriving, a
+  caption from the log, and "Your turn!" (with a vibration) animate over
+  the clean scene for a couple of seconds, then disappear.
 - Works standing at a table on a phone, or on a laptop running the show.
   Installable (PWA), and usable offline for anything that doesn't need
   live sync (see §6).
@@ -367,7 +404,7 @@ The rules this pass settled on, worth keeping for anything new:
   DM role anywhere else), and someone in offline mode can still follow
   an invite.
 - **Nobody relays numbers.** Players roll their own initiative from
-  their own row on the Combat tab (a pulsing d20 prompts them), through
+  their own token's combat panel on the Scene (a pulsing d20 prompts them), through
   `set_my_initiative()` (`006_player_initiative.sql`). "Hasn't rolled"
   is its own state (null, shown as "—"), and the DM's single **Begin
   Combat** button rolls for anyone who still hasn't — the old separate
@@ -571,12 +608,17 @@ unfiltered list "just for this one view."
 **A guest who chose Player has to get the same read/write boundary a
 real player gets — no screen should grant it blanket "you're a guest,
 here's DM powers" access.** Encyclopedia and Bestiary don't just
-read-only gate on `isDM` — they don't exist for a player at all.
-`tabsForRole()` in `lib/campaignTabs.jsx` drops both tabs from the bottom
-dock for anyone who isn't DM, `CampaignIndexRedirect` only ever restores
-a remembered tab the role is allowed to see (falling back to Party), and
-`RequireDM` guards both routes directly (bounces to Party) in case a
-player lands on one anyway —
+read-only gate on `isDM` — they don't exist for a player at all. Under
+the Scene pivot (§1/§7/§8), the same rule extends to the whole DM
+toolkit: Party, Notes and the personal board are DM-only tabs too, and
+the Scene's scene-management controls only render for the DM — a
+player's tab bar collapses to Scene alone. `tabsForRole()` in
+`lib/campaignTabs.jsx` drops DM-only tabs from the bottom dock for
+anyone who isn't DM, `CampaignIndexRedirect` only ever restores a
+remembered tab the role is allowed to see (falling back to Scene), and
+`RequireDM` guards Lore, Monsters and Notes directly (bounces to Scene)
+in case a player lands on one anyway (Party's route stays open — an
+offline player creates their character there) —
 stale link, browser back/forward, hand-typed URL. This is a UI-visibility
 promise, not a data-security boundary; RLS is what actually protects the
 rows if a real account calls the API directly. CharactersScreen used to
@@ -844,7 +886,7 @@ Built (`005_live_play.sql` — Phase 4, the live-play phase from §8):
   tie-breaker, and what the d20 button adds), `is_pc`. A PC's HP and
   conditions are **not** stored here — `character_sheets.current_hp` and
   `character_conditions` stay the single source of truth, so a hit taken
-  on the Combat tab and one applied from the sheet are the same write and
+  in a fight and one applied from the sheet are the same write and
   the two screens can't disagree. `armor_class`/`max_hp`/`current_hp`/
   `conditions text[]` only matter for monsters/NPCs. Same RLS shape as
   `encounters`.
@@ -869,8 +911,8 @@ opens one channel per campaign and debounces every event into a single
 refetch — at this scale, refetching beats hand-merging deltas. DELETE
 events can't be column-filtered in Supabase Realtime, so those are
 subscribed unfiltered (under RLS they carry only the primary key — a
-delete elsewhere just costs a harmless refetch). The Combat tab also
-refetches when a backgrounded phone tab becomes visible again, since a
+delete elsewhere just costs a harmless refetch). Live screens also
+refetch when a backgrounded phone tab becomes visible again, since a
 suspended tab can miss events. Realtime applies each table's RLS select
 policy per subscriber, so nobody receives rows they couldn't already read.
 
@@ -883,8 +925,13 @@ table can see is a real way to play. The roll log is account-only (a
 guest's roller already keeps its own history). A guest *player* sees a
 note that combat runs on the DM's device.
 
-**The screens** — `CombatScreen.jsx` (a fifth tab, `/campaigns/:id/combat`,
-visible to players too, unlike Encyclopedia/Bestiary):
+**The screens** — *superseded by the Scene (015, below): the fight now
+lives on the tokens, `CombatScreen.jsx` and its tab are gone, and
+`/campaigns/:id/combat` redirects to the Scene. The per-combatant row,
+condition picker and Add Combatant form moved unchanged into
+`components/CombatParts.jsx`, opened by tapping a token; the table-roll
+panel became part of the scene log.* What the list tracker did (still
+true of those parts):
 - DM: Start Encounter (every character sheet joins automatically), Add
   Combatant (custom, from the Bestiary with AC/HP/DEX prefilled, or a
   party member not yet in the fight; "how many" spawns numbered copies
@@ -1330,6 +1377,267 @@ functions the manual "New Entry" forms already use
 imported entry is indistinguishable from a hand-typed one afterward:
 same storage, same RLS, same edit/delete/export behavior.
 
+**Scenes (`015_scenes.sql`) — the visual-aid pivot, §1.** The Scene
+tab (`SceneScreen.jsx`, `/campaigns/:id/scene`) is a player's whole
+surface and the DM's live-play screen.
+
+Schema:
+- `scenes` — `campaign_id`, `name`, `background_path` (the private
+  `scenes` bucket, check-constrained into that scene's own folder),
+  `active`, and `encounter_id` (the fight this scene is running, same
+  campaign — trigger-checked). A partial unique index allows **one
+  active scene per campaign**; `push_scene(id)` (DM-only, one
+  transaction) swaps it. **Players can read only the active scene** —
+  the DM's prep scenes, their tokens and their pictures are invisible to
+  them (RLS on the rows, `scene_art_can_read()` on the files), so an
+  ambush prepared in advance stays a surprise.
+- `scene_tokens` — `scene_id`, `campaign_id` (from the scene, by
+  trigger), and one of `character_id` (a PC), `combatant_id` (a monster
+  in the fight; deleted with its combatant) or just `label` (a walk-on
+  NPC: "The barkeep"). `x`/`y` are 0–1 fractions of the picture, so a
+  scene lines up on every screen; `hidden` takes a PC off a scene (a
+  split party). `unique (scene_id, character_id)`. HP, initiative and
+  conditions are never stored on a token. The DM writes tokens
+  directly; a player's only write is `place_my_token()` — their own
+  worn character, on the live scene, x/y only (a token the DM hid stays
+  hidden).
+- `scene_events` — the log: `scene_id` (set null if the scene is
+  deleted, so the timeline survives), `kind` (`auto` | `manual`),
+  `text`. Members may add `auto` lines (a player's own HP change is
+  logged from their device); only the DM adds `manual` lines or clears
+  the log. That split is a UI promise more than a wall — a player
+  calling the API could word an "auto" line themselves, accepted for a
+  table of friends.
+- The `scenes` storage bucket: 3 MB, WebP/JPEG/PNG, DM uploads, at most
+  three files per scene folder. The picture is scaled to 1920px on the
+  device first (1024px as a `data:` URL on the scene offline). Deleting
+  a scene deletes its picture first, while the DM still may.
+- Realtime publishes all three tables.
+
+How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
+`SceneLog.jsx`, `CombatParts.jsx`, `lib/scenes.js`):
+- **Tokens.** Every PC stands on every scene by default (online: worn
+  characters — an unclaimed pre-made isn't at the table), spread along
+  the bottom until someone moves them; a token row is only written the
+  first time they're placed. Monsters and walk-ons appear at the first
+  free spot across the top (`openSpot()`), never on top of anyone.
+  Drag to move (the DM: anyone; a player: their own character, on the
+  live scene), tap to open. Token dragging stops touch events from
+  reaching CampaignScreen's tab swipe.
+- **The fight is on the tokens.** "Start a Fight Here" creates an
+  encounter linked to the scene and brings in every PC on it; the
+  existing Add Combatant form adds monsters (each gets a token). Tokens
+  show the turn (a pulsing ring), initiative, a health bar (a monster's
+  quantized to its Healthy/Wounded/Bloodied/Near death band for
+  players, exact for the DM) and condition tags; tapping one opens the
+  old combat row — initiative, damage/heal, death saves, conditions. A
+  strip of names under the fight header is the turn order (the DM's
+  view used to auto-open whoever was up; once the scene went full
+  screen that meant a sheet covering the picture every turn, so the
+  turn spotlight moment does that job now). Ending the fight clears
+  its monster tokens. A fight still open from the old list tracker, or
+  started on another scene, can be moved here ("Run It on This
+  Scene").
+- **The DM's scenes** live in the toolbox: a picker (live one marked),
+  + New Scene, Show to Players, rename, picture, add a walk-on, delete.
+  Viewing a scene doesn't show it — `?scene=` in the URL is only the
+  DM's own view.
+- **The log** weaves `scene_events` with the table's dice rolls, newest
+  first; a line from an earlier scene carries that scene's name. The
+  app writes lines itself only for the **live** scene: a scene shown,
+  a fight breaking out, someone entering or leaving it, combat
+  beginning, each new round, health crossing into a new band ("Goblin 1
+  is bloodied.", "Mira falls!"), conditions on and off, a walk-on
+  appearing, a PC taken off or put back. The DM adds narrative lines
+  ("Mira casts Lay on Hands"); players read. Offline, lines keep their
+  stored order (same-millisecond lines don't shuffle).
+- **Full screen** (Phase 6 step 1, below): the scene route escapes
+  CampaignScreen's header, padding and dock (it renders just the
+  outlet and the toasts). The picture is fitted to the viewport at its
+  own shape (`--scene-ratio`, read from the image). Controls — title,
+  the fight bar, a **menu** button (top right, with Talk's unread
+  badge) and a **backpack** button (bottom right; the DM gets a
+  **toolbox** instead) — show on a tap and, for players, hide again
+  after 5 s untouched (never while a sheet or token is open); the DM's
+  stay until dismissed. While hidden, token names, HP, initiative,
+  conditions and the turn ring fade out (`.scene-info`). `<html
+  data-immersive="controls|clean|sheet">` lets the global chrome
+  follow: the floating theme toggle is hidden on the scene (theme moved
+  into the menu — `applyTheme()` now announces changes so every toggle
+  agrees), and the dice button shows only with the controls.
+- **Sheets** slide up over the scene (`SceneSheet`): a tapped token's
+  combat panel; the **backpack** (`Backpack.jsx` — your character with
+  Open Full Sheet, what you carry via `SheetInventory`, the party
+  Stash); the **menu** (`SceneMenu.jsx` — Talk with who's at the table,
+  What happened (the log), change character, this campaign / campaign
+  settings (leave lives there), invite, view as player, all campaigns,
+  light/dark; the DM's also has Party, Lore, Monsters, Notes); and the
+  DM's **toolbox** (scene, fight, narrate). Which sheet is open is
+  `?panel=` in the URL, so a message toast or the hub's unread chip can
+  open Talk directly.
+- **Moments** (`lib/moments.js`): each render reduces the scene to a
+  snapshot (per-token HP, band, conditions; whose turn; log lines and
+  rolls), and every change against the previous snapshot becomes a
+  moment: an arrival fades in, a hit shakes red with "−6" floating up
+  (a monster's band for players — "Bloodied" — never its numbers), a
+  heal glows green, a new condition pops its name, the turn gets a gold
+  spotlight, new log lines and rolls become captions over the scene,
+  and your turn flashes "Your turn!" with a vibration. No first-load or
+  scene-switch replay; `prefers-reduced-motion` turns them into plain
+  appear-and-vanish.
+- **Pan, zoom, grid, measuring** (Phase 6 step 2, `016_scene_grid.sql`).
+  The picture pans and zooms — pinch, mouse wheel / trackpad, drag the
+  background; double-tap or "Whole scene" resets — up to 5×, always
+  covering the view. Tokens scale by zoom^−0.6 so they stay readable
+  without swamping a zoomed map; token positions are still picture
+  fractions, so dragging works at any zoom. A background drag that moves
+  is a pan, never a tap, so it doesn't toggle the controls. The DM lays
+  a **grid** from the toolbox, fitted live over the scene ("squares
+  across" and what a square is worth): `scenes.grid_size` (a square's
+  width as a fraction of the picture's width) and `grid_feet`. With a
+  grid, the DM gets a **ruler** beside the toolbox: dragging draws a
+  line reading out whole squares × feet (`measureFeet()`, straight
+  line). The line is **never stored** — it goes out live on the
+  broadcast channel `scene:<campaign id>` (`lib/sceneLive.js`; 016's
+  `realtime.messages` policies let members listen and only the DM
+  send, with the same public-channel fallback as presence), throttled
+  to ~12/s but always ending where the finger stopped, lingers 1.5 s
+  after release, and players drop it after 4 s of silence. Only the
+  live scene's line is shared.
+- **The DM's quick bar** (`017_dm_quick_tools.sql`). The principle: if
+  running a session from the app is slower than not using it, the DM
+  won't. So the DM's controls are a bar of seven (Scene, Map, Mood,
+  Party, Announce, Look up, Fight), each opening a sheet
+  of presets over the scene — most things are two taps:
+  - **Scene** — every scene as a picture tile (tap = go there), and a
+    new scene from any **built-in backdrop** in one tap (eight top-down
+    maps in `public/backdrops/`: tavern, forest road, cave, dungeon
+    room, city street, ship deck, castle hall, campfire — precached for
+    offline). "Show to players straight away" (on by default) makes
+    tapping showing. A built-in is stored as `background_path =
+    'builtin:<id>'` (017 widens the path check); More can swap a
+    scene's backdrop or upload a picture. More backdrops are planned.
+  - **Mood** — `scenes.mood` (`{ time, weather, light, magic }`, one
+    choice per group; `lib/mood.js`). Twelve presets (Cozy inn, Stormy
+    night, Haunted, Deep dungeon, Pitch black, Winter road, Misty dawn,
+    Dread, Blood rite, Sanctuary, The rift opens, Clear) and every layer
+    on its own: dawn/day/dusk/night tints; rain, snow, fog, storm (with
+    lightning); firelight flicker, torchlight and darkness cut away
+    around the party's tokens (the DM sees darkness at half strength);
+    eerie green, blood moon, holy light, a portal, a heartbeat pulse.
+    CSS/SVG in `SceneMood.jsx`, inside the stage so it pans and zooms;
+    tints under the tokens, weather over them; still under
+    reduced-motion. It reaches players like any scene change (Realtime
+    on `scenes`).
+  - **Announce** — `scene_events` gains `style` (`line` | `call` |
+    `title` | `handout`), `body`, and `to_user`. A **call** ("Roll
+    initiative!") is a banner with a buzz; ten presets plus the DM's
+    own ("★ Keep", saved per campaign on this device). A **title card**
+    ("Night falls", "Chapter Two") fills every screen for five seconds.
+    A **handout** — a Lore entry or text written on the spot — lands as
+    a parchment card each player reads and puts away (and can reopen
+    from the log). Any of them can go to **one player**: RLS shows a
+    `to_user` line only to them and the DM, and a player can't aim or
+    style anything (they still only add plain automatic lines). Calls,
+    title cards and handouts sit above any open sheet.
+  - **Look up** — one search across Lore, Monsters and Notes, read over
+    the scene: a monster's stat block with "Add to the Fight" (how
+    many, initiative rolled, a token each), Lore or a note with "Show
+    as a Handout", and a link to its full tab.
+  - **Fight** — start one, add combatants, or bring over a fight
+    running elsewhere (turn controls stay at the top of the scene).
+  - **Map** — this scene's name, backdrop or own picture, walk-ons,
+    delete, the grid, and the map tools below (fog, markers, spell
+    areas). A quiet narrated line lives in Announce → Line. The ruler
+    and "Pick tokens" sit by the menu.
+- **Tokens that work for a DM** (`018_tokens_for_the_dm.sql`). Moving
+  a party one token at a time was the first thing that made the app
+  slower than a table, so:
+  - **Pick tokens** (top bar) — tap tokens to pick them, or "Whole
+    party"; tap the map and the group walks there in the same shape;
+    drag any picked token and they all follow. Marching orders: single
+    file, two abreast, circle (`lib/formations.js`).
+  - **Snap to the grid** whenever a scene has one: an odd-sized token
+    sits in a square, an even-sized one on the corner between four.
+  - **Sizes** — Medium, Large, Huge, Gargantuan (`scene_tokens.size`,
+    squares across), set from a token's panel.
+  - **Hidden until revealed** — `scene_tokens.dm_only`: placed but
+    invisible to players (RLS; the DM sees it faded with a dashed edge).
+    Set up the ambush before the session, then "Reveal to Players" (or
+    Reveal on a picked group) — it arrives as a moment and a log line.
+  - **Monsters before a fight** — Look up → a monster → "Place on the
+    Scene" (how many, hidden by default) makes tokens that remember
+    their Bestiary entry (`creature_id`). Starting a fight brings every
+    revealed one in with its stats; revealing one mid-fight adds it.
+    Hidden ones stay out of the turn order, so it can't give them away.
+  - **Ping** — the DM holds a finger on the map: a ripple there on every
+    screen (broadcast like the measuring line, never stored).
+- **The DM's eyes** (also 018). A **Party** sheet on the quick bar:
+  every character's HP, AC, passive Perception (10 + WIS — sheets don't
+  track skill proficiency), speed, conditions and whether they're
+  dying, tap to open. A monster's token shows its **stat block** — the
+  combatant (or placed token) remembers its Bestiary entry. With tokens
+  picked, the group bar can **damage, heal or add a condition to all of
+  them** (a Fireball on four goblins is one tap; tokens with no HP are
+  skipped). Conditions can be **timed** — 1, 2, 3 rounds, a minute,
+  ten minutes: the timer lives on the encounter (`encounters.timers`),
+  shows as ⧗ on the chip, and when a new round starts expired ones come
+  off with a log line. The dice roller has a **secret roll** switch in
+  a shared campaign — that roll stays on your device.
+- **Exploration visuals** (`019_fog_and_marks.sql`):
+  - **Fog of war** — Map → Cover the Map in Fog, then paint rooms open
+    (Reveal / Hide brush, three sizes). Stored as strokes on
+    `scenes.fog` (points 0–1000 across width and height, replayed in
+    order), drawn as a blurred SVG mask. The DM sees through it at half
+    strength; players see darkness, except their own tokens (which sit
+    above it). Players aren't just shown fog over things — monster and
+    NPC tokens and markers in fogged spots are left out entirely
+    (`inFog()`), and the turn order says "Something unseen" rather than
+    naming them. Spell areas stay (the party sees its own Fireball).
+  - **Markers** — door, trap (hidden by default), loot, label:
+    `scene_marks` rows, same RLS as tokens (`dm_only` = the trap no one
+    has found yet). Revealing one logs "A trap is revealed!".
+  - **Spell areas** — circle, cube, cone, line, sized in feet by the
+    grid, with presets (Fireball, Spirit Guardians, Darkness, Fog
+    Cloud, Thunderwave, Web, Burning Hands, a 30 ft breath, Cone of
+    Cold, Lightning Bolt, Wall of Fire) and a custom one. Tap to place;
+    cones and lines are aimed by dragging from where they start. Its
+    label sits off the edge (the middle is usually under a monster);
+    tapping it offers resize, turn, colour, reveal/hide, remove — and
+    **Pick Everyone Inside**, which hands the group bar exactly the
+    tokens in the area, ready for "Damage all".
+  - While a map tool or the ruler is in hand, taps go through tokens
+    and marks to the map beneath.
+- **NPCs** (`020_npcs.sql`). Standard fare first, room to grow in a
+  pinch:
+  - **Archetypes** (`lib/npcs.js`) — commoner, innkeeper, merchant,
+    blacksmith, farmer, guard, captain, noble, priest, sage, mage,
+    scout, spy, knight, bandit, thug, cultist. Each has an emblem
+    (`NpcEmblem`, a glyph on a coloured disc) and SRD-like AC/HP/Dex.
+    People → NPCs → tap one to drop a nameless token ("Guard 2") onto
+    the scene: a `scene_tokens` row with just `archetype` set.
+  - **The cast** — `npcs` rows: name (with a Suggest-a-Name button),
+    archetype, a public one-line look, attitude (friendly / neutral /
+    wary / hostile, shown as the token's ring colour), optional Bestiary
+    stat block that overrides the archetype's stats, and `met`. Placed
+    tokens point at them by `npc_id`. A nameless token's panel has
+    **Make Them Somebody**, which turns it into a cast member in place.
+  - **Who we've met** — players can read only `met` NPCs (RLS). An NPC
+    becomes met when the DM ticks it, or when its token is shown on the
+    live scene (placed visible, revealed, or pushed with the scene).
+    Players tap the token to see its card; the backpack's **Met** tab
+    lists them all.
+  - **Fights** — Start a Fight enlists monsters plus hostile NPCs and
+    the generic foes (bandit, thug, cultist); anyone else can **Join the
+    Fight** from their token panel. Stats come from the stat block, else
+    the NPC's own numbers, else the archetype.
+- **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
+  DM (the dock shows on the backstage tabs; on the scene the menu gets
+  there); a player has only the Scene. Notes and the personal board are
+  DM-only (`RequireDM`); the sheet's and Choose screen's back buttons
+  return a player to the Scene. Offline, a guest *player* sees that the
+  DM runs the scene on their own device.
+
 Not built yet — each still gets its own migration + RLS pass when its
 screen is built, per the rule above:
 - **Tagging** — requested, not yet scoped. `encyclopedia_entries.tags`
@@ -1340,7 +1648,9 @@ screen is built, per the rule above:
   tag vocabulary per campaign or freeform per entry, and whether it's
   browse/filter only or also drives cross-linking between entries.
 - Later, DM-quality-of-life ideas worth keeping in mind but not
-  scheduled: random encounter/loot tables, a session-log/recap feed.
+  scheduled: random encounter/loot tables, a session-log/recap feed (the
+  scene log above covers much of this; a per-session recap is still
+  open).
 
 ## 8. Feature roadmap (phases)
 
@@ -1359,14 +1669,66 @@ screen is built, per the rule above:
    inline HP/conditions per combatant, death saves, class resources with
    short/long rests, and a shared table roll log. Full detail in §7. To
    use it on a deployed backend, run `db/migrations/005_live_play.sql`.
-5. **Polish**: offline sync queue, guest→account migration, campaign
-   invite-flow UI beyond the raw code field, session recap/log, tagging
-   (see §7 — needs scoping first), structured inventory/currency (a real
-   item list with weight/gold instead of `character_sheets.equipment`'s
-   one freeform text field), and an assisted level-up flow (recomputing
-   HP/proficiency bonus instead of hand-editing `class_and_level` text) —
-   the last two explicitly scoped out of Phase 4 (§7) as real but
-   non-combat-blocking gaps.
+5. **Scene pivot** — done (§1/§7, `015_scenes.sql`). The player-facing
+   surface is a single Scene: a DM-uploaded picture with tokens showing
+   where the party and monsters stand, the tokens doubling as the combat
+   tracker (turn, initiative, health, conditions; the list-based Combat
+   tab is gone), tap a token to open its sheet or combat controls, and
+   a log of what happened (automatic + DM-written lines, plus dice
+   rolls). Party, Lore, Monsters and Notes are DM-only; Talk and Stash
+   moved onto the Scene. To use it on a deployed backend, run
+   `db/migrations/015_scenes.sql`.
+6. **The companion** — in progress (§1, "The companion principle").
+   Four steps, each shipped and verified before the next:
+   1. **Full-screen shell + live action moments** — done (§7, Scenes).
+      The scene fills the
+      screen for players and the DM, with no campaign header, tab dock or
+      panels. Tap to show controls: a **backpack** button (the sheet,
+      your inventory and the party stash, as one sheet sliding up over
+      the scene) and a **menu** button (Talk with an unread badge, the
+      log, change character, leave, back to campaigns). While controls
+      show, tokens show their HP, turn and conditions; tapping a token
+      opens its combat panel as before. **Moments:** damage flashes
+      red with the number floating up (players see a monster's band
+      change, not numbers), healing glows green, a condition's name pops
+      onto the token, newcomers fade in, the fallen dim, and each new
+      log line appears as a caption that fades. "Your turn!" flashes
+      full-screen with `navigator.vibrate`. Moments come from comparing
+      each refetch with the last one, so they play the same on every
+      device and need no new tables. The **DM's toolbox** is a drawer
+      over the same scene: scene picker, show to players, edit scene
+      (picture, walk-ons), the fight (start, add, begin, next turn,
+      end), narrate a log line. Lore, Monsters, Notes and Party move to
+      the DM's menu. Honour `prefers-reduced-motion` (moments become
+      simple fades).
+   2. **Pan, zoom, grid, measuring** — done (§7, Scenes). Pinch/wheel zoom and drag-to-pan
+      (token positions stay 0–1 fractions of the picture, so they're
+      unaffected). A per-scene grid the DM can switch on and size
+      ("one square = 5 ft", cell size in picture fractions — a new
+      column on `scenes`). A measuring line that reads out distance in
+      feet — **DM only**, shown to everyone while it's held.
+   3. **Spell areas and markers — DM only** — done (§7, Exploration
+      visuals).
+   4. **Atmosphere** — done: mood presets and layers in the DM's quick
+      bar, and fog of war (§7).
+   5. **Atmosphere for the rest of the app** (to do, after step 4). The
+      same philosophy everywhere, not just on the scene: minimal chrome,
+      rich visuals. Home, sign-in, the campaign hub, the character
+      sheet (backpack), Choose Character, and the DM's backstage
+      screens (Party, Lore, Monsters, Notes) get the scene's treatment:
+      one clear thing per screen, controls out of the way until needed,
+      and mood — ambient backgrounds, gentle motion, the campaign's live
+      scene picture bleeding through behind the hub card and the sheet.
+      Scope it screen by screen before building; keep every screen
+      usable with `prefers-reduced-motion`.
+7. **Polish**: offline sync queue, guest→account migration, campaign
+   invite-flow UI beyond the raw code field, tagging (see §7 — needs
+   scoping first), structured inventory/currency (a real item list with
+   weight/gold instead of `character_sheets.equipment`'s one freeform
+   text field), and an assisted level-up flow (recomputing HP/proficiency
+   bonus instead of hand-editing `class_and_level` text) — the last two
+   explicitly scoped out of Phase 4 (§7) as real but non-combat-blocking
+   gaps.
 
 ## 9. Conventions
 

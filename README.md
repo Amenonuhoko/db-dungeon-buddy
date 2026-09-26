@@ -1,9 +1,11 @@
 # Dungeon Buddy
 
-A browser PWA companion for running and playing a full D&D campaign —
-world-building and bestiary tools for the DM, character sheets and notes
-for players, a shared searchable encyclopedia, and battle tracking, all
-in one installable app.
+A browser PWA that helps a D&D table see the scene: players get one
+live view of where the party stands on the DM's picture, with the fight
+tracked on the tokens themselves, a running log of what happened, and
+their character sheet a tap away. Behind it, the DM keeps full
+world-building tools — lore, bestiary, notes, character sheets — all in
+one installable app.
 
 **Start here:** [`BIBLE.md`](BIBLE.md) is the project's living reference
 doc — vision, tech stack, visual design system, data model, and feature
@@ -84,7 +86,7 @@ data lives only in that browser's `localStorage`.
 1. Create a free project at [supabase.com](https://supabase.com).
 2. In the project's SQL Editor, run every file under
    [`db/migrations/`](db/migrations) once, **in filename order**
-   (`001_core.sql` → `014_portraits.sql`, and onward as new ones
+   (`001_core.sql` → `020_npcs.sql`, and onward as new ones
    land). Every file is safe to re-run, so if you're not sure which ones
    an existing project has, run them all again in order. **007 matters
    for security** now that anyone with an invite link can join — see
@@ -92,8 +94,9 @@ data lives only in that browser's `localStorage`.
    `campaign_members`, `encyclopedia_entries`, `bestiary_entries`,
    `notes`, `character_sheets`, `character_conditions`, `encounters`,
    `encounter_combatants`, `dice_rolls`, `messages`, `party_items`,
-   `party_coins`, `roster_characters`, `character_details`, `join_attempts`
-   and `boards`, plus the private `portraits` storage bucket (014), with the
+   `party_coins`, `roster_characters`, `character_details`, `join_attempts`,
+   `boards`, `scenes`, `scene_tokens`, `scene_events`, `scene_marks` and `npcs`, plus the private
+   `portraits` (014) and `scenes` (015) storage buckets, with the
    triggers and RLS policies documented inline — see the comments in each
    file for what it does and why. New content types get their own
    numbered file here as they're built (see `BIBLE.md` §7) rather than

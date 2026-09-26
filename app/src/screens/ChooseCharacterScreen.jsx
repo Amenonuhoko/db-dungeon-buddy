@@ -47,7 +47,8 @@ export function ChooseCharacterScreen() {
   const { status, user } = useSession();
   const { campaign, isDM, loading: campaignLoading, error: campaignError } = useCampaignAccess(campaignId);
   const isAnonymous = Boolean(user?.is_anonymous);
-  const partyPath = `/campaigns/${campaignId}/characters`;
+  // Where the table is: the Scene for a player, the Party roster for the DM.
+  const partyPath = `/campaigns/${campaignId}/${isDM ? 'characters' : 'scene'}`;
 
   const [sheets, setSheets] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -85,7 +86,7 @@ export function ChooseCharacterScreen() {
   useCampaignLive(status === 'authenticated', campaignId, ['character_sheets'], load);
 
   // Offline campaigns have one person on one device — nothing to choose.
-  if (status === 'guest') return <Navigate to={partyPath} replace />;
+  if (status === 'guest') return <Navigate to={`/campaigns/${campaignId}/characters`} replace />;
 
   const current = sheets && user ? wornByUser(sheets, user.id) : null;
   const custom = customOptions([...(sheets || []), ...roster]);
@@ -146,7 +147,7 @@ export function ChooseCharacterScreen() {
   return (
     <div className="choose-screen screen-enter">
       <div className="choose-shell">
-        <BackButton to={partyPath} label="Party" />
+        <BackButton to={partyPath} label={isDM ? 'Party' : 'Scene'} />
         <h2 style={{ marginTop: '1rem' }}>{welcome ? 'Welcome to the table' : 'Choose your character'}</h2>
         <p style={{ marginTop: '0.4rem' }}>
           {campaign ? (

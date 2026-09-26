@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { applyTheme, getInitialTheme } from '../lib/theme.js';
+import { applyTheme, getInitialTheme, THEME_EVENT } from '../lib/theme.js';
 
 function SunIcon() {
   return (
@@ -31,6 +31,12 @@ export function ThemeToggle() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    const follow = (e) => setTheme(e.detail);
+    window.addEventListener(THEME_EVENT, follow);
+    return () => window.removeEventListener(THEME_EVENT, follow);
+  }, []);
 
   return (
     <button
