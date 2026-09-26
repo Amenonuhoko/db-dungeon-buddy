@@ -7,15 +7,26 @@
 //   sceneId,
 //   tokens: { [key]: { hp, exact, band, conditions: [label] } },
 //   currentKey, mineCurrent,
-//   lines: [{ id, text }]   // log lines and rolls, newest first
+//   lines: [{ id, text, style, body, aimed }]   // log lines and rolls, newest first
 // }
+//
+// Plain lines become captions; announcements (017 — a call, a title
+// card, a handout) come back separately so the screen can stage them.
 
 export const MOMENT_MS = 2400;
 export const CAPTION_MS = 4200;
 
 export function diffMoments(prev, next) {
-  const result = { tokens: [], captions: [], yourTurn: false };
-  if (!prev || !next || prev.sceneId !== next.sceneId) return result;
+  const result = { tokens: [], captions: [], announcements: [], yourTurn: false };
+  if (!prev || !next) return result;
+
+  const seen = new Set(prev.lines.map((l) => l.id));
+  const fresh = next.lines.filter((l) => !seen.has(l.id)).reverse();
+  result.captions = fresh.filter((l) => !l.style || l.style === 'line').slice(-3).map((l) => l.text);
+  result.announcements = fresh.filter((l) => l.style && l.style !== 'line');
+
+  // Token moments only within one scene — switching scenes isn't a hit.
+  if (prev.sceneId !== next.sceneId) return result;
 
   for (const [key, now] of Object.entries(next.tokens)) {
     const was = prev.tokens[key];
@@ -41,8 +52,5 @@ export function diffMoments(prev, next) {
     result.tokens.push({ key: next.currentKey, kind: 'turn' });
     result.yourTurn = next.mineCurrent;
   }
-
-  const seen = new Set(prev.lines.map((l) => l.id));
-  result.captions = next.lines.filter((l) => !seen.has(l.id)).reverse().slice(-3).map((l) => l.text);
   return result;
 }

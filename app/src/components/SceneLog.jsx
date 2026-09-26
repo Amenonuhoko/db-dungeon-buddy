@@ -6,7 +6,9 @@ import { ConfirmButton } from './ConfirmButton.jsx';
 // Hands"), and the table's dice rolls, woven into one timeline. Lines
 // from an earlier scene carry its name, so scrolling back reads like a
 // session recap. Only the DM writes here or clears it.
-export function SceneLog({ events, rolls, scenesById, currentSceneId, isDM, onPost, onClear }) {
+const GLYPHS = { call: '!', title: '✦', handout: '✉' };
+
+export function SceneLog({ events, rolls, scenesById, currentSceneId, isDM, nameOf, onPost, onClear, onOpenHandout }) {
   const items = [
     ...events.map((e) => ({ ...e, type: 'event' })),
     ...rolls.map((r) => ({ ...r, type: 'roll' })),
@@ -40,13 +42,23 @@ export function SceneLog({ events, rolls, scenesById, currentSceneId, isDM, onPo
               );
             }
             const elsewhere = item.sceneId && item.sceneId !== currentSceneId ? scenesById[item.sceneId]?.name : null;
+            const style = item.style || 'line';
+            const aimed = item.toUser ? (isDM ? `to ${nameOf?.(item.toUser) || 'one player'}` : 'just for you') : null;
             return (
-              <li key={item.id} className={`scene-log-item scene-log-${item.kind}`}>
+              <li key={item.id} className={`scene-log-item scene-log-${item.kind} scene-log-style-${style}`}>
                 <span className="scene-log-glyph" aria-hidden="true">
-                  {item.kind === 'manual' ? '❧' : '•'}
+                  {GLYPHS[style] || (item.kind === 'manual' ? '❧' : '•')}
                 </span>
                 <span>
-                  {item.text}
+                  {style === 'handout' ? (
+                    <button type="button" className="scene-log-handout" onClick={() => onOpenHandout?.(item)}>
+                      {item.text}
+                    </button>
+                  ) : (
+                    item.text
+                  )}
+                  {style === 'title' && item.body && <span className="scene-log-where"> — {item.body}</span>}
+                  {aimed && <span className="scene-log-aimed"> · {aimed}</span>}
                   {elsewhere && <span className="scene-log-where"> · {elsewhere}</span>}
                 </span>
               </li>

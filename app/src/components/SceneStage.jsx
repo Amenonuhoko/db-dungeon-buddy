@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Portrait } from './Portrait.jsx';
+import { SceneMood } from './SceneMood.jsx';
 import { clamp01, measureFeet, useSceneArt } from '../lib/scenes.js';
 
 // The scene itself: the DM's picture, fitted to the screen, with everyone
@@ -26,6 +27,9 @@ export function SceneStage({
   showInfo,
   moments,
   grid,
+  mood,
+  lights,
+  isDM,
   measuring,
   measure,
   onSelect,
@@ -261,6 +265,7 @@ export function SceneStage({
               onLoad={(e) => setRatio({ src: art, value: e.currentTarget.naturalWidth / e.currentTarget.naturalHeight || BLANK_RATIO })}
             />
           )}
+          <SceneMood mood={mood} layer="under" aspect={aspect} lights={lights} isDM={isDM} />
           {grid && (
             <div
               className="scene-grid"
@@ -351,6 +356,7 @@ export function SceneStage({
               </button>
             );
           })}
+          <SceneMood mood={mood} layer="over" aspect={aspect} lights={lights} isDM={isDM} />
         </div>
       </div>
       {showInfo && view.z > 1 && (

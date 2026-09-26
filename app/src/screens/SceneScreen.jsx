@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { AnnouncePanel } from '../components/AnnouncePanel.jsx';
 import { Backpack } from '../components/Backpack.jsx';
 import { CampaignSettings } from '../components/CampaignSettings.jsx';
 import { AddCombatantForm, CombatantRow } from '../components/CombatParts.jsx';
 import { ConfirmButton } from '../components/ConfirmButton.jsx';
 import { InvitePanel } from '../components/InvitePanel.jsx';
+import { LookupPanel } from '../components/LookupPanel.jsx';
 import { Portrait } from '../components/Portrait.jsx';
-import { BackpackIcon, MenuIcon, MomentLayer, RulerIcon, SceneButton, SceneSheet, ToolboxIcon } from '../components/SceneChrome.jsx';
+import { BackpackIcon, MenuIcon, MomentLayer, QuickBar, RulerIcon, SceneButton, SceneSheet } from '../components/SceneChrome.jsx';
 import { NarrateForm, SceneLog } from '../components/SceneLog.jsx';
 import { SceneMenu } from '../components/SceneMenu.jsx';
+import { MoodPanel, ScenePanel } from '../components/ScenePanels.jsx';
 import { SceneStage } from '../components/SceneStage.jsx';
 import { TablePresence } from '../components/TablePresence.jsx';
 import { TableTalk } from '../components/TableTalk.jsx';
@@ -26,6 +29,7 @@ import {
   wornByUser,
 } from '../lib/characters.js';
 import { clearRolls, listRolls } from '../lib/diceLog.js';
+import { listEntries } from '../lib/encyclopedia.js';
 import {
   abilityMod,
   addCombatant,
@@ -45,6 +49,8 @@ import {
 } from '../lib/encounters.js';
 import { useCampaignLive } from '../lib/live.js';
 import { CAPTION_MS, diffMoments, MOMENT_MS } from '../lib/moments.js';
+import { moodOf } from '../lib/mood.js';
+import { listNotes } from '../lib/notes.js';
 import { useSceneBroadcast } from '../lib/sceneLive.js';
 import {
   addToken,
@@ -53,6 +59,7 @@ import {
   conditionEventText,
   createScene,
   explainArtError,
+  BACKDROPS,
   gridOf,
   hpEventText,
   listEvents,
@@ -68,6 +75,7 @@ import {
   SCENE_MIGRATION_HINT,
   SCENE_TABLES,
   sceneMissing,
+  setSceneBackdrop,
   setSceneBackground,
   updateScene,
   updateToken,
@@ -96,7 +104,7 @@ const LIVE_TABLES = [
 // Players' controls tuck themselves away after this long untouched; the
 // DM's stay until dismissed (they're running the table).
 const CONTROLS_MS = 5000;
-const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox'];
+const PANELS = ['menu', 'talk', 'log', 'campaign', 'invite', 'backpack', 'toolbox', 'scene', 'mood', 'announce', 'lookup', 'fight'];
 const MENU_CHILDREN = ['talk', 'log', 'campaign', 'invite'];
 
 const HEALTH_PCT = { Healthy: 100, Wounded: 75, Bloodied: 50, 'Near death': 25, Down: 0 };
@@ -146,6 +154,8 @@ export function SceneScreen() {
   const [events, setEvents] = useState([]);
   const [rolls, setRolls] = useState([]);
   const [creatures, setCreatures] = useState([]);
+  const [lore, setLore] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -183,10 +193,12 @@ export function SceneScreen() {
       listConditions(status, campaignId),
       listEvents(status, campaignId),
     ]);
-    const [bestiary, log, people] = await Promise.all([
+    const [bestiary, log, people, entries, dmNotes] = await Promise.all([
       isDM ? listCreatures(status, campaignId).catch(() => []) : [],
       live ? listRolls(campaignId).catch(() => []) : [],
       live ? listCampaignMembers(campaignId).catch(() => []) : [],
+      isDM ? listEntries(status, campaignId).catch(() => []) : [],
+      isDM ? listNotes(status, campaignId).catch(() => []) : [],
     ]);
     setScenes(sc);
     setTokens(tk);
@@ -196,6 +208,8 @@ export function SceneScreen() {
     setConditions(cond);
     setEvents(ev);
     setCreatures(bestiary);
+    setLore(entries);
+    setNotes(dmNotes);
     setRolls(log);
     setMembers(people);
   }, [status, campaignId, isDM, live]);
@@ -358,10 +372,12 @@ export function SceneScreen() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.immersive = busy ? 'sheet' : controls ? 'controls' : 'clean';
+    if (isDM) root.dataset.dm = '';
     return () => {
       delete root.dataset.immersive;
+      delete root.dataset.dm;
     };
-  }, [controls, busy]);
+  }, [controls, busy, isDM]);
 
   // ---- Measuring ----------------------------------------------------------------
 
@@ -402,9 +418,9 @@ export function SceneScreen() {
 
   // What's on screen, reduced to what moments care about. Compared with
   // the previous one after every refetch (lib/moments.js).
-  const snapshotKey = scene
+  const snapshotKey = !loading
     ? JSON.stringify({
-        sceneId: scene.id,
+        sceneId: scene?.id ?? null,
         tokens: Object.fromEntries(
           views.map((v) => {
             const hp = v.kind === 'pc' ? (v.sheet.currentHp ?? null) : v.combatant ? (v.combatant.currentHp ?? null) : null;
@@ -415,7 +431,7 @@ export function SceneScreen() {
         currentKey: views.find((v) => v.isCurrent)?.key || null,
         mineCurrent: Boolean(myTurn),
         lines: [
-          ...events.map((e) => ({ id: `e:${e.id}`, text: e.text, at: e.createdAt })),
+          ...events.map((e) => ({ id: `e:${e.id}`, text: e.text, style: e.style, body: e.body, aimed: Boolean(e.toUser), at: e.createdAt })),
           ...rolls.map((r) => ({ id: `r:${r.id}`, text: `${r.displayName} rolled ${r.expression}: ${r.total}`, at: r.createdAt })),
         ].sort((a, b) => b.at.localeCompare(a.at)),
       })
@@ -425,6 +441,10 @@ export function SceneScreen() {
   const [tokenMoments, setTokenMoments] = useState({});
   const [captions, setCaptions] = useState([]);
   const [yourTurn, setYourTurn] = useState(0);
+  const [call, setCall] = useState(null);
+  const [titleCard, setTitleCard] = useState(null);
+  const [handout, setHandout] = useState(null);
+  const [handoutDraft, setHandoutDraft] = useState(null);
 
   useEffect(() => {
     const next = snapshotKey ? JSON.parse(snapshotKey) : null;
@@ -441,6 +461,19 @@ export function SceneScreen() {
       const id = (momentSeq.current += 1);
       setCaptions((prev) => [...prev.slice(-2), { id, text }]);
       window.setTimeout(() => setCaptions((prev) => prev.filter((c) => c.id !== id)), CAPTION_MS);
+    }
+    for (const a of diff.announcements) {
+      const id = (momentSeq.current += 1);
+      if (a.style === 'call') {
+        setCall({ id, text: a.text, aimed: a.aimed });
+        navigator.vibrate?.(a.aimed ? [90, 50, 90] : 80);
+        window.setTimeout(() => setCall((cur) => (cur?.id === id ? null : cur)), 4200);
+      } else if (a.style === 'title') {
+        setTitleCard({ id, text: a.text, body: a.body });
+        window.setTimeout(() => setTitleCard((cur) => (cur?.id === id ? null : cur)), 5200);
+      } else if (a.style === 'handout') {
+        setHandout({ text: a.text, body: a.body, aimed: a.aimed });
+      }
     }
     if (diff.yourTurn) {
       const id = (momentSeq.current += 1);
@@ -490,23 +523,61 @@ export function SceneScreen() {
     );
   }
 
-  // ---- Scenes (DM) ----------------------------------------------------------
+  // ---- Scenes, mood and announcements (DM) ------------------------------------
 
-  async function newScene(name) {
-    let created = null;
-    const ok = await act(async () => {
-      created = await createScene(status, campaignId, name);
-    });
-    if (ok && created) setParam('scene', created.id);
-    return ok;
+  // Going to a scene from the Scene sheet: look at it, or (showNow) put
+  // it in front of the table at once.
+  async function openScene(target, showNow) {
+    const next = new URLSearchParams(params);
+    next.set('scene', target.id);
+    next.delete('panel');
+    setParams(next, { replace: true });
+    if (showNow && !target.active) {
+      await act(async () => {
+        await pushScene(status, campaignId, target.id);
+        await logEvent(status, campaignId, { sceneId: target.id, kind: 'auto', text: `The scene changes: ${target.name}.` }).catch(() => {});
+      });
+    }
   }
 
-  function showScene() {
-    if (!scene) return;
-    act(async () => {
-      await pushScene(status, campaignId, scene.id);
-      await logEvent(status, campaignId, { sceneId: scene.id, kind: 'auto', text: `The scene changes: ${scene.name}.` }).catch(() => {});
+  async function createSceneFrom(name, backdropId, showNow) {
+    const taken = new Set(scenes.map((s) => s.name));
+    let unique = name;
+    for (let n = 2; taken.has(unique); n += 1) unique = `${name} ${n}`;
+    let created = null;
+    const ok = await act(async () => {
+      created = await createScene(status, campaignId, unique, backdropId ? `builtin:${backdropId}` : null);
     });
+    if (ok && created) await openScene(created, showNow);
+  }
+
+  const setMood = (mood) => act(() => updateScene(status, campaignId, scene.id, { mood }));
+
+  // Announcements go to the table whatever scene the DM happens to be
+  // looking at — they belong with the live one.
+  const announce = ({ style, text, body = null, toUser = null }) =>
+    act(() => logEvent(status, campaignId, { sceneId: liveScene?.id ?? null, kind: 'manual', style, text, body, toUser }));
+
+  function handOut(draft) {
+    setHandoutDraft(draft);
+    openPanel('announce');
+  }
+
+  function addCreatureToFight(creature, count) {
+    const dex = abilityMod(creature.abilities?.dex);
+    const hp = creature.hitPoints ?? null;
+    const entries = Array.from({ length: count }, (_, i) => ({
+      name: count > 1 ? `${creature.name} ${i + 1}` : creature.name,
+      isPc: false,
+      characterId: null,
+      dexModifier: dex,
+      initiative: rollInitiative(dex),
+      armorClass: creature.armorClass ?? null,
+      maxHp: hp,
+      currentHp: hp,
+    }));
+    closePanel();
+    return addToFight(entries);
   }
 
   // ---- The fight ------------------------------------------------------------
@@ -702,6 +773,11 @@ export function SceneScreen() {
   const sheetPath = (sheet) => `/campaigns/${campaignId}/characters/${sheet.id}`;
   const tabPath = (tab) => `/campaigns/${campaignId}/${tab}`;
   const unreadTalk = talk?.totalUnread || 0;
+  const playerName = (userId) => {
+    const person = members.find((m) => m.userId === userId);
+    const name = person?.displayName || 'a player';
+    return worn?.[userId] ? `${worn[userId]} (${name})` : name;
+  };
   const findCharacter = () => navigate(isGuest ? tabPath('characters') : `/campaigns/${campaignId}/choose`);
 
   const menuItems = [
@@ -741,7 +817,12 @@ export function SceneScreen() {
     campaign: isRealDM ? 'Campaign settings' : 'This campaign',
     invite: 'Invite players',
     backpack: 'Backpack',
-    toolbox: 'DM toolbox',
+    toolbox: 'More',
+    scene: 'Scene',
+    mood: 'Mood',
+    announce: 'Announce',
+    lookup: 'Look up',
+    fight: 'Fight',
   };
 
   return (
@@ -753,6 +834,9 @@ export function SceneScreen() {
         showInfo={controls}
         moments={tokenMoments}
         grid={shownGrid}
+        mood={moodOf(scene)}
+        lights={views.filter((v) => v.kind === 'pc' && !v.hidden).map((v) => ({ key: v.key, x: v.x, y: v.y }))}
+        isDM={isDM}
         measuring={isDM && measuring && Boolean(shownGrid)}
         measure={heard}
         onMeasure={shareLine}
@@ -785,7 +869,7 @@ export function SceneScreen() {
         </div>
       )}
 
-      <MomentLayer captions={captions} yourTurn={yourTurn} />
+      <MomentLayer captions={captions} yourTurn={yourTurn} call={call} titleCard={titleCard} handout={handout} onCloseHandout={() => setHandout(null)} />
 
       {controls && (
         <>
@@ -795,9 +879,17 @@ export function SceneScreen() {
               {isDM && scene && (scene.active ? <span className="chip chip-small scene-live-chip">Live</span> : <span className="chip chip-small">Only you can see this</span>)}
               {previewAsPlayer && <span className="chip chip-small scene-live-chip">Player view</span>}
             </div>
-            <SceneButton label="Menu" badge={unreadTalk} onClick={() => openPanel('menu')}>
-              <MenuIcon />
-            </SceneButton>
+            <div className="scene-top-actions">
+              {isDM && gridOf(scene) && (
+                <SceneButton label={measuring ? 'Stop measuring' : 'Measure'} active={measuring} onClick={() => setMeasuring((m) => !m)}>
+                  <RulerIcon />
+                </SceneButton>
+              )}
+              <SceneButton label="Menu" badge={unreadTalk} onClick={() => openPanel('menu')}>
+                <MenuIcon />
+              </SceneButton>
+              {isDM && measuring && gridOf(scene) && <span className="scene-mode-chip">Drag across the scene to measure</span>}
+            </div>
           </div>
 
           {fightHere && (
@@ -815,23 +907,15 @@ export function SceneScreen() {
             />
           )}
 
-          <div className="scene-bottom">
-            {isDM && measuring && gridOf(scene) && <span className="scene-mode-chip">Drag across the scene to measure</span>}
-            {isDM && gridOf(scene) && (
-              <SceneButton label={measuring ? 'Stop measuring' : 'Measure'} active={measuring} onClick={() => setMeasuring((m) => !m)}>
-                <RulerIcon />
-              </SceneButton>
-            )}
-            {isDM ? (
-              <SceneButton label="DM toolbox" onClick={() => openPanel('toolbox')}>
-                <ToolboxIcon />
-              </SceneButton>
-            ) : (
+          {isDM ? (
+            <QuickBar active={panel} fightOn={Boolean(fightHere)} onPick={(id) => openPanel(id)} />
+          ) : (
+            <div className="scene-bottom">
               <SceneButton label="Backpack" onClick={() => openPanel('backpack')}>
                 <BackpackIcon />
               </SceneButton>
-            )}
-          </div>
+            </div>
+          )}
         </>
       )}
 
@@ -909,8 +993,13 @@ export function SceneScreen() {
               scenesById={scenesById}
               currentSceneId={scene?.id ?? null}
               isDM={isDM}
+              nameOf={playerName}
               onPost={postLine}
               onClear={clearLog}
+              onOpenHandout={(item) => {
+                closePanel();
+                setHandout({ text: item.text, body: item.body, aimed: Boolean(item.toUser) });
+              }}
             />
           )}
 
@@ -936,18 +1025,88 @@ export function SceneScreen() {
             />
           )}
 
+          {panel === 'scene' && isDM && (
+            <ScenePanel scenes={orderedScenes} current={scene} onOpen={openScene} onCreate={createSceneFrom} />
+          )}
+
+          {panel === 'mood' && isDM && (
+            scene ? (
+              <MoodPanel mood={moodOf(scene)} sceneLive={scene.active} onChange={setMood} />
+            ) : (
+              <p className="hint-text">Set a scene first — the mood is laid over its picture.</p>
+            )
+          )}
+
+          {panel === 'announce' && isDM && (
+            <AnnouncePanel
+              key={handoutDraft ? `h-${handoutDraft.text}` : 'announce'}
+              campaignId={campaignId}
+              players={members.filter((m) => m.role === 'player').map((m) => ({ userId: m.userId, label: playerName(m.userId) }))}
+              lore={lore}
+              handoutDraft={handoutDraft}
+              onSend={announce}
+            />
+          )}
+
+          {panel === 'lookup' && isDM && (
+            <LookupPanel
+              lore={lore}
+              creatures={creatures}
+              notes={notes}
+              fightOn={Boolean(fightHere)}
+              onHandout={handOut}
+              onAddToFight={addCreatureToFight}
+              onOpenTab={(tab) => navigate(tabPath(tab))}
+            />
+          )}
+
+          {panel === 'fight' && isDM && (
+            <div className="toolbox">
+              {!scene ? (
+                <p className="hint-text">Set a scene first — the fight happens on it.</p>
+              ) : fightHere ? (
+                <>
+                  <p className="hint-text" style={{ margin: 0 }}>
+                    <strong>{fightHere.name}</strong> — turn controls sit at the top of the scene; tap a token for its HP, initiative and conditions. Monsters
+                    from your Bestiary are also one tap away in Look up.
+                  </p>
+                  <AddCombatantForm
+                    creatures={creatures}
+                    availableSheets={sheets.filter((s) => !ordered.some((c) => c.characterId === s.id))}
+                    onAdd={addToFight}
+                  />
+                </>
+              ) : fightElsewhere ? (
+                <div className="scene-fight-elsewhere">
+                  <p>
+                    <strong>{fightElsewhere.name}</strong> is still going
+                    {scenes.some((s) => s.encounterId === fightElsewhere.id)
+                      ? ` on “${scenes.find((s) => s.encounterId === fightElsewhere.id).name}”`
+                      : ''}
+                    .
+                  </p>
+                  <button type="button" className="btn btn-primary btn-small" onClick={bringFightHere}>
+                    Run It on This Scene
+                  </button>
+                </div>
+              ) : (
+                <StartFight onStart={startFight} />
+              )}
+            </div>
+          )}
+
           {panel === 'toolbox' && isDM && (
             <div className="toolbox">
-              <section>
-                <h4>Scene</h4>
-                <SceneBar scenes={orderedScenes} scene={scene} onPick={(id) => setParam('scene', id)} onNew={newScene} onShow={showScene} />
-                {scene && (
+              {scene ? (
+                <section>
+                  <h4>This scene</h4>
                   <SceneTools
                     key={scene.id}
                     scene={scene}
                     status={status}
                     campaignId={campaignId}
                     onRename={(name) => act(() => updateScene(status, campaignId, scene.id, { name }))}
+                    onBackdrop={(id) => act(() => setSceneBackdrop(status, campaignId, scene, id))}
                     onChanged={() => refresh().catch(() => {})}
                     onAddWalkOn={addWalkOn}
                     onDelete={() =>
@@ -957,15 +1116,17 @@ export function SceneScreen() {
                       })
                     }
                   />
-                )}
-              </section>
+                </section>
+              ) : (
+                <p className="hint-text">Pick or make a scene from Scene in the quick bar.</p>
+              )}
 
               {scene && (
                 <section>
                   <h4>Grid</h4>
                   <p className="hint-text" style={{ margin: 0 }}>
                     {gridOf(scene)
-                      ? `Squares of ${gridOf(scene).feet} ft. Measure with the ruler beside the toolbox — the table sees the line as you draw it.`
+                      ? `Squares of ${gridOf(scene).feet} ft. Measure with the ruler at the top — the table sees the line as you draw it.`
                       : 'Lay a grid over the picture to measure distances in feet.'}
                   </p>
                   <button
@@ -982,44 +1143,11 @@ export function SceneScreen() {
                 </section>
               )}
 
-              {scene && (
-                <section>
-                  <h4>Fight</h4>
-                  {fightHere ? (
-                    <>
-                      <p className="hint-text" style={{ margin: 0 }}>
-                        <strong>{fightHere.name}</strong> — turn controls sit at the top of the scene; tap a token for its HP, initiative and conditions.
-                      </p>
-                      <AddCombatantForm
-                        creatures={creatures}
-                        availableSheets={sheets.filter((s) => !ordered.some((c) => c.characterId === s.id))}
-                        onAdd={addToFight}
-                      />
-                    </>
-                  ) : fightElsewhere ? (
-                    <div className="scene-fight-elsewhere">
-                      <p>
-                        <strong>{fightElsewhere.name}</strong> is still going
-                        {scenes.some((s) => s.encounterId === fightElsewhere.id)
-                          ? ` on “${scenes.find((s) => s.encounterId === fightElsewhere.id).name}”`
-                          : ''}
-                        .
-                      </p>
-                      <button type="button" className="btn btn-primary btn-small" onClick={bringFightHere}>
-                        Run It on This Scene
-                      </button>
-                    </div>
-                  ) : (
-                    <StartFight onStart={startFight} />
-                  )}
-                </section>
-              )}
-
               <section>
                 <h4>Narrate</h4>
                 <NarrateForm onPost={postLine} />
                 <p className="hint-text" style={{ margin: 0 }}>
-                  Lines appear over the scene for everyone{scene?.active ? '' : ' once this scene is live'}, and stay in the log.
+                  A quiet line under the scene{scene?.active ? '' : ' once this scene is live'}, kept in the log. For a big moment, use Announce.
                 </p>
               </section>
             </div>
@@ -1032,55 +1160,7 @@ export function SceneScreen() {
 
 // -----------------------------------------------------------------------
 
-function SceneBar({ scenes, scene, onPick, onNew, onShow }) {
-  const [naming, setNaming] = useState(null);
-
-  async function submit(event) {
-    event.preventDefault();
-    const name = naming.trim();
-    if (!name) return;
-    if (await onNew(name.slice(0, 120))) setNaming(null);
-  }
-
-  if (naming !== null) {
-    return (
-      <form className="scene-bar" onSubmit={submit}>
-        <input value={naming} onChange={(e) => setNaming(e.target.value)} placeholder="The Rusty Flagon" maxLength={120} autoFocus aria-label="Scene name" />
-        <button className="btn btn-primary btn-small" type="submit" disabled={!naming.trim()}>
-          Create
-        </button>
-        <button className="btn btn-ghost btn-small" type="button" onClick={() => setNaming(null)}>
-          Cancel
-        </button>
-      </form>
-    );
-  }
-
-  return (
-    <div className="scene-bar">
-      {scenes.length > 0 && (
-        <select value={scene?.id || ''} onChange={(e) => onPick(e.target.value)} aria-label="Scene">
-          {scenes.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-              {s.active ? ' (live)' : ''}
-            </option>
-          ))}
-        </select>
-      )}
-      <button className="btn btn-ghost btn-small" type="button" onClick={() => setNaming('')}>
-        + New Scene
-      </button>
-      {scene && !scene.active && (
-        <button className="btn btn-primary btn-small" type="button" onClick={onShow}>
-          Show to Players
-        </button>
-      )}
-    </div>
-  );
-}
-
-function SceneTools({ scene, status, campaignId, onRename, onChanged, onAddWalkOn, onDelete }) {
+function SceneTools({ scene, status, campaignId, onRename, onBackdrop, onChanged, onAddWalkOn, onDelete }) {
   const [name, setName] = useState(scene.name);
   const [walkOn, setWalkOn] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1137,8 +1217,22 @@ function SceneTools({ scene, status, campaignId, onRename, onChanged, onAddWalkO
       <div className="scene-tools-row">
         <input ref={fileRef} type="file" accept="image/*" onChange={chooseArt} hidden />
         <button className="btn btn-ghost btn-small" type="button" onClick={() => fileRef.current?.click()} disabled={busy}>
-          {busy ? 'Working…' : scene.backgroundPath ? 'Change Picture' : 'Add a Picture'}
+          {busy ? 'Working…' : 'Upload My Own Picture'}
         </button>
+        <select
+          className="scene-tools-select"
+          value={scene.backgroundPath?.startsWith('builtin:') ? scene.backgroundPath.slice(8) : ''}
+          onChange={(e) => e.target.value && onBackdrop(e.target.value)}
+          aria-label="Built-in backdrop"
+          disabled={busy}
+        >
+          <option value="">Built-in backdrop…</option>
+          {BACKDROPS.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
         {scene.backgroundPath && (
           <button className="btn btn-ghost btn-small" type="button" onClick={clearArt} disabled={busy}>
             Remove Picture

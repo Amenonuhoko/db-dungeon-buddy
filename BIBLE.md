@@ -1504,6 +1504,49 @@ How the screen works (`SceneScreen.jsx`, `components/SceneStage.jsx`,
   to ~12/s but always ending where the finger stopped, lingers 1.5 s
   after release, and players drop it after 4 s of silence. Only the
   live scene's line is shared.
+- **The DM's quick bar** (`017_dm_quick_tools.sql`). The principle: if
+  running a session from the app is slower than not using it, the DM
+  won't. So the DM's controls are a bar of six, each opening a sheet
+  of presets over the scene — most things are two taps:
+  - **Scene** — every scene as a picture tile (tap = go there), and a
+    new scene from any **built-in backdrop** in one tap (eight top-down
+    maps in `public/backdrops/`: tavern, forest road, cave, dungeon
+    room, city street, ship deck, castle hall, campfire — precached for
+    offline). "Show to players straight away" (on by default) makes
+    tapping showing. A built-in is stored as `background_path =
+    'builtin:<id>'` (017 widens the path check); More can swap a
+    scene's backdrop or upload a picture. More backdrops are planned.
+  - **Mood** — `scenes.mood` (`{ time, weather, light, magic }`, one
+    choice per group; `lib/mood.js`). Twelve presets (Cozy inn, Stormy
+    night, Haunted, Deep dungeon, Pitch black, Winter road, Misty dawn,
+    Dread, Blood rite, Sanctuary, The rift opens, Clear) and every layer
+    on its own: dawn/day/dusk/night tints; rain, snow, fog, storm (with
+    lightning); firelight flicker, torchlight and darkness cut away
+    around the party's tokens (the DM sees darkness at half strength);
+    eerie green, blood moon, holy light, a portal, a heartbeat pulse.
+    CSS/SVG in `SceneMood.jsx`, inside the stage so it pans and zooms;
+    tints under the tokens, weather over them; still under
+    reduced-motion. It reaches players like any scene change (Realtime
+    on `scenes`).
+  - **Announce** — `scene_events` gains `style` (`line` | `call` |
+    `title` | `handout`), `body`, and `to_user`. A **call** ("Roll
+    initiative!") is a banner with a buzz; ten presets plus the DM's
+    own ("★ Keep", saved per campaign on this device). A **title card**
+    ("Night falls", "Chapter Two") fills every screen for five seconds.
+    A **handout** — a Lore entry or text written on the spot — lands as
+    a parchment card each player reads and puts away (and can reopen
+    from the log). Any of them can go to **one player**: RLS shows a
+    `to_user` line only to them and the DM, and a player can't aim or
+    style anything (they still only add plain automatic lines). Calls,
+    title cards and handouts sit above any open sheet.
+  - **Look up** — one search across Lore, Monsters and Notes, read over
+    the scene: a monster's stat block with "Add to the Fight" (how
+    many, initiative rolled, a token each), Lore or a note with "Show
+    as a Handout", and a link to its full tab.
+  - **Fight** — start one, add combatants, or bring over a fight
+    running elsewhere (turn controls stay at the top of the scene).
+  - **More** — this scene's name, backdrop or own picture, walk-ons,
+    grid, a quiet narrated line, delete. The ruler sits by the menu.
 - **Navigation.** Tabs are Scene, Party, Lore, Monsters, Notes for the
   DM (the dock shows on the backstage tabs; on the scene the menu gets
   there); a player has only the Scene. Notes and the personal board are
@@ -1585,10 +1628,11 @@ screen is built, per the rule above:
       loot, a custom label), visible to everyone until the DM clears
       them. Needs its own table (`scene_marks`, one row per shape, same
       live-scene-only read rule as tokens).
-   4. **Atmosphere.** Per-scene mood the DM sets: night, fog, rain,
-      firelight flicker, and darkness with **fog of war** the DM reveals
-      by painting (revealed areas stored like the personal board's
-      strokes, in picture fractions). CSS/canvas overlays, no video.
+   4. **Atmosphere** — mostly done, pulled forward into the DM's quick
+      bar (§7): per-scene mood presets and layers, torchlight and
+      darkness around the party. Still to do: **fog of war** the DM
+      reveals by painting (revealed areas stored like the personal
+      board's strokes, in picture fractions).
    5. **Atmosphere for the rest of the app** (to do, after step 4). The
       same philosophy everywhere, not just on the scene: minimal chrome,
       rich visuals. Home, sign-in, the campaign hub, the character

@@ -43,8 +43,15 @@ export function listScenes(status, campaignId) {
   return scenesFor(status).list(campaignId);
 }
 
-export function createScene(status, campaignId, name) {
-  return scenesFor(status).create(campaignId, { name, active: false, backgroundPath: null, encounterId: null });
+export function createScene(status, campaignId, name, backgroundPath = null) {
+  return scenesFor(status).create(campaignId, { name, active: false, backgroundPath, encounterId: null });
+}
+
+// Switching to a built-in backdrop drops an uploaded picture's file.
+export async function setSceneBackdrop(status, campaignId, scene, id) {
+  const updated = await scenesFor(status).update(campaignId, scene.id, { backgroundPath: builtinPath(id) });
+  await deleteArt(scene.backgroundPath);
+  return updated;
 }
 
 export function updateScene(status, campaignId, id, patch) {
@@ -161,22 +168,43 @@ export async function listEvents(status, campaignId) {
   }
   const { data, error } = await supabase
     .from('scene_events')
-    .select('id, scene_id, kind, text, created_at')
+    .select('id, scene_id, kind, style, text, body, to_user, created_at')
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .limit(EVENT_LIMIT);
   if (error) throw error;
-  return data.map((e) => ({ id: e.id, sceneId: e.scene_id, kind: e.kind, text: e.text, createdAt: e.created_at }));
+  return data.map((e) => ({
+    id: e.id,
+    sceneId: e.scene_id,
+    kind: e.kind,
+    style: e.style || 'line',
+    text: e.text,
+    body: e.body,
+    toUser: e.to_user,
+    createdAt: e.created_at,
+  }));
 }
 
-export async function logEvent(status, campaignId, { sceneId = null, kind = 'auto', text }) {
+// `style` makes a line an announcement (017): a 'call' ("Roll
+// initiative!"), a 'title' card (with `body` as its subtitle) or a
+// 'handout' (with `body` as its text). `toUser` aims it at one player.
+export async function logEvent(status, campaignId, { sceneId = null, kind = 'auto', style = 'line', text, body = null, toUser = null }) {
   const line = String(text || '').trim().slice(0, 500);
   if (!line) return;
+  const more = body ? String(body).trim().slice(0, 8000) || null : null;
   if (status === 'guest') {
-    await localEvents.create(campaignId, { sceneId, kind, text: line });
+    await localEvents.create(campaignId, { sceneId, kind, style, text: line, body: more, toUser: null });
     return;
   }
-  const { error } = await supabase.from('scene_events').insert({ campaign_id: campaignId, scene_id: sceneId, kind, text: line });
+  const { error } = await supabase.from('scene_events').insert({
+    campaign_id: campaignId,
+    scene_id: sceneId,
+    kind,
+    style,
+    text: line,
+    body: more,
+    to_user: toUser,
+  });
   if (error) throw error;
 }
 
@@ -217,6 +245,25 @@ const links = new Map();
 
 const isDataUrl = (path) => typeof path === 'string' && path.startsWith('data:');
 
+// Ready-made backdrops (public/backdrops/*.svg), stored on a scene as
+// "builtin:<id>" instead of an uploaded picture (017). Top-down, so tokens
+// and the grid mean something on them.
+export const BACKDROPS = [
+  { id: 'tavern', name: 'Tavern' },
+  { id: 'forest-road', name: 'Forest road' },
+  { id: 'cave', name: 'Cave' },
+  { id: 'dungeon-room', name: 'Dungeon room' },
+  { id: 'city-street', name: 'City street' },
+  { id: 'ship-deck', name: 'Ship deck' },
+  { id: 'castle-hall', name: 'Castle hall' },
+  { id: 'campfire', name: 'Campfire' },
+];
+
+const BUILTIN = 'builtin:';
+export const builtinPath = (id) => `${BUILTIN}${id}`;
+const isBuiltin = (path) => typeof path === 'string' && path.startsWith(BUILTIN);
+export const backdropUrl = (id) => `${import.meta.env.BASE_URL}backdrops/${id}.svg`;
+
 function canvasBlob(canvas, type, quality) {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
@@ -247,7 +294,7 @@ function blobToDataUrl(blob) {
 }
 
 async function deleteArt(path) {
-  if (!path || isDataUrl(path)) return;
+  if (!path || isDataUrl(path) || isBuiltin(path)) return;
   links.delete(path);
   try {
     await supabase.storage.from(BUCKET).remove([path]);
@@ -294,6 +341,7 @@ export function explainArtError(err) {
 function cachedArt(path) {
   if (!path) return null;
   if (isDataUrl(path)) return path;
+  if (isBuiltin(path)) return backdropUrl(path.slice(BUILTIN.length));
   const hit = links.get(path);
   return hit && hit.expires > Date.now() ? hit.url : null;
 }
